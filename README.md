@@ -1,4 +1,4 @@
-# Grayout
+# Grayout [WIP]
 
 A personal Android app that enforces grayscale mode to reduce phone addiction.
 
