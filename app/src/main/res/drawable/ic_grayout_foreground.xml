@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer ring: r=28, stroke, alpha 0.2 -->
+    <path
+        android:pathData="M26,54a28,28 0 1,1 56,0a28,28 0 1,1 -56,0z"
+        android:fillColor="#00000000"
+        android:strokeColor="#D4D4D4"
+        android:strokeWidth="2"
+        android:alpha="0.2" />
+
+    <!-- Mid ring: r=20, stroke, alpha 0.5 -->
+    <path
+        android:pathData="M34,54a20,20 0 1,1 40,0a20,20 0 1,1 -40,0z"
+        android:fillColor="#00000000"
+        android:strokeColor="#D4D4D4"
+        android:strokeWidth="2"
+        android:alpha="0.5" />
+
+    <!-- Inner ring: r=12, stroke, alpha 0.8 -->
+    <path
+        android:pathData="M42,54a12,12 0 1,1 24,0a12,12 0 1,1 -24,0z"
+        android:fillColor="#00000000"
+        android:strokeColor="#D4D4D4"
+        android:strokeWidth="2"
+        android:alpha="0.8" />
+
+    <!-- Center dot: r=4, solid fill -->
+    <path
+        android:pathData="M50,54a4,4 0 1,1 8,0a4,4 0 1,1 -8,0z"
+        android:fillColor="#D4D4D4" />
+
+</vector>
