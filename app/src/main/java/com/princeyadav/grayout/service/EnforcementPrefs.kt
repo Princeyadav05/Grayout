@@ -12,6 +12,7 @@ class EnforcementPrefs(private val prefs: SharedPreferences) {
     }
 
     companion object {
+        const val PREFS_NAME = "grayout_prefs"
         private const val KEY_INTERVAL = "enforcement_interval_minutes"
         private const val DEFAULT_INTERVAL = 0
     }

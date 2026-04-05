@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
 
     private val enforcementPrefs by lazy {
-        EnforcementPrefs(getSharedPreferences("grayout_prefs", MODE_PRIVATE))
+        EnforcementPrefs(getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE))
     }
 
     private val homeViewModel: HomeViewModel by viewModels {

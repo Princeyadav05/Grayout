@@ -30,7 +30,7 @@ class GrayoutService : Service() {
         super.onCreate()
         grayscaleManager = GrayscaleManager(contentResolver)
         enforcementPrefs = EnforcementPrefs(
-            getSharedPreferences("grayout_prefs", MODE_PRIVATE)
+            getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE)
         )
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification(0))
