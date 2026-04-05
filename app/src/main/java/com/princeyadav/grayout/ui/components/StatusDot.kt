@@ -10,6 +10,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 
@@ -24,16 +26,21 @@ fun StatusDot(
         animationSpec = tween(300),
         label = "dotColor",
     )
-    val glowColor = colors.success.copy(alpha = 0.27f)
-
     Box(
         modifier = modifier
             .size(8.dp)
             .drawBehind {
                 if (isActive) {
+                    val glowRadius = size.minDimension / 2 + 6.dp.toPx()
                     drawCircle(
-                        color = glowColor,
-                        radius = size.minDimension / 2 + 8.dp.toPx(),
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                colors.success.copy(alpha = 0.3f),
+                                Color.Transparent,
+                            ),
+                            radius = glowRadius,
+                        ),
+                        radius = glowRadius,
                     )
                 }
             }
