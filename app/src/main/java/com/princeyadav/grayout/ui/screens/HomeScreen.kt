@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,8 +29,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
@@ -43,7 +46,9 @@ import com.princeyadav.grayout.ui.theme.GrayoutTheme
 @Composable
 fun HomeScreen(
     isGrayscaleOn: Boolean,
+    enforcementInterval: Int,
     onToggle: () -> Unit,
+    onEnforcementIntervalChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = GrayoutTheme.colors
@@ -61,6 +66,14 @@ fun HomeScreen(
         AppHeader()
 
         MainToggleCard(isGrayscaleOn = isGrayscaleOn, onToggle = onToggle)
+
+        Spacer(modifier = Modifier.height(dimens.cardGap))
+
+        EnforcementCard(
+            enforcementInterval = enforcementInterval,
+            isGrayscaleOn = isGrayscaleOn,
+            onIntervalChange = onEnforcementIntervalChange,
+        )
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
 
@@ -272,4 +285,104 @@ private fun StatCardsRow(isGrayscaleOn: Boolean) {
             }
         }
     }
+}
+
+@Composable
+private fun EnforcementCard(
+    enforcementInterval: Int,
+    isGrayscaleOn: Boolean,
+    onIntervalChange: (Int) -> Unit,
+) {
+    val colors = GrayoutTheme.colors
+    val typography = GrayoutTheme.typography
+    val dimens = GrayoutTheme.dimens
+
+    val alpha = if (isGrayscaleOn) 1f else 0.4f
+
+    GrayoutCard(modifier = Modifier.alpha(alpha)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(dimens.cardPad),
+        ) {
+            Text(
+                text = "ENFORCEMENT",
+                style = typography.labelSmall,
+                color = colors.accent,
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "Re-enable grayscale automatically",
+                style = typography.labelSmall,
+                color = colors.textMuted,
+            )
+
+            Spacer(modifier = Modifier.height(dimens.sectionGap))
+
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(dimens.chipGap),
+                verticalArrangement = Arrangement.spacedBy(dimens.chipGap),
+            ) {
+                val options = listOf(
+                    0 to "Off",
+                    1 to "1m",
+                    5 to "5m",
+                    10 to "10m",
+                    15 to "15m",
+                    30 to "30m",
+                )
+                options.forEach { (value, label) ->
+                    EnforcementChip(
+                        label = label,
+                        isActive = enforcementInterval == value,
+                        onClick = { if (isGrayscaleOn) onIntervalChange(value) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EnforcementChip(
+    label: String,
+    isActive: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = GrayoutTheme.colors
+    val typography = GrayoutTheme.typography
+    val dimens = GrayoutTheme.dimens
+
+    val bg by animateColorAsState(
+        targetValue = if (isActive) colors.accentDim else Color.Transparent,
+        animationSpec = tween(300),
+        label = "chipBg",
+    )
+    val textColor by animateColorAsState(
+        targetValue = if (isActive) colors.accent else colors.textMuted,
+        animationSpec = tween(300),
+        label = "chipText",
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (isActive) colors.accent.copy(alpha = 0.33f) else colors.border,
+        animationSpec = tween(300),
+        label = "chipBorder",
+    )
+
+    Text(
+        text = label,
+        style = typography.bodySmall,
+        color = textColor,
+        modifier = Modifier
+            .background(bg, RoundedCornerShape(dimens.radiusFull))
+            .border(1.dp, borderColor, RoundedCornerShape(dimens.radiusFull))
+            .clip(RoundedCornerShape(dimens.radiusFull))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) { onClick() }
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+    )
 }
