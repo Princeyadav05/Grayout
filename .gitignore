@@ -29,6 +29,9 @@ google-services.json
 .DS_Store
 Thumbs.db
 
+# Worktrees
+.worktrees/
+
 # Misc
 *.log
 *.tmp
