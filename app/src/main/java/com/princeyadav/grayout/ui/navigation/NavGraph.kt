@@ -36,9 +36,12 @@ fun GrayoutNavGraph(
     ) {
         composable(Routes.HOME) {
             val isGrayscaleOn by homeViewModel.isGrayscaleOn.collectAsStateWithLifecycle()
+            val enforcementInterval by homeViewModel.enforcementInterval.collectAsStateWithLifecycle()
             HomeScreen(
                 isGrayscaleOn = isGrayscaleOn,
+                enforcementInterval = enforcementInterval,
                 onToggle = homeViewModel::toggleGrayscale,
+                onEnforcementIntervalChange = homeViewModel::setEnforcementInterval,
             )
         }
         composable(Routes.SCHEDULES) { PlaceholderScreen("Schedules") }
