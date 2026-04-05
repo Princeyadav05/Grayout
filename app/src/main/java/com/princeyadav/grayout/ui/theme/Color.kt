@@ -1,11 +1,38 @@
 package com.princeyadav.grayout.ui.theme
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+val Bg = Color(0xFF0B0B0B)
+val Surface = Color(0xFF161616)
+val Border = Color(0xFF2A2A2A)
+val BorderActive = Color(0xFF555555)
+val TextPrimary = Color(0xFFE8E8E8)
+val TextMuted = Color(0xFF777777)
+val TextDim = Color(0xFF4A4A4A)
+val Accent = Color(0xFFA0D2C6)
+val AccentDim = Color(0xFF2A3D38)
+val Off = Color(0xFF3A3A3A)
+val OffText = Color(0xFF666666)
+val Danger = Color(0xFFFF6B6B)
+val Success = Color(0xFF6BE8A0)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+@Immutable
+data class GrayoutColors(
+    val bg: Color = Bg,
+    val surface: Color = Surface,
+    val border: Color = Border,
+    val borderActive: Color = BorderActive,
+    val text: Color = TextPrimary,
+    val textMuted: Color = TextMuted,
+    val textDim: Color = TextDim,
+    val accent: Color = Accent,
+    val accentDim: Color = AccentDim,
+    val off: Color = Off,
+    val offText: Color = OffText,
+    val danger: Color = Danger,
+    val success: Color = Success,
+)
+
+val LocalGrayoutColors = staticCompositionLocalOf { GrayoutColors() }
