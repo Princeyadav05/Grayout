@@ -1,0 +1,35 @@
+# Android Studio
+*.iml
+.idea/
+.gradle/
+local.properties
+
+# Build outputs
+/build/
+/app/build/
+*.apk
+*.aab
+*.ap_
+
+# Signing
+*.keystore
+*.jks
+
+# Native
+.externalNativeBuild/
+.cxx/
+
+# Google Services
+google-services.json
+
+# Captures
+/captures
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+*.tmp
+*.bak
