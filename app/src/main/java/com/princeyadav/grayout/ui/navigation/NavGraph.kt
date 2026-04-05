@@ -5,12 +5,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
+import com.princeyadav.grayout.viewmodel.HomeViewModel
 
 object Routes {
     const val HOME = "home"
@@ -22,6 +25,7 @@ object Routes {
 @Composable
 fun GrayoutNavGraph(
     navController: NavHostController,
+    homeViewModel: HomeViewModel,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
@@ -29,7 +33,21 @@ fun GrayoutNavGraph(
         startDestination = Routes.HOME,
         modifier = modifier,
     ) {
-        composable(Routes.HOME) { PlaceholderScreen("Home") }
+        composable(Routes.HOME) {
+            val isGrayscaleOn by homeViewModel.isGrayscaleOn.collectAsState()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(GrayoutTheme.colors.bg),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (isGrayscaleOn) "Grayscale: ON" else "Grayscale: OFF",
+                    style = GrayoutTheme.typography.headingLarge,
+                    color = GrayoutTheme.colors.text,
+                )
+            }
+        }
         composable(Routes.SCHEDULES) { PlaceholderScreen("Schedules") }
         composable(Routes.SCHEDULE_EDITOR) { PlaceholderScreen("Schedule Editor") }
         composable(Routes.SETTINGS) { PlaceholderScreen("Settings") }
