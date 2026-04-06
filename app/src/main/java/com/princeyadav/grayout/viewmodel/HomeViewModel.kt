@@ -28,9 +28,6 @@ class HomeViewModel(
         val newValue = !_isGrayscaleOn.value
         grayscaleManager.setGrayscale(newValue)
         _isGrayscaleOn.value = newValue
-        if (!newValue) {
-            setEnforcementInterval(0)
-        }
     }
 
     fun setEnforcementInterval(minutes: Int) {

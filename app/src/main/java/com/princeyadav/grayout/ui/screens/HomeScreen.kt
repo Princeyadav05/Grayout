@@ -29,7 +29,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -71,7 +70,6 @@ fun HomeScreen(
 
         EnforcementCard(
             enforcementInterval = enforcementInterval,
-            isGrayscaleOn = isGrayscaleOn,
             onIntervalChange = onEnforcementIntervalChange,
         )
 
@@ -290,16 +288,13 @@ private fun StatCardsRow(isGrayscaleOn: Boolean) {
 @Composable
 private fun EnforcementCard(
     enforcementInterval: Int,
-    isGrayscaleOn: Boolean,
     onIntervalChange: (Int) -> Unit,
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
 
-    val alpha = if (isGrayscaleOn) 1f else 0.4f
-
-    GrayoutCard(modifier = Modifier.alpha(alpha)) {
+    GrayoutCard {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -314,7 +309,7 @@ private fun EnforcementCard(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Re-enable grayscale automatically",
+                text = "Turns grayscale back on periodically, even if you switch it off",
                 style = typography.labelSmall,
                 color = colors.textMuted,
             )
@@ -337,7 +332,7 @@ private fun EnforcementCard(
                     EnforcementChip(
                         label = label,
                         isActive = enforcementInterval == value,
-                        onClick = { if (isGrayscaleOn) onIntervalChange(value) },
+                        onClick = { onIntervalChange(value) },
                     )
                 }
             }
