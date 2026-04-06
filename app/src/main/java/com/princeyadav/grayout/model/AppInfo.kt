@@ -1,10 +1,10 @@
 package com.princeyadav.grayout.model
 
-import android.graphics.drawable.Drawable
+import androidx.compose.ui.graphics.ImageBitmap
 
 data class AppInfo(
     val packageName: String,
     val appName: String,
-    val icon: Drawable,
+    val icon: ImageBitmap,
     val isExcluded: Boolean,
 )
