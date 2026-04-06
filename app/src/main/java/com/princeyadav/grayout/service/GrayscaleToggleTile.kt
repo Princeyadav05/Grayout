@@ -26,7 +26,7 @@ class GrayscaleToggleTile : TileService() {
         tile.state = if (isEnabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.label = "Grayscale"
         tile.subtitle = if (isEnabled) "On" else "Off"
-        tile.icon = Icon.createWithResource(this, R.drawable.ic_grayout_foreground)
+        tile.icon = Icon.createWithResource(this, R.drawable.ic_tile)
         tile.updateTile()
     }
 }

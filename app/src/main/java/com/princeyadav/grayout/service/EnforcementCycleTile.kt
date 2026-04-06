@@ -44,7 +44,7 @@ class EnforcementCycleTile : TileService() {
         tile.state = if (interval > 0) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.label = "Enforcement"
         tile.subtitle = if (interval > 0) "Every ${interval}m" else "Off"
-        tile.icon = Icon.createWithResource(this, R.drawable.ic_grayout_foreground)
+        tile.icon = Icon.createWithResource(this, R.drawable.ic_tile)
         tile.updateTile()
     }
 

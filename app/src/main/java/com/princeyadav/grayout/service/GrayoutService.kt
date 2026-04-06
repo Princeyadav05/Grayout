@@ -77,7 +77,7 @@ class GrayoutService : Service() {
 
     private fun buildNotification(interval: Int) =
         NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_grayout_foreground)
+            .setSmallIcon(R.drawable.ic_tile)
             .setContentTitle("Grayout")
             .setContentText(
                 if (interval > 0) "Enforcing grayscale every ${interval}m"
