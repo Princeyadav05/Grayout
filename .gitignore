@@ -32,6 +32,9 @@ Thumbs.db
 # Worktrees
 .worktrees/
 
+# Superpowers specs (local only)
+docs/superpowers/specs/
+
 # Misc
 *.log
 *.tmp
