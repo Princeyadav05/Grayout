@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -250,9 +252,9 @@ private fun StatCardsRow(isGrayscaleOn: Boolean) {
 
     Row(
         horizontalArrangement = Arrangement.spacedBy(dimens.cardGap),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
     ) {
-        GrayoutCard(modifier = Modifier.weight(1f)) {
+        GrayoutCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
             Column(modifier = Modifier.padding(dimens.cardPad)) {
                 Text(
                     text = "STATUS",
@@ -276,7 +278,7 @@ private fun StatCardsRow(isGrayscaleOn: Boolean) {
             }
         }
 
-        GrayoutCard(modifier = Modifier.weight(1f)) {
+        GrayoutCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
             Column(modifier = Modifier.padding(dimens.cardPad)) {
                 Text(
                     text = "NEXT SCHEDULE",
