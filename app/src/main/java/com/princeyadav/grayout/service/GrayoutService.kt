@@ -14,12 +14,13 @@ class GrayoutService : Service() {
 
     private lateinit var grayscaleManager: GrayscaleManager
     private lateinit var enforcementPrefs: EnforcementPrefs
+    private lateinit var exclusionPrefs: ExclusionPrefs
     private val handler = Handler(Looper.getMainLooper())
     private var currentInterval = 0
 
     private val enforcementRunnable = object : Runnable {
         override fun run() {
-            if (!grayscaleManager.isGrayscaleEnabled()) {
+            if (!exclusionPrefs.isExcludedAppActive() && !grayscaleManager.isGrayscaleEnabled()) {
                 grayscaleManager.setGrayscale(true)
             }
             handler.postDelayed(this, currentInterval * 60_000L)
@@ -30,6 +31,9 @@ class GrayoutService : Service() {
         super.onCreate()
         grayscaleManager = GrayscaleManager(contentResolver)
         enforcementPrefs = EnforcementPrefs(
+            getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE)
+        )
+        exclusionPrefs = ExclusionPrefs(
             getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE)
         )
         createNotificationChannel()
