@@ -64,10 +64,8 @@ fun ExclusionListScreen(
             Spacer(modifier = Modifier.height(dimens.sectionGap))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "‹",
-                    style = typography.headingMedium,
-                    color = colors.textMuted,
+                Box(
+                    contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .size(40.dp)
                         .background(colors.surface, RoundedCornerShape(dimens.radiusFull))
@@ -76,9 +74,14 @@ fun ExclusionListScreen(
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                        ) { onBack() }
-                        .padding(start = 12.dp, top = 4.dp),
-                )
+                        ) { onBack() },
+                ) {
+                    Text(
+                        text = "‹",
+                        style = typography.headingMedium,
+                        color = colors.textMuted,
+                    )
+                }
 
                 Spacer(modifier = Modifier.width(dimens.cardGap))
 
