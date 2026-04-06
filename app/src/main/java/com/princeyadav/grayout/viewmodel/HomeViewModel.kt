@@ -1,5 +1,10 @@
 package com.princeyadav.grayout.viewmodel
 
+import android.content.ContentResolver
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.princeyadav.grayout.service.EnforcementPrefs
@@ -9,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class HomeViewModel(
+    private val contentResolver: ContentResolver,
     private val grayscaleManager: GrayscaleManager,
     private val enforcementPrefs: EnforcementPrefs,
 ) : ViewModel() {
@@ -19,9 +25,20 @@ class HomeViewModel(
     private val _enforcementInterval = MutableStateFlow(0)
     val enforcementInterval: StateFlow<Int> = _enforcementInterval.asStateFlow()
 
+    private val grayscaleObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            _isGrayscaleOn.value = grayscaleManager.isGrayscaleEnabled()
+        }
+    }
+
     init {
         _isGrayscaleOn.value = grayscaleManager.isGrayscaleEnabled()
         _enforcementInterval.value = enforcementPrefs.getInterval()
+        contentResolver.registerContentObserver(
+            Settings.Secure.getUriFor("accessibility_display_daltonizer_enabled"),
+            false,
+            grayscaleObserver,
+        )
     }
 
     fun toggleGrayscale() {
@@ -34,14 +51,20 @@ class HomeViewModel(
         enforcementPrefs.setInterval(minutes)
         _enforcementInterval.value = minutes
     }
+
+    override fun onCleared() {
+        super.onCleared()
+        contentResolver.unregisterContentObserver(grayscaleObserver)
+    }
 }
 
 class HomeViewModelFactory(
+    private val contentResolver: ContentResolver,
     private val grayscaleManager: GrayscaleManager,
     private val enforcementPrefs: EnforcementPrefs,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return HomeViewModel(grayscaleManager, enforcementPrefs) as T
+        return HomeViewModel(contentResolver, grayscaleManager, enforcementPrefs) as T
     }
 }
