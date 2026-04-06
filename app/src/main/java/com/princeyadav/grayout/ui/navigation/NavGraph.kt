@@ -13,6 +13,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.princeyadav.grayout.ui.screens.HomeScreen
+import com.princeyadav.grayout.ui.screens.SettingsScreen
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 import com.princeyadav.grayout.viewmodel.HomeViewModel
 
@@ -27,16 +28,19 @@ object Routes {
 fun GrayoutNavGraph(
     navController: NavHostController,
     homeViewModel: HomeViewModel,
+    isAdbPermissionGranted: Boolean,
+    isBatteryUnrestricted: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val isGrayscaleOn by homeViewModel.isGrayscaleOn.collectAsStateWithLifecycle()
+    val enforcementInterval by homeViewModel.enforcementInterval.collectAsStateWithLifecycle()
+
     NavHost(
         navController = navController,
         startDestination = Routes.HOME,
         modifier = modifier,
     ) {
         composable(Routes.HOME) {
-            val isGrayscaleOn by homeViewModel.isGrayscaleOn.collectAsStateWithLifecycle()
-            val enforcementInterval by homeViewModel.enforcementInterval.collectAsStateWithLifecycle()
             HomeScreen(
                 isGrayscaleOn = isGrayscaleOn,
                 enforcementInterval = enforcementInterval,
@@ -44,24 +48,40 @@ fun GrayoutNavGraph(
                 onEnforcementIntervalChange = homeViewModel::setEnforcementInterval,
             )
         }
-        composable(Routes.SCHEDULES) { PlaceholderScreen("Schedules") }
-        composable(Routes.SCHEDULE_EDITOR) { PlaceholderScreen("Schedule Editor") }
-        composable(Routes.SETTINGS) { PlaceholderScreen("Settings") }
-    }
-}
-
-@Composable
-private fun PlaceholderScreen(name: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(GrayoutTheme.colors.bg),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = name,
-            style = GrayoutTheme.typography.headingLarge,
-            color = GrayoutTheme.colors.text,
-        )
+        composable(Routes.SCHEDULES) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(GrayoutTheme.colors.bg),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Schedules",
+                    style = GrayoutTheme.typography.headingMedium,
+                    color = GrayoutTheme.colors.text,
+                )
+            }
+        }
+        composable(Routes.SCHEDULE_EDITOR) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(GrayoutTheme.colors.bg),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Schedule Editor",
+                    style = GrayoutTheme.typography.headingMedium,
+                    color = GrayoutTheme.colors.text,
+                )
+            }
+        }
+        composable(Routes.SETTINGS) {
+            SettingsScreen(
+                enforcementInterval = enforcementInterval,
+                isAdbPermissionGranted = isAdbPermissionGranted,
+                isBatteryUnrestricted = isBatteryUnrestricted,
+            )
+        }
     }
 }
