@@ -218,7 +218,7 @@ private fun MainToggleCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = "Enforce Grayscale",
+                    text = "Grayscale",
                     style = typography.bodyMedium,
                     color = colors.text,
                 )

@@ -118,7 +118,7 @@ Letter spacing: headings use `-0.5sp`. Labels use `+0.5sp`.
 
 Top to bottom:
 1. **App header** — App icon (◐ in a rounded square with `accent` gradient tint) + "Grayout" text (headingSmall)
-2. **Main toggle card** (cardPadLarge) — Large circle (120dp) as visual indicator, taps to toggle. Below: state label (headingLarge, `accent` when on, `text` when off), subtitle (bodyMedium, `textMuted`), then a row with "Enforce Grayscale" label + Toggle switch inside an inner container (`bg` background, `radiusSm`). When enabled, card gets a gradient bg from `accentDim` to `surface` and an `accent` tinted border.
+2. **Main toggle card** (cardPadLarge) — Large circle (120dp) as visual indicator, taps to toggle. Below: state label (headingLarge, `accent` when on, `text` when off), subtitle (bodyMedium, `textMuted`), then a row with "Grayscale" label + Toggle switch inside an inner container (`bg` background, `radiusSm`). When enabled, card gets a gradient bg from `accentDim` to `surface` and an `accent` tinted border.
 3. **Two stat cards** side by side — "Status" showing Active/Inactive (`success`/`offText`), "Next Schedule" showing time in `mono` font.
 4. **Active Schedules preview card** — Header with "Active Schedules" + count in `accent`. List of schedule summaries (name + time + days) in inner rows with `bg` background and StatusDot.
 
