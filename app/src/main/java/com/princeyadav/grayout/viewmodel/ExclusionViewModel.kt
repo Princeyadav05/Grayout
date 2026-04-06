@@ -15,7 +15,9 @@ import com.princeyadav.grayout.service.ExclusionPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 
 class ExclusionViewModel(
     private val packageManager: PackageManager,
@@ -30,10 +32,10 @@ class ExclusionViewModel(
     private val _isAccessibilityEnabled = MutableStateFlow(true)
     val isAccessibilityEnabled: StateFlow<Boolean> = _isAccessibilityEnabled.asStateFlow()
 
-    val filteredApps = combine(_apps, _searchQuery) { apps, query ->
+    val filteredApps: StateFlow<List<AppInfo>> = combine(_apps, _searchQuery) { apps, query ->
         if (query.isBlank()) apps
         else apps.filter { it.appName.contains(query, ignoreCase = true) }
-    }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
         viewModelScope.launch(Dispatchers.IO) { loadApps() }
