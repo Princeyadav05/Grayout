@@ -49,7 +49,7 @@ fun SettingsRow(
             }
         }
         if (trailing != null) {
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(dimens.cardGap))
             trailing()
         }
     }
