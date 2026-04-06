@@ -34,9 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
 import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
@@ -207,7 +205,7 @@ fun ExclusionListScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Image(
-                    bitmap = app.icon.toBitmap(width = 80, height = 80).asImageBitmap(),
+                    bitmap = app.icon,
                     contentDescription = app.appName,
                     modifier = Modifier
                         .size(40.dp)

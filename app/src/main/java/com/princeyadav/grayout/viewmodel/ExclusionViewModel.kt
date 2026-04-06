@@ -3,14 +3,21 @@ package com.princeyadav.grayout.viewmodel
 import android.content.ContentResolver
 import android.content.pm.PackageManager
 import android.provider.Settings
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.service.ExclusionPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 
 class ExclusionViewModel(
     private val packageManager: PackageManager,
@@ -22,16 +29,16 @@ class ExclusionViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _isAccessibilityEnabled = MutableStateFlow(false)
+    private val _isAccessibilityEnabled = MutableStateFlow(true)
     val isAccessibilityEnabled: StateFlow<Boolean> = _isAccessibilityEnabled.asStateFlow()
 
-    val filteredApps = combine(_apps, _searchQuery) { apps, query ->
+    val filteredApps: StateFlow<List<AppInfo>> = combine(_apps, _searchQuery) { apps, query ->
         if (query.isBlank()) apps
         else apps.filter { it.appName.contains(query, ignoreCase = true) }
-    }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        loadApps()
+        viewModelScope.launch(Dispatchers.IO) { loadApps() }
     }
 
     private fun loadApps() {
@@ -44,7 +51,7 @@ class ExclusionViewModel(
                 AppInfo(
                     packageName = info.packageName,
                     appName = info.loadLabel(packageManager).toString(),
-                    icon = info.loadIcon(packageManager),
+                    icon = info.loadIcon(packageManager).toBitmap(width = 80, height = 80).asImageBitmap(),
                     isExcluded = exclusionPrefs.isExcluded(info.packageName),
                 )
             }

@@ -1,10 +1,12 @@
 package com.princeyadav.grayout.model
 
-import android.graphics.drawable.Drawable
+import androidx.compose.runtime.Immutable
+import androidx.compose.ui.graphics.ImageBitmap
 
+@Immutable
 data class AppInfo(
     val packageName: String,
     val appName: String,
-    val icon: Drawable,
+    val icon: ImageBitmap,
     val isExcluded: Boolean,
 )
