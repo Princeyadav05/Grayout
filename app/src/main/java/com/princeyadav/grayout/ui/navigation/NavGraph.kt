@@ -32,7 +32,6 @@ fun GrayoutNavGraph(
     isBatteryUnrestricted: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val isGrayscaleOn by homeViewModel.isGrayscaleOn.collectAsStateWithLifecycle()
     val enforcementInterval by homeViewModel.enforcementInterval.collectAsStateWithLifecycle()
 
     NavHost(
@@ -41,6 +40,7 @@ fun GrayoutNavGraph(
         modifier = modifier,
     ) {
         composable(Routes.HOME) {
+            val isGrayscaleOn by homeViewModel.isGrayscaleOn.collectAsStateWithLifecycle()
             HomeScreen(
                 isGrayscaleOn = isGrayscaleOn,
                 enforcementInterval = enforcementInterval,
