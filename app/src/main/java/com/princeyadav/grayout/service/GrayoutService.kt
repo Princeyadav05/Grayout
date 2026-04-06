@@ -1,13 +1,16 @@
 package com.princeyadav.grayout.service
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
+import com.princeyadav.grayout.MainActivity
 import com.princeyadav.grayout.R
 
 class GrayoutService : Service() {
@@ -75,16 +78,24 @@ class GrayoutService : Service() {
         manager.createNotificationChannel(channel)
     }
 
-    private fun buildNotification(interval: Int) =
-        NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun buildNotification(interval: Int): Notification {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent, PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_tile)
             .setContentTitle("Grayout")
             .setContentText(
                 if (interval > 0) "Enforcing grayscale every ${interval}m"
                 else "Grayout is idle"
             )
+            .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()
+    }
 
     companion object {
         const val CHANNEL_ID = "grayout_service"
