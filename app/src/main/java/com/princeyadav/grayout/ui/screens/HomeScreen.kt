@@ -46,8 +46,11 @@ import com.princeyadav.grayout.ui.theme.GrayoutTheme
 fun HomeScreen(
     isGrayscaleOn: Boolean,
     enforcementInterval: Int,
+    excludedAppCount: Int,
+    isAccessibilityEnabled: Boolean,
     onToggle: () -> Unit,
     onEnforcementIntervalChange: (Int) -> Unit,
+    onNavigateToExclusions: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = GrayoutTheme.colors
@@ -71,6 +74,14 @@ fun HomeScreen(
         EnforcementCard(
             enforcementInterval = enforcementInterval,
             onIntervalChange = onEnforcementIntervalChange,
+        )
+
+        Spacer(modifier = Modifier.height(dimens.cardGap))
+
+        ExcludedAppsCard(
+            count = excludedAppCount,
+            isAccessibilityEnabled = isAccessibilityEnabled,
+            onClick = onNavigateToExclusions,
         )
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
@@ -380,4 +391,64 @@ private fun EnforcementChip(
             ) { onClick() }
             .padding(horizontal = 14.dp, vertical = 6.dp),
     )
+}
+
+@Composable
+private fun ExcludedAppsCard(
+    count: Int,
+    isAccessibilityEnabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = GrayoutTheme.colors
+    val typography = GrayoutTheme.typography
+    val dimens = GrayoutTheme.dimens
+
+    val subtitleText: String
+    val subtitleColor: androidx.compose.ui.graphics.Color
+
+    if (!isAccessibilityEnabled && count > 0) {
+        subtitleText = "Setup required"
+        subtitleColor = colors.danger
+    } else if (count > 0) {
+        subtitleText = "$count app${if (count != 1) "s" else ""} excluded"
+        subtitleColor = colors.text
+    } else {
+        subtitleText = "No apps excluded"
+        subtitleColor = colors.textMuted
+    }
+
+    GrayoutCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(dimens.cardPad),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "EXCLUDED APPS",
+                    style = typography.labelSmall,
+                    color = colors.accent,
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = subtitleText,
+                    style = typography.bodyMedium,
+                    color = subtitleColor,
+                )
+            }
+
+            Text(
+                text = "›",
+                style = typography.headingMedium,
+                color = colors.textDim,
+            )
+        }
+    }
 }
