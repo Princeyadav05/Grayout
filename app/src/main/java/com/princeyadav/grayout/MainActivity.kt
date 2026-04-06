@@ -2,6 +2,7 @@ package com.princeyadav.grayout
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
@@ -136,6 +137,12 @@ class MainActivity : ComponentActivity() {
                         homeViewModel = homeViewModel,
                         isAdbPermissionGranted = isAdbPermissionGranted,
                         isBatteryUnrestricted = isBatteryUnrestricted,
+                        onBatteryOptimizationClick = {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = Uri.parse("package:$packageName")
+                            }
+                            startActivity(intent)
+                        },
                         modifier = Modifier.padding(innerPadding),
                     )
                 }

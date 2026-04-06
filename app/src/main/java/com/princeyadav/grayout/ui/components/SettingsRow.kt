@@ -1,5 +1,6 @@
 package com.princeyadav.grayout.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,7 @@ fun SettingsRow(
     label: String,
     subtitle: String? = null,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
     trailing: @Composable (() -> Unit)? = null,
 ) {
     val colors = GrayoutTheme.colors
@@ -28,6 +30,7 @@ fun SettingsRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = dimens.itemGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -51,6 +54,14 @@ fun SettingsRow(
         if (trailing != null) {
             Spacer(modifier = Modifier.width(dimens.cardGap))
             trailing()
+        }
+        if (onClick != null && subtitle != null) {
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "›",
+                style = typography.bodyMedium,
+                color = colors.textMuted,
+            )
         }
     }
 }

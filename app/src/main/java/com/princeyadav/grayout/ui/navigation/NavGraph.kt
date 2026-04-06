@@ -30,6 +30,7 @@ fun GrayoutNavGraph(
     homeViewModel: HomeViewModel,
     isAdbPermissionGranted: Boolean,
     isBatteryUnrestricted: Boolean,
+    onBatteryOptimizationClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val enforcementInterval by homeViewModel.enforcementInterval.collectAsStateWithLifecycle()
@@ -81,6 +82,7 @@ fun GrayoutNavGraph(
                 enforcementInterval = enforcementInterval,
                 isAdbPermissionGranted = isAdbPermissionGranted,
                 isBatteryUnrestricted = isBatteryUnrestricted,
+                onBatteryOptimizationClick = onBatteryOptimizationClick,
             )
         }
     }

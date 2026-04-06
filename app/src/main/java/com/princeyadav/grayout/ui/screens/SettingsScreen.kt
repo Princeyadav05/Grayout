@@ -24,6 +24,7 @@ fun SettingsScreen(
     enforcementInterval: Int,
     isAdbPermissionGranted: Boolean,
     isBatteryUnrestricted: Boolean,
+    onBatteryOptimizationClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = GrayoutTheme.colors
@@ -53,6 +54,7 @@ fun SettingsScreen(
         SetupCard(
             isAdbPermissionGranted = isAdbPermissionGranted,
             isBatteryUnrestricted = isBatteryUnrestricted,
+            onBatteryOptimizationClick = onBatteryOptimizationClick,
         )
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
@@ -112,6 +114,7 @@ private fun ServiceCard(enforcementInterval: Int) {
 private fun SetupCard(
     isAdbPermissionGranted: Boolean,
     isBatteryUnrestricted: Boolean,
+    onBatteryOptimizationClick: () -> Unit,
 ) {
     val colors = GrayoutTheme.colors
     val dimens = GrayoutTheme.dimens
@@ -137,6 +140,7 @@ private fun SetupCard(
             SettingsRow(
                 label = "Battery optimization",
                 subtitle = "Disable battery optimization for reliable enforcement",
+                onClick = if (!isBatteryUnrestricted) onBatteryOptimizationClick else null,
                 trailing = {
                     Text(
                         text = if (isBatteryUnrestricted) "Unrestricted" else "Restricted",
