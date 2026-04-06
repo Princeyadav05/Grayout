@@ -9,7 +9,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -57,6 +60,7 @@ fun GrayoutNavGraph(
     ) {
         composable(Routes.HOME) {
             val context = LocalContext.current
+            val lifecycleOwnerHome = LocalLifecycleOwner.current
             val isGrayscaleOn by homeViewModel.isGrayscaleOn.collectAsStateWithLifecycle()
 
             val exclusionPrefsHome = remember {
@@ -64,14 +68,18 @@ fun GrayoutNavGraph(
                     context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, android.content.Context.MODE_PRIVATE)
                 )
             }
-            val excludedAppCount = remember(Unit) { exclusionPrefsHome.getExcludedCount() }
+            var excludedAppCount by remember { mutableIntStateOf(exclusionPrefsHome.getExcludedCount()) }
+            var isAccessibilityEnabledHome by remember { mutableStateOf(false) }
 
-            val isAccessibilityEnabledHome = remember {
-                val services = AndroidSettings.Secure.getString(
-                    context.contentResolver,
-                    AndroidSettings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-                ) ?: ""
-                services.contains("com.princeyadav.grayout")
+            LaunchedEffect(lifecycleOwnerHome) {
+                lifecycleOwnerHome.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                    excludedAppCount = exclusionPrefsHome.getExcludedCount()
+                    val services = AndroidSettings.Secure.getString(
+                        context.contentResolver,
+                        AndroidSettings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                    ) ?: ""
+                    isAccessibilityEnabledHome = services.contains("com.princeyadav.grayout")
+                }
             }
 
             HomeScreen(
