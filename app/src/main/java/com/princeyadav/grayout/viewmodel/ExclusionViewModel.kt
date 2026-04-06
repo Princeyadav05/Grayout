@@ -1,0 +1,90 @@
+package com.princeyadav.grayout.viewmodel
+
+import android.content.ContentResolver
+import android.content.pm.PackageManager
+import android.provider.Settings
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import com.princeyadav.grayout.model.AppInfo
+import com.princeyadav.grayout.service.ExclusionPrefs
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+
+class ExclusionViewModel(
+    private val packageManager: PackageManager,
+    private val exclusionPrefs: ExclusionPrefs,
+) : ViewModel() {
+
+    private val _apps = MutableStateFlow<List<AppInfo>>(emptyList())
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _isAccessibilityEnabled = MutableStateFlow(false)
+    val isAccessibilityEnabled: StateFlow<Boolean> = _isAccessibilityEnabled.asStateFlow()
+
+    val filteredApps = combine(_apps, _searchQuery) { apps, query ->
+        if (query.isBlank()) apps
+        else apps.filter { it.appName.contains(query, ignoreCase = true) }
+    }
+
+    init {
+        loadApps()
+    }
+
+    private fun loadApps() {
+        val installed = packageManager.getInstalledApplications(0)
+            .filter { info ->
+                packageManager.getLaunchIntentForPackage(info.packageName) != null &&
+                    info.packageName != "com.princeyadav.grayout"
+            }
+            .map { info ->
+                AppInfo(
+                    packageName = info.packageName,
+                    appName = info.loadLabel(packageManager).toString(),
+                    icon = info.loadIcon(packageManager),
+                    isExcluded = exclusionPrefs.isExcluded(info.packageName),
+                )
+            }
+            .sortedBy { it.appName.lowercase() }
+
+        _apps.value = installed
+    }
+
+    fun toggleExclusion(packageName: String) {
+        if (exclusionPrefs.isExcluded(packageName)) {
+            exclusionPrefs.removeExcludedPackage(packageName)
+        } else {
+            exclusionPrefs.addExcludedPackage(packageName)
+        }
+        _apps.value = _apps.value.map { app ->
+            if (app.packageName == packageName) app.copy(isExcluded = !app.isExcluded)
+            else app
+        }
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun checkAccessibilityService(contentResolver: ContentResolver) {
+        val enabledServices = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ) ?: ""
+        _isAccessibilityEnabled.value =
+            enabledServices.contains("com.princeyadav.grayout")
+    }
+}
+
+class ExclusionViewModelFactory(
+    private val packageManager: PackageManager,
+    private val exclusionPrefs: ExclusionPrefs,
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return ExclusionViewModel(packageManager, exclusionPrefs) as T
+    }
+}
