@@ -37,6 +37,7 @@ class MainActivity : ComponentActivity() {
 
     private val homeViewModel: HomeViewModel by viewModels {
         HomeViewModelFactory(
+            applicationContext.contentResolver,
             GrayscaleManager(applicationContext.contentResolver),
             enforcementPrefs,
         )
