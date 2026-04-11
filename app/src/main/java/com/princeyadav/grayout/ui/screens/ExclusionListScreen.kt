@@ -22,13 +22,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,26 +38,45 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
+import com.princeyadav.grayout.ui.theme.BrandAccent
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 
 @Composable
 fun ExclusionListScreen(
-    apps: List<AppInfo>,
+    excludedApps: List<AppInfo>,
+    allOtherApps: List<AppInfo>,
     searchQuery: String,
     isAccessibilityEnabled: Boolean,
     onToggle: (String) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
     onBack: () -> Unit,
+    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val currentOnRefresh by rememberUpdatedState(onRefresh)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                currentOnRefresh()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -181,16 +202,39 @@ fun ExclusionListScreen(
                                     shape = RoundedCornerShape(dimens.radiusSm),
                                 )
                                 .padding(dimens.cardPad),
-                            contentAlignment = Alignment.CenterStart,
                         ) {
-                            if (searchQuery.isEmpty()) {
-                                Text(
-                                    text = "Search apps...",
-                                    style = typography.bodyLarge,
-                                    color = colors.textMuted,
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    if (searchQuery.isEmpty()) {
+                                        Text(
+                                            text = "Search apps...",
+                                            style = typography.bodyLarge,
+                                            color = colors.textMuted,
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+
+                                if (searchQuery.isNotEmpty()) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                                            .padding(horizontal = 4.dp)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null,
+                                            ) { onSearchQueryChange("") },
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Close,
+                                            contentDescription = "Clear search",
+                                            tint = colors.textMuted,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    }
+                                }
                             }
-                            innerTextField()
                         }
                     },
                     modifier = Modifier
@@ -203,49 +247,119 @@ fun ExclusionListScreen(
             Spacer(modifier = Modifier.height(dimens.sectionGap))
         }
 
-        items(apps, key = { it.packageName }) { app ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = dimens.tightGap),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Image(
-                    bitmap = app.icon,
-                    contentDescription = app.appName,
+        if (excludedApps.isEmpty() && allOtherApps.isEmpty() && searchQuery.isNotEmpty()) {
+            item {
+                Spacer(modifier = Modifier.height(dimens.sectionGap))
+                Text(
+                    text = "No apps match \"$searchQuery\"",
+                    style = typography.bodyMedium,
+                    color = colors.textMuted,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(dimens.radiusSm)),
+                        .fillMaxWidth()
+                        .padding(horizontal = dimens.cardPad, vertical = dimens.cardPad),
                 )
-
-                Spacer(modifier = Modifier.width(dimens.cardGap))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = app.appName,
-                        style = typography.bodyMedium,
-                        color = colors.text,
-                    )
-                    Text(
-                        text = app.packageName,
-                        style = typography.labelSmall,
-                        color = colors.textMuted,
+            }
+        } else {
+            if (excludedApps.isNotEmpty()) {
+                item(key = "header_excluded") {
+                    SectionHeader(
+                        text = "EXCLUDED · ${excludedApps.size}",
+                        dimens = dimens,
+                        typography = typography,
                     )
                 }
 
-                Spacer(modifier = Modifier.width(dimens.cardGap))
-
-                GrayoutToggle(
-                    checked = app.isExcluded,
-                    onCheckedChange = { onToggle(app.packageName) },
-                )
+                items(excludedApps, key = { "ex_${it.packageName}" }) { app ->
+                    AppRow(app = app, onToggle = onToggle, dimens = dimens, typography = typography, textColor = colors.text)
+                }
+            } else if (searchQuery.isEmpty()) {
+                item(key = "hint_empty_excluded") {
+                    Spacer(modifier = Modifier.height(dimens.sectionGap))
+                    Text(
+                        text = "Toggle an app below to keep it in color",
+                        style = typography.bodyMedium,
+                        color = colors.textMuted,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = dimens.tightGap),
+                    )
+                }
             }
 
-            HorizontalDivider(color = colors.border)
+            if (allOtherApps.isNotEmpty()) {
+                item(key = "header_all") {
+                    SectionHeader(
+                        text = "ALL APPS · ${allOtherApps.size}",
+                        dimens = dimens,
+                        typography = typography,
+                    )
+                }
+
+                items(allOtherApps, key = { "all_${it.packageName}" }) { app ->
+                    AppRow(app = app, onToggle = onToggle, dimens = dimens, typography = typography, textColor = colors.text)
+                }
+            }
         }
 
         item {
             Spacer(modifier = Modifier.height(dimens.sectionGap))
         }
+    }
+}
+
+@Composable
+private fun SectionHeader(
+    text: String,
+    dimens: com.princeyadav.grayout.ui.theme.GrayoutDimens,
+    typography: com.princeyadav.grayout.ui.theme.GrayoutTypography,
+) {
+    Text(
+        text = text,
+        style = typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+        color = BrandAccent.copy(alpha = 0.75f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = dimens.sectionGap, bottom = dimens.tightGap),
+    )
+}
+
+@Composable
+private fun AppRow(
+    app: AppInfo,
+    onToggle: (String) -> Unit,
+    dimens: com.princeyadav.grayout.ui.theme.GrayoutDimens,
+    typography: com.princeyadav.grayout.ui.theme.GrayoutTypography,
+    textColor: androidx.compose.ui.graphics.Color,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Image(
+            bitmap = app.icon,
+            contentDescription = app.appName,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(dimens.radiusSm)),
+        )
+
+        Spacer(modifier = Modifier.width(dimens.cardGap))
+
+        Text(
+            text = app.appName,
+            style = typography.bodyMedium,
+            color = textColor,
+            modifier = Modifier.weight(1f),
+        )
+
+        Spacer(modifier = Modifier.width(dimens.cardGap))
+
+        GrayoutToggle(
+            checked = app.isExcluded,
+            onCheckedChange = { onToggle(app.packageName) },
+        )
     }
 }

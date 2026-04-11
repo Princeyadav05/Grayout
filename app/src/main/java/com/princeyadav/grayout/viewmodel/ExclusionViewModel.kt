@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 class ExclusionViewModel(
@@ -38,7 +39,19 @@ class ExclusionViewModel(
         else apps.filter { it.appName.contains(query, ignoreCase = true) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val excludedApps: StateFlow<List<AppInfo>> = filteredApps
+        .map { apps -> apps.filter { it.isExcluded } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allOtherApps: StateFlow<List<AppInfo>> = filteredApps
+        .map { apps -> apps.filterNot { it.isExcluded } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     init {
+        viewModelScope.launch(Dispatchers.IO) { loadApps() }
+    }
+
+    fun refreshApps() {
         viewModelScope.launch(Dispatchers.IO) { loadApps() }
     }
 
