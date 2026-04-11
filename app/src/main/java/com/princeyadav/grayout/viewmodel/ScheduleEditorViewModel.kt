@@ -51,7 +51,7 @@ class ScheduleEditorViewModel(
             editingScheduleId = id
             _name.value = schedule.name
             _selectedDays.value = schedule.daysOfWeek.split(",")
-                .map { DayOfWeek.valueOf(it.trim()) }
+                .map { abbr -> DayOfWeek.entries.first { it.name.startsWith(abbr.trim()) } }
                 .toSet()
             _startHour.value = schedule.startTimeHour
             _startMinute.value = schedule.startTimeMinute

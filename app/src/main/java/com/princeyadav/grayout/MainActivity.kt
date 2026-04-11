@@ -118,7 +118,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     containerColor = GrayoutTheme.colors.bg,
                     bottomBar = {
-                        if (currentRoute != Routes.SCHEDULE_EDITOR && currentRoute != Routes.EXCLUSION_LIST) {
+                        if (currentRoute?.startsWith("schedule_editor") != true && currentRoute != Routes.EXCLUSION_LIST) {
                             BottomNavBar(
                                 currentRoute = currentRoute ?: Routes.HOME,
                                 onNavigate = { route ->

@@ -29,7 +29,7 @@ class ScheduleAlarmManager(private val context: Context) {
 
         for (schedule in enabledSchedules) {
             val days = schedule.daysOfWeek.split(",").map { dayStr ->
-                DayOfWeek.valueOf(dayStr.trim())
+                DayOfWeek.entries.first { it.name.startsWith(dayStr.trim()) }
             }
             val schedStart = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
             val schedEnd = LocalTime.of(schedule.endTimeHour, schedule.endTimeMinute)
@@ -69,7 +69,7 @@ class ScheduleAlarmManager(private val context: Context) {
         }
 
         val isCurrentlyInSchedule = enabledSchedules.any { schedule ->
-            val days = schedule.daysOfWeek.split(",").map { DayOfWeek.valueOf(it.trim()) }
+            val days = schedule.daysOfWeek.split(",").map { abbr -> DayOfWeek.entries.first { it.name.startsWith(abbr.trim()) } }
             if (now.dayOfWeek !in days) return@any false
 
             val schedStart = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)

@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.princeyadav.grayout.model.Schedule
 
-@Database(entities = [Schedule::class], version = 1)
+@Database(entities = [Schedule::class], version = 1, exportSchema = false)
 abstract class GrayoutDatabase : RoomDatabase() {
     abstract fun scheduleDao(): ScheduleDao
 

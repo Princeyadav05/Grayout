@@ -130,6 +130,7 @@ fun ScheduleEditorScreen(
             onStartTimeClick = {
                 TimePickerDialog(
                     context,
+                    android.R.style.Theme_Material_Dialog_Alert,
                     { _, h, m -> onSetStartTime(h, m) },
                     startHour,
                     startMinute,
@@ -139,6 +140,7 @@ fun ScheduleEditorScreen(
             onEndTimeClick = {
                 TimePickerDialog(
                     context,
+                    android.R.style.Theme_Material_Dialog_Alert,
                     { _, h, m -> onSetEndTime(h, m) },
                     endHour,
                     endMinute,

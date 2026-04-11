@@ -51,6 +51,8 @@ fun HomeScreen(
     onToggle: () -> Unit,
     onEnforcementIntervalChange: (Int) -> Unit,
     onNavigateToExclusions: () -> Unit,
+    onNavigateToSchedules: () -> Unit = {},
+    nextScheduleText: String = "—",
     modifier: Modifier = Modifier,
 ) {
     val colors = GrayoutTheme.colors
@@ -86,17 +88,7 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
 
-        StatCardsRow(isGrayscaleOn = isGrayscaleOn)
-
-        Spacer(modifier = Modifier.height(dimens.sectionGap))
-
-        Text(
-            text = "Schedules coming soon",
-            style = typography.bodyMedium,
-            color = colors.textMuted,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center,
-        )
+        StatCardsRow(isGrayscaleOn = isGrayscaleOn, nextScheduleText = nextScheduleText, onNextScheduleClick = onNavigateToSchedules)
 
         Spacer(modifier = Modifier.height(dimens.sectionGap))
     }
@@ -243,7 +235,7 @@ private fun MainToggleCard(
 }
 
 @Composable
-private fun StatCardsRow(isGrayscaleOn: Boolean) {
+private fun StatCardsRow(isGrayscaleOn: Boolean, nextScheduleText: String, onNextScheduleClick: () -> Unit) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
@@ -276,7 +268,7 @@ private fun StatCardsRow(isGrayscaleOn: Boolean) {
             }
         }
 
-        GrayoutCard(modifier = Modifier.weight(1f)) {
+        GrayoutCard(modifier = Modifier.weight(1f).clickable { onNextScheduleClick() }) {
             Column(modifier = Modifier.padding(dimens.cardPad)) {
                 Text(
                     text = "NEXT SCHEDULE",
@@ -287,7 +279,7 @@ private fun StatCardsRow(isGrayscaleOn: Boolean) {
                 Spacer(modifier = Modifier.height(dimens.itemGap))
 
                 Text(
-                    text = "—",
+                    text = nextScheduleText,
                     style = typography.monoSmall,
                     color = colors.textDim,
                 )
