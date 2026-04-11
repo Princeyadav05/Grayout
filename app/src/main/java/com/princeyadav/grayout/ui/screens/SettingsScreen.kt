@@ -164,26 +164,14 @@ private fun AboutCard() {
 
             SettingsRow(
                 label = "Version",
-                trailing = {
-                    Text(
-                        text = "1.0",
-                        style = GrayoutTheme.typography.bodySmall,
-                        color = colors.textMuted,
-                    )
-                },
+                subtitle = "1.0",
             )
 
             HorizontalDivider(thickness = 1.dp, color = colors.border)
 
             SettingsRow(
                 label = "Package",
-                trailing = {
-                    Text(
-                        text = "com.princeyadav.grayout",
-                        style = GrayoutTheme.typography.bodySmall,
-                        color = colors.textMuted,
-                    )
-                },
+                subtitle = "com.princeyadav.grayout",
             )
         }
     }
