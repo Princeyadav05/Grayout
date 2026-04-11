@@ -31,7 +31,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
@@ -208,16 +207,7 @@ private fun StatusHeroCard(
     val view = LocalView.current
 
     GrayoutCard(isActive = isGrayscaleOn) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    brush = Brush.verticalGradient(
-                        0f to BrandAccent.copy(alpha = 0.08f),
-                        0.4f to Color.Transparent,
-                    ),
-                ),
-        ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

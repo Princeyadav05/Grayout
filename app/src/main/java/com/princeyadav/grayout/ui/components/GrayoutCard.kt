@@ -11,7 +11,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.princeyadav.grayout.ui.theme.BrandAccent
 import com.princeyadav.grayout.ui.theme.GrayoutMotion
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 
@@ -42,10 +45,16 @@ fun GrayoutCard(
         label = "cardBorderWidth",
     )
 
+    val accentWash = Brush.verticalGradient(
+        0f to BrandAccent.copy(alpha = 0.08f),
+        0.4f to Color.Transparent,
+    )
+
     Box(
         modifier = modifier
             .border(borderWidth, borderColor, shape)
             .background(colors.surface, shape)
+            .background(accentWash, shape)
             .clip(shape),
     ) {
         content()
