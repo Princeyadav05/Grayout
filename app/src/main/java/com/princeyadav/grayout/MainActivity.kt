@@ -35,8 +35,10 @@ import com.princeyadav.grayout.ui.navigation.Routes
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 import com.princeyadav.grayout.viewmodel.HomeViewModel
 import com.princeyadav.grayout.viewmodel.HomeViewModelFactory
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
@@ -47,6 +49,8 @@ class MainActivity : ComponentActivity() {
     private val enforcementPrefs by lazy {
         EnforcementPrefs(getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE))
     }
+
+    private val grayscaleManager by lazy { GrayscaleManager(applicationContext.contentResolver) }
 
     private val homeViewModel: HomeViewModel by viewModels {
         HomeViewModelFactory(
@@ -60,15 +64,13 @@ class MainActivity : ComponentActivity() {
     private var isBatteryUnrestricted by mutableStateOf(false)
 
     private fun refreshSystemChecks() {
-        isAdbPermissionGranted = try {
-            Settings.Secure.putInt(contentResolver, "grayout_permission_test", 0)
-            true
-        } catch (_: SecurityException) {
-            false
-        }
+        lifecycleScope.launch {
+            val canWrite = withContext(Dispatchers.IO) { grayscaleManager.canWriteSecureSettings() }
+            isAdbPermissionGranted = canWrite
 
-        val powerManager = getSystemService(PowerManager::class.java)
-        isBatteryUnrestricted = powerManager.isIgnoringBatteryOptimizations(packageName)
+            val powerManager = getSystemService(PowerManager::class.java)
+            isBatteryUnrestricted = powerManager.isIgnoringBatteryOptimizations(packageName)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

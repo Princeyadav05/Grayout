@@ -28,6 +28,14 @@ class GrayscaleManager(private val contentResolver: ContentResolver) {
         return enabled.split(":").any { it.startsWith("$packageName/") }
     }
 
+    fun canWriteSecureSettings(): Boolean = try {
+        val current = Settings.Secure.getInt(contentResolver, DALTONIZER_ENABLED, 0)
+        Settings.Secure.putInt(contentResolver, DALTONIZER_ENABLED, current)
+        true
+    } catch (_: SecurityException) {
+        false
+    }
+
     companion object {
         private const val DALTONIZER_ENABLED = "accessibility_display_daltonizer_enabled"
         private const val DALTONIZER_MODE = "accessibility_display_daltonizer"
