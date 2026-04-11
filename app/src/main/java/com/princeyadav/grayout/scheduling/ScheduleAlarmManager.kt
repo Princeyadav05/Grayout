@@ -83,14 +83,16 @@ class ScheduleAlarmManager(private val context: Context) {
         }
 
         val stateIntent = Intent(context, ScheduleReceiver::class.java).apply {
-            action = if (isCurrentlyInSchedule) ACTION_SCHEDULE_START else ACTION_SCHEDULE_END
+            action = ACTION_SCHEDULE_FIRE
+            putExtra(EXTRA_IS_START, isCurrentlyInSchedule)
         }
         context.sendBroadcast(stateIntent)
     }
 
     private fun setExactAlarm(triggerAtMillis: Long, isStart: Boolean) {
         val intent = Intent(context, ScheduleReceiver::class.java).apply {
-            action = if (isStart) ACTION_SCHEDULE_START else ACTION_SCHEDULE_END
+            action = ACTION_SCHEDULE_FIRE
+            putExtra(EXTRA_IS_START, isStart)
         }
         val pendingIntent = PendingIntent.getBroadcast(
             context, REQUEST_CODE, intent,
@@ -102,17 +104,22 @@ class ScheduleAlarmManager(private val context: Context) {
     }
 
     private fun cancelAll() {
-        val intent = Intent(context, ScheduleReceiver::class.java)
+        val intent = Intent(context, ScheduleReceiver::class.java).apply {
+            action = ACTION_SCHEDULE_FIRE
+        }
         val pendingIntent = PendingIntent.getBroadcast(
             context, REQUEST_CODE, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE,
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
         )
-        pendingIntent?.let { alarmManager.cancel(it) }
+        pendingIntent?.let {
+            alarmManager.cancel(it)
+            it.cancel()
+        }
     }
 
     companion object {
-        const val ACTION_SCHEDULE_START = "com.princeyadav.grayout.SCHEDULE_START"
-        const val ACTION_SCHEDULE_END = "com.princeyadav.grayout.SCHEDULE_END"
+        const val ACTION_SCHEDULE_FIRE = "com.princeyadav.grayout.SCHEDULE_FIRE"
+        const val EXTRA_IS_START = "is_start"
         private const val REQUEST_CODE = 1001
     }
 }

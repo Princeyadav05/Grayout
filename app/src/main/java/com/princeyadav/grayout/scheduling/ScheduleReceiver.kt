@@ -20,19 +20,19 @@ class ScheduleReceiver : BroadcastReceiver() {
             context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
         )
 
-        when (intent.action) {
-            ScheduleAlarmManager.ACTION_SCHEDULE_START -> {
-                grayscaleManager.setGrayscale(true)
-                val interval = enforcementPrefs.getInterval()
-                if (interval > 0) {
-                    val serviceIntent = Intent(context, GrayoutService::class.java)
-                        .putExtra(GrayoutService.EXTRA_INTERVAL, interval)
-                    context.startForegroundService(serviceIntent)
-                }
+        if (intent.action != ScheduleAlarmManager.ACTION_SCHEDULE_FIRE) return
+
+        val isStart = intent.getBooleanExtra(ScheduleAlarmManager.EXTRA_IS_START, false)
+        if (isStart) {
+            grayscaleManager.setGrayscale(true)
+            val interval = enforcementPrefs.getInterval()
+            if (interval > 0) {
+                val serviceIntent = Intent(context, GrayoutService::class.java)
+                    .putExtra(GrayoutService.EXTRA_INTERVAL, interval)
+                context.startForegroundService(serviceIntent)
             }
-            ScheduleAlarmManager.ACTION_SCHEDULE_END -> {
-                grayscaleManager.setGrayscale(false)
-            }
+        } else {
+            grayscaleManager.setGrayscale(false)
         }
 
         val db = GrayoutDatabase.getInstance(context)

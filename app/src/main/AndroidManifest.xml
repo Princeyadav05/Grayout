@@ -75,8 +75,7 @@
             android:name=".scheduling.ScheduleReceiver"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.princeyadav.grayout.SCHEDULE_START" />
-                <action android:name="com.princeyadav.grayout.SCHEDULE_END" />
+                <action android:name="com.princeyadav.grayout.SCHEDULE_FIRE" />
             </intent-filter>
         </receiver>
         <receiver
