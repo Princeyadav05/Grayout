@@ -7,6 +7,9 @@ import android.content.Intent
 import android.os.Build
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.model.daysOfWeekList
+import com.princeyadav.grayout.service.EnforcementPrefs
+import com.princeyadav.grayout.service.GrayoutService
+import com.princeyadav.grayout.service.GrayscaleManager
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
@@ -67,6 +70,13 @@ class ScheduleAlarmManager(private val context: Context) {
             setExactAlarm(epochMillis, nextIsStart)
         }
 
+        // One-directional state sync: if the current time falls inside an active schedule
+        // window, ensure grayscale is on and the enforcement service is running. Never
+        // force grayscale OFF here — that would override manual user toggles. The OFF
+        // transition happens only when a real end-of-window alarm fires.
+        //
+        // Applied inline (no broadcast) to avoid the receiver-reschedule loop that the
+        // previous state-sync broadcast caused.
         val isCurrentlyInSchedule = enabledSchedules.any { schedule ->
             val days = schedule.daysOfWeekList
             if (now.dayOfWeek !in days) return@any false
@@ -81,11 +91,20 @@ class ScheduleAlarmManager(private val context: Context) {
             }
         }
 
-        val stateIntent = Intent(context, ScheduleReceiver::class.java).apply {
-            action = ACTION_SCHEDULE_FIRE
-            putExtra(EXTRA_IS_START, isCurrentlyInSchedule)
+        if (isCurrentlyInSchedule) {
+            val grayscaleManager = GrayscaleManager(context.contentResolver)
+            grayscaleManager.setGrayscale(true)
+
+            val enforcementPrefs = EnforcementPrefs(
+                context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
+            )
+            val interval = enforcementPrefs.getInterval()
+            if (interval > 0) {
+                val serviceIntent = Intent(context, GrayoutService::class.java)
+                    .putExtra(GrayoutService.EXTRA_INTERVAL, interval)
+                context.startForegroundService(serviceIntent)
+            }
         }
-        context.sendBroadcast(stateIntent)
     }
 
     private fun setExactAlarm(triggerAtMillis: Long, isStart: Boolean) {
