@@ -21,9 +21,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -192,8 +192,8 @@ private fun MainToggleCard(
     // gate its output based on isGrayscaleOn / reduceMotion below.
     val transition = rememberInfiniteTransition(label = "breathPulse")
     val rawPulseAlpha by transition.animateFloat(
-        initialValue = 0.18f,
-        targetValue = 0.32f,
+        initialValue = 0.25f,
+        targetValue = 0.45f,
         animationSpec = infiniteRepeatable(
             animation = tween(
                 durationMillis = GrayoutMotion.BreathPeriodMs / 2,
@@ -204,8 +204,8 @@ private fun MainToggleCard(
         label = "pulseAlpha",
     )
     val rawPulseOffset by transition.animateFloat(
-        initialValue = 8f,
-        targetValue = 14f,
+        initialValue = 14f,
+        targetValue = 22f,
         animationSpec = infiniteRepeatable(
             animation = tween(
                 durationMillis = GrayoutMotion.BreathPeriodMs / 2,
@@ -217,12 +217,12 @@ private fun MainToggleCard(
     )
     val pulseAlpha: Float = when {
         !isGrayscaleOn -> 0f
-        reduceMotion -> 0.25f          // reduce-motion: static mid-value glow
+        reduceMotion -> 0.35f          // reduce-motion: static mid-value glow
         else -> rawPulseAlpha
     }
     val pulseOffsetDp: Float = when {
         !isGrayscaleOn -> 0f
-        reduceMotion -> 11f
+        reduceMotion -> 18f
         else -> rawPulseOffset
     }
 
@@ -244,11 +244,11 @@ private fun MainToggleCard(
                                 color = colors.text.copy(alpha = pulseAlpha),
                                 radius = r,
                                 center = center,
-                                style = Stroke(width = 2.dp.toPx()),
+                                style = Stroke(width = 3.dp.toPx()),
                             )
                         }
                     }
-                    .background(colors.surface, CircleShape)
+                    .background(colors.bg, CircleShape)
                     .border(strokeWidth, strokeColor, CircleShape)
                     .clip(CircleShape)
                     .clickable(
@@ -263,7 +263,7 @@ private fun MainToggleCard(
                 Image(
                     painter = painterResource(R.drawable.ic_grayout_foreground),
                     contentDescription = "Toggle grayscale",
-                    modifier = Modifier.size(64.dp),
+                    modifier = Modifier.size(80.dp),
                     colorFilter = ColorFilter.tint(iconColor),
                 )
             }
@@ -271,7 +271,7 @@ private fun MainToggleCard(
             Spacer(modifier = Modifier.height(dimens.sectionGap))
 
             Text(
-                text = if (isGrayscaleOn) "On" else "Off",
+                text = if (isGrayscaleOn) "Grayscale on" else "Grayscale off",
                 style = typography.headingLarge,
                 color = colors.text,
             )
@@ -404,7 +404,7 @@ private fun EnforcementCard(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Re-applies grayscale on a timer — in case you switch it off",
+                text = "Re-applies grayscale on a timer, even if you turn it off",
                 style = typography.labelSmall,
                 color = colors.textMuted,
             )
@@ -471,14 +471,9 @@ private fun EnforcementChip(
         label = "chipBorder",
     )
 
-    Text(
-        text = label,
-        style = typography.bodySmall.copy(
-            fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
-        ),
-        color = textColor,
+    Box(
         modifier = Modifier
-            .sizeIn(minHeight = 48.dp)
+            .heightIn(min = 48.dp)
             .background(bg, RoundedCornerShape(dimens.radiusFull))
             .border(1.dp, borderColor, RoundedCornerShape(dimens.radiusFull))
             .clip(RoundedCornerShape(dimens.radiusFull))
@@ -490,7 +485,16 @@ private fun EnforcementChip(
                 onClick()
             }
             .padding(horizontal = 14.dp, vertical = 6.dp),
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = typography.bodySmall.copy(
+                fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
+            ),
+            color = textColor,
+        )
+    }
 }
 
 @Composable
