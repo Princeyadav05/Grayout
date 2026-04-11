@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.ui.components.GrayoutCard
@@ -140,9 +142,12 @@ fun ExclusionListScreen(
 
                         Text(
                             text = "Open Settings",
-                            style = typography.bodySmall,
-                            color = colors.accent,
-                            modifier = Modifier.clickable { onOpenAccessibilitySettings() },
+                            style = typography.bodySmall.copy(fontWeight = FontWeight.ExtraBold),
+                            color = colors.text,
+                            modifier = Modifier
+                                .sizeIn(minHeight = 48.dp)
+                                .clickable { onOpenAccessibilitySettings() }
+                                .padding(vertical = 12.dp),
                         )
                     }
                 }
@@ -160,7 +165,7 @@ fun ExclusionListScreen(
                     onValueChange = onSearchQueryChange,
                     singleLine = true,
                     textStyle = typography.bodyLarge.copy(color = colors.text),
-                    cursorBrush = SolidColor(colors.accent),
+                    cursorBrush = SolidColor(colors.text),
                     decorationBox = { innerTextField ->
                         Box(
                             modifier = Modifier
@@ -170,9 +175,9 @@ fun ExclusionListScreen(
                                     RoundedCornerShape(dimens.radiusSm),
                                 )
                                 .border(
-                                    1.dp,
-                                    if (isFocused) colors.accent else colors.border,
-                                    RoundedCornerShape(dimens.radiusSm),
+                                    width = if (isFocused) 2.dp else 1.dp,
+                                    color = if (isFocused) colors.borderActive else colors.border,
+                                    shape = RoundedCornerShape(dimens.radiusSm),
                                 )
                                 .padding(dimens.cardPad),
                             contentAlignment = Alignment.CenterStart,
