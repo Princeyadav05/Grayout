@@ -34,6 +34,7 @@ Thumbs.db
 
 # Superpowers (local only)
 docs/superpowers/
+.superpowers/
 
 # Misc
 *.log
