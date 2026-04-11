@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -39,11 +40,15 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.model.formatTime12Hour
 import com.princeyadav.grayout.ui.components.GrayoutCard
+import com.princeyadav.grayout.ui.components.HapticAction
+import com.princeyadav.grayout.ui.components.performHaptic
+import com.princeyadav.grayout.ui.theme.GrayoutMotion
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 import java.time.DayOfWeek
 
@@ -106,7 +111,7 @@ fun ScheduleEditorScreen(
             Spacer(modifier = Modifier.width(dimens.cardGap))
 
             Text(
-                text = if (isEditMode) "Edit Schedule" else "New Schedule",
+                text = if (isEditMode) "Edit schedule" else "New schedule",
                 style = typography.headingSmall,
                 color = colors.text,
             )
@@ -173,21 +178,26 @@ fun ScheduleEditorScreen(
         }
 
         // Save button
+        val view = LocalView.current
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(colors.accent, RoundedCornerShape(dimens.radius))
+                .sizeIn(minHeight = 48.dp)
+                .background(colors.text, RoundedCornerShape(dimens.radius))
                 .clip(RoundedCornerShape(dimens.radius))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                ) { onSave() }
+                ) {
+                    view.performHaptic(HapticAction.Commit)
+                    onSave()
+                }
                 .padding(vertical = 16.dp),
         ) {
             Text(
-                text = "Save Schedule",
-                style = typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                text = "Save",
+                style = typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
                 color = colors.bg,
             )
         }
@@ -197,16 +207,21 @@ fun ScheduleEditorScreen(
             Spacer(modifier = Modifier.height(dimens.sectionGap))
 
             Text(
-                text = "Delete Schedule",
+                text = "Delete schedule",
                 style = typography.bodySmall,
                 color = colors.danger,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .sizeIn(minHeight = 48.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                    ) { onDelete() },
+                    ) {
+                        view.performHaptic(HapticAction.Destructive)
+                        onDelete()
+                    }
+                    .padding(vertical = 12.dp),
             )
         }
 
@@ -234,7 +249,7 @@ private fun NameCard(
             Text(
                 text = "NAME",
                 style = typography.labelSmall,
-                color = colors.accent,
+                color = colors.textMuted,
             )
 
             Spacer(modifier = Modifier.height(dimens.itemGap))
@@ -244,7 +259,7 @@ private fun NameCard(
                 onValueChange = onNameChange,
                 singleLine = true,
                 textStyle = typography.bodyLarge.copy(color = colors.text),
-                cursorBrush = SolidColor(colors.accent),
+                cursorBrush = SolidColor(colors.text),
                 decorationBox = { innerTextField ->
                     Box(
                         modifier = Modifier
@@ -254,9 +269,9 @@ private fun NameCard(
                                 RoundedCornerShape(dimens.radiusSm),
                             )
                             .border(
-                                1.dp,
-                                if (isFocused) colors.accent else colors.border,
-                                RoundedCornerShape(dimens.radiusSm),
+                                width = if (isFocused) 2.dp else 1.dp,
+                                color = if (isFocused) colors.borderActive else colors.border,
+                                shape = RoundedCornerShape(dimens.radiusSm),
                             )
                             .padding(dimens.cardPad),
                         contentAlignment = Alignment.CenterStart,
@@ -301,7 +316,7 @@ private fun TimeCard(
             Text(
                 text = "TIME RANGE",
                 style = typography.labelSmall,
-                color = colors.accent,
+                color = colors.textMuted,
             )
 
             Spacer(modifier = Modifier.height(dimens.sectionGap))
@@ -323,12 +338,14 @@ private fun TimeCard(
                     Text(
                         text = formatTime12Hour(startHour, startMinute),
                         style = typography.mono,
-                        color = colors.accent,
+                        color = colors.text,
                         modifier = Modifier
+                            .sizeIn(minHeight = 48.dp)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                            ) { onStartTimeClick() },
+                            ) { onStartTimeClick() }
+                            .padding(vertical = 8.dp),
                     )
                 }
 
@@ -350,12 +367,14 @@ private fun TimeCard(
                     Text(
                         text = formatTime12Hour(endHour, endMinute),
                         style = typography.mono,
-                        color = colors.accent,
+                        color = colors.text,
                         modifier = Modifier
+                            .sizeIn(minHeight = 48.dp)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                            ) { onEndTimeClick() },
+                            ) { onEndTimeClick() }
+                            .padding(vertical = 8.dp),
                     )
                 }
             }
@@ -399,7 +418,7 @@ private fun DaysCard(
             Text(
                 text = "REPEAT ON",
                 style = typography.labelSmall,
-                color = colors.accent,
+                color = colors.textMuted,
             )
 
             Spacer(modifier = Modifier.height(dimens.sectionGap))
@@ -407,33 +426,45 @@ private fun DaysCard(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(dimens.dayDotGap),
             ) {
+                val view = LocalView.current
                 dayLabels.forEach { (day, label) ->
                     val isSelected = day in selectedDays
 
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(40.dp)
-                            .background(
-                                if (isSelected) colors.accentDim else Color.Transparent,
-                                CircleShape,
-                            )
-                            .border(
-                                1.dp,
-                                if (isSelected) colors.accent.copy(alpha = 0.33f) else colors.border,
-                                CircleShape,
-                            )
-                            .clip(CircleShape)
+                            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                            .size(48.dp)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                            ) { onToggleDay(day) },
+                            ) {
+                                view.performHaptic(HapticAction.Toggle)
+                                onToggleDay(day)
+                            },
                     ) {
-                        Text(
-                            text = label,
-                            style = typography.labelXSmall,
-                            color = if (isSelected) colors.accent else colors.textDim,
-                        )
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(
+                                    if (isSelected) colors.text else Color.Transparent,
+                                    CircleShape,
+                                )
+                                .border(
+                                    width = if (isSelected) 0.dp else 1.dp,
+                                    color = if (isSelected) Color.Transparent else colors.border,
+                                    shape = CircleShape,
+                                ),
+                        ) {
+                            Text(
+                                text = label,
+                                style = typography.labelXSmall.copy(
+                                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                ),
+                                color = if (isSelected) colors.bg else colors.textDim,
+                            )
+                        }
                     }
                 }
             }
@@ -469,35 +500,51 @@ private fun PresetChip(
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
+    val view = LocalView.current
 
     val bg by animateColorAsState(
-        targetValue = if (isActive) colors.accentDim else Color.Transparent,
-        animationSpec = tween(300),
+        targetValue = if (isActive) colors.text else Color.Transparent,
+        animationSpec = tween(
+            durationMillis = GrayoutMotion.Fast,
+            easing = GrayoutMotion.Easing,
+        ),
         label = "chipBg",
     )
     val textColor by animateColorAsState(
-        targetValue = if (isActive) colors.accent else colors.textMuted,
-        animationSpec = tween(300),
+        targetValue = if (isActive) colors.bg else colors.textMuted,
+        animationSpec = tween(
+            durationMillis = GrayoutMotion.Fast,
+            easing = GrayoutMotion.Easing,
+        ),
         label = "chipText",
     )
     val borderColor by animateColorAsState(
-        targetValue = if (isActive) colors.accent.copy(alpha = 0.33f) else colors.border,
-        animationSpec = tween(300),
+        targetValue = if (isActive) Color.Transparent else colors.border,
+        animationSpec = tween(
+            durationMillis = GrayoutMotion.Fast,
+            easing = GrayoutMotion.Easing,
+        ),
         label = "chipBorder",
     )
 
     Text(
         text = label,
-        style = typography.bodySmall,
+        style = typography.bodySmall.copy(
+            fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
+        ),
         color = textColor,
         modifier = Modifier
+            .sizeIn(minHeight = 48.dp)
             .background(bg, RoundedCornerShape(dimens.radiusFull))
             .border(1.dp, borderColor, RoundedCornerShape(dimens.radiusFull))
             .clip(RoundedCornerShape(dimens.radiusFull))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-            ) { onClick() }
+            ) {
+                view.performHaptic(HapticAction.Toggle)
+                onClick()
+            }
             .padding(horizontal = 14.dp, vertical = 6.dp),
     )
 }
