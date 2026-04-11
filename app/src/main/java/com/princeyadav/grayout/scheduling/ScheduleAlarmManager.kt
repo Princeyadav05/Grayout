@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.model.daysOfWeekList
 import java.time.LocalDateTime
@@ -96,10 +97,26 @@ class ScheduleAlarmManager(private val context: Context) {
             context, REQUEST_CODE, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent,
-        )
+        try {
+            if (canScheduleExact()) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent,
+                )
+            } else {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent,
+                )
+            }
+        } catch (_: SecurityException) {
+            // Permission was revoked between the check and the call. Fall back to inexact.
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent,
+            )
+        }
     }
+
+    private fun canScheduleExact(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
 
     private fun cancelAll() {
         val intent = Intent(context, ScheduleReceiver::class.java).apply {
