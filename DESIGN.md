@@ -1,166 +1,183 @@
 # Grayout — Design Specification
 
-This document defines the visual language for the Grayout Android app. Follow these tokens, patterns, and screen specs when building any Jetpack Compose UI.
+This document defines the visual language for the Grayout Android app. It reflects the current state of the theme files under `app/src/main/java/com/princeyadav/grayout/ui/theme/`. Follow these tokens, patterns, and general rules when building any Jetpack Compose UI.
+
+---
+
+## Philosophy
+
+Grayout is a grayscale-enforcement app, so its UI is itself almost entirely achromatic. Depth, state, and hierarchy come from **luminance** — layered blacks, border weights, and text brightness — not from color.
+
+State is communicated **without hue**:
+- On/off is expressed through layout, border weight, text weight, and luminance.
+- Disabled/inactive elements go gray. They never turn a different color.
+- A card that is "active" has a brighter border, not a blue tint.
+
+The app has a **single brand accent**: `BrandAccent = #B5A0D8` (dusty lavender). It is deliberately scarce — a light sprinkle of identity, not a state color. It lives as a standalone top-level `val` in `Color.kt`, **not inside `GrayoutTheme.colors.*`**, so it is harder to reach for by accident.
+
+`BrandAccent` is used only for:
+- Eyebrow labels (`STATUS`, `ENFORCEMENT`, `EXCLUSIONS`) at 0.75 alpha
+- The vertical gradient wash at the top of the status hero card
+- The foreground notification accent
+- The adaptive launcher icon tint
+- The wordmark lockup on the home header
+- The `STATUS` dot when grayscale is **off**
+- The flash/pulse on the ADB command sheet `COPY → COPIED` confirmation
+- Section headers inside the exclusions screen
+- The schedule "Now" badge on the schedule list
+
+Everything else is grayscale.
 
 ---
 
 ## Color Tokens
 
-Map these to a Compose `MaterialTheme` color scheme. The app is dark-only (no light theme).
+All tokens live in `Color.kt`. There are **10 tokens** on `GrayoutTheme.colors`, plus one standalone `BrandAccent`. That's it.
 
-| Token         | Hex       | Usage                                      |
-|---------------|-----------|---------------------------------------------|
-| `bg`          | `#0B0B0B` | Scaffold/screen background                  |
-| `surface`     | `#161616` | Card backgrounds                            |
-| `border`      | `#2A2A2A` | Card borders, dividers, input borders       |
-| `borderActive`| `#555555` | Borders on active/selected cards            |
-| `text`        | `#E8E8E8` | Primary text (headings, body)               |
-| `textMuted`   | `#777777` | Secondary/supporting text                   |
-| `textDim`     | `#4A4A4A` | Disabled/tertiary text                      |
-| `accent`      | `#A0D2C6` | Muted teal — active states, CTAs, toggles on, selected chips, nav highlight |
-| `accentDim`   | `#2A3D38` | Dark tint of accent — active card tint, selected day backgrounds |
-| `off`         | `#3A3A3A` | Toggle off background, inactive chip bg     |
-| `offText`     | `#666666` | Text on off/disabled elements               |
-| `danger`      | `#FF6B6B` | Delete actions, destructive buttons         |
-| `success`     | `#6BE8A0` | Active status dots, running indicators      |
+| Token          | Hex       | Usage                                                           |
+|----------------|-----------|-----------------------------------------------------------------|
+| `bg`           | `#0B0B0B` | Scaffold / screen background                                    |
+| `surface`      | `#161616` | Card backgrounds                                                |
+| `border`       | `#2A2A2A` | Card borders, dividers, inactive chip borders                   |
+| `borderActive` | `#555555` | Borders on active/selected cards                                |
+| `text`         | `#E8E8E8` | Primary text, active chip fill, active toggle track             |
+| `textMuted`    | `#777777` | Secondary / supporting text, inactive chip text                 |
+| `textDim`      | `#4A4A4A` | Disabled / tertiary text, footer tagline                        |
+| `off`          | `#3A3A3A` | Toggle off track, inactive pill background                      |
+| `offText`      | `#666666` | Text on off/disabled elements                                   |
+| `danger`       | `#FF6B6B` | Destructive actions and error states                            |
+| `BrandAccent`  | `#B5A0D8` | Standalone. Brand/identity only — see list above.               |
+
+**Rule:** never hardcode a `Color(0x...)` in UI code. Pull from `GrayoutTheme.colors` or import `BrandAccent`.
+
+The `MaterialTheme` color scheme in `Theme.kt` is wired from these same tokens so that stock Material 3 components (`HorizontalDivider`, `Text`, etc.) also pick up the theme automatically.
+
+---
 
 ## Typography
 
-| Style           | Font             | Size | Weight  | Usage                          |
-|-----------------|------------------|------|---------|--------------------------------|
-| `headingLarge`  | DM Sans          | 28sp | Bold    | Main toggle state label        |
-| `headingMedium` | DM Sans          | 24sp | Bold    | Screen titles (Schedules, Settings) |
-| `headingSmall`  | DM Sans          | 20sp | Bold    | App name, editor title         |
-| `titleMedium`   | DM Sans          | 18sp | Bold    | Schedule name, stat values     |
-| `bodyLarge`     | DM Sans          | 16sp | Regular | Input text                     |
-| `bodyMedium`    | DM Sans          | 14sp | SemiBold| Toggle labels, schedule times  |
-| `bodySmall`     | DM Sans          | 13sp | SemiBold| Subtitle text, chip labels     |
-| `labelSmall`    | DM Sans          | 12sp | Regular | Section headers (uppercase + 0.5sp tracking), muted labels |
-| `labelXSmall`   | DM Sans          | 11sp | SemiBold| Day selector text, badge text, nav labels |
-| `mono`          | JetBrains Mono   | 22sp | Bold    | Time display (start/end pickers) |
-| `monoSmall`     | JetBrains Mono   | 14sp | Medium  | Schedule time range on cards   |
+Two font families, loaded via Google Fonts:
+- **Plus Jakarta Sans** — weights 400 / 500 / 600 / 700 / 800
+- **JetBrains Mono** — weights 500 / 700
 
-Letter spacing: headings use `-0.5sp`. Labels use `+0.5sp`.
+Styles are defined on `GrayoutTheme.typography`.
+
+| Style           | Font             | Size | Weight     | Usage                                      |
+|-----------------|------------------|------|------------|--------------------------------------------|
+| `headingLarge`  | Plus Jakarta Sans| 28sp | Bold       | Hero state label (`Grayscale on` / `off`)  |
+| `headingMedium` | Plus Jakarta Sans| 24sp | Bold       | Screen titles                              |
+| `headingSmall`  | Plus Jakarta Sans| 20sp | Bold       | Wordmark text, editor titles               |
+| `titleMedium`   | Plus Jakarta Sans| 18sp | Bold       | Schedule name, stat values                 |
+| `bodyLarge`     | Plus Jakarta Sans| 16sp | Regular    | Input text                                 |
+| `bodyMedium`    | Plus Jakarta Sans| 14sp | SemiBold   | **The one body style.** Row labels, subtitles, chip labels |
+| `labelSmall`    | Plus Jakarta Sans| 12sp | Regular    | Eyebrow / section headers (`STATUS`, `ENFORCEMENT`), muted captions. `0.5sp` tracking. |
+| `labelXSmall`   | Plus Jakarta Sans| 11sp | SemiBold   | Pill text, day-letter text, nav labels     |
+| `mono`          | JetBrains Mono   | 22sp | Bold       | Full-size time display (pickers)           |
+| `monoSmall`     | JetBrains Mono   | 14sp | Medium     | Next-schedule chip on hero, schedule times |
+
+Headings use `-0.5sp` letter spacing. `labelSmall` uses `+0.5sp`.
+
+There is no `bodySmall` — everything that used to be 13sp has been collapsed onto `bodyMedium`.
+
+---
 
 ## Spacing & Sizing
 
-| Token          | Value | Usage                                 |
-|----------------|-------|---------------------------------------|
-| `screenPad`    | 20dp  | Horizontal padding on all screens     |
-| `cardPad`      | 16dp  | Default card internal padding         |
-| `cardPadLarge` | 24dp  | Main toggle card padding              |
-| `cardGap`      | 12dp  | Gap between cards                     |
-| `sectionGap`   | 16dp  | Gap between card sections             |
-| `itemGap`      | 8dp   | Gap between list items inside cards   |
-| `chipGap`      | 8dp   | Gap between chips                     |
-| `dayDotGap`    | 6dp   | Gap between day selector circles      |
+All in `Dimens.kt` on `GrayoutTheme.dimens`.
 
-## Corner Radius
+| Token          | Value  | Usage                                                |
+|----------------|--------|------------------------------------------------------|
+| `screenPad`    | 20dp   | Horizontal padding on every screen                   |
+| `cardPad`      | 16dp   | Default card internal padding                        |
+| `cardPadLarge` | 24dp   | Reserved for tall hero cards                         |
+| `cardGap`      | 12dp   | Gap between cards, gap inside the hero pill row      |
+| `sectionGap`   | 16dp   | Gap between sections inside a card                   |
+| `tightGap`     | 8dp    | The one "small gap" token. Replaces the old `itemGap`, `chipGap`, and `dayDotGap` — use this for any inside-a-component small gap. |
+| `radius`       | 16dp   | Cards                                                |
+| `radiusSm`     | 10dp   | Inner containers, inputs                             |
+| `radiusFull`   | 999dp  | Pills, chips, toggles, dots                          |
 
-| Token       | Value | Usage                          |
-|-------------|-------|--------------------------------|
-| `radius`    | 16dp  | Cards                          |
-| `radiusSm`  | 10dp  | Inner containers, inputs       |
-| `radiusFull`| 999dp | Chips, pills, toggles, day dots|
+**Rule:** never hardcode `.dp` values for spacing or radii. Use tokens.
+
+---
+
+## Motion
+
+All motion constants live in the `GrayoutMotion` object in `Motion.kt`. These are the **only** motion durations the app uses — anything else is wrong.
+
+| Constant         | Value       | Usage                                                        |
+|------------------|-------------|--------------------------------------------------------------|
+| `Fast`           | 180 ms      | Chip flicks, pill state, press/hover, toggle thumb           |
+| `Slow`           | 320 ms      | Main state changes, card border tint, screen transitions    |
+| `BreathPeriodMs` | 4000 ms     | Full period of the hero breathing pulse                      |
+| `Easing`         | `FastOutSlowInEasing` | The single easing curve everywhere             |
+
+No spring physics, no bounce, no custom easings. If you need a duration, pick `Fast` or `Slow`.
+
+---
 
 ## Component Patterns
 
-### Cards
-- Background: `surface`
-- Border: 1dp `border` (default), `accent` at 27% opacity when active
-- Radius: `radius` (16dp)
-- No elevation/shadow — borders only
+### `GrayoutCard`
+- Background: `surface`. Corner: `dimens.radius` (16dp).
+- Border: 1dp `border` by default, animates to 2dp `borderActive` when `isActive = true`. The animation uses `GrayoutMotion.Slow`.
+- No elevation, no shadow. Depth is borders only.
 
-### Toggle Switch
-- Track: `accent` when on, `off` when off
-- Thumb: `bg` when on, `offText` when off
-- Size: 56×31dp (large, main), 44×24dp (settings rows)
-- Animate: 250ms ease
+### Eyebrow label
+- A small uppercase text using `typography.labelSmall`, colored `BrandAccent.copy(alpha = 0.75f)`.
+- Used at the top of sections inside a card (`STATUS`, `ENFORCEMENT`, `EXCLUSIONS`) and for section headers on the exclusions screen.
+- Optionally paired with a 6dp dot to its left.
 
-### Day Selector Circles
-- Size: 32dp (schedule list), 40dp (editor)
-- Selected: `accentDim` fill, `accent` border at 33% opacity, `accent` text
-- Unselected: transparent fill, `border` border, `textDim` text
-- All circles in a row, evenly spaced
+### Status hero card (home)
+- One unified card that combines status + pills + toggle. There is no separate 120dp circle anymore.
+- Top edge has a vertical gradient wash: `BrandAccent` at 0.08 alpha at the top, fading to `Color.Transparent` by 40% of the card height. This is the only place the wash appears.
+- Contents, top to bottom:
+  1. Eyebrow row: a 6dp dot (`BrandAccent` when off, `text` when on) + the `STATUS` label.
+  2. `Grayscale on` / `Grayscale off` in `headingLarge`, colored `text`.
+  3. A `bodyMedium` subtitle in `textMuted` ("Your screen is muted" / "Tap to mute your screen"), or an error line in `text` if the last toggle failed.
+  4. A row with the enforcement interval pill (`Off`, `1m`, `5m`…) and the next-schedule summary in `monoSmall`.
+  5. A divider, then the `Grayscale` label + `GrayoutToggle` row.
+- When grayscale is on, the card passes `isActive = true` to `GrayoutCard`, which brightens the border.
 
-### Chips (Quick Select: "Every day", "Weekdays", "Weekends")
-- Active: `accentDim` bg, `accent` text, `accent` border at 33% opacity
-- Inactive: transparent bg, `textMuted` text, `border` border
-- Radius: full round (pill shape)
-- Padding: 6dp vertical, 14dp horizontal
+### Enforcement pills
+- Six pills in a single row, equal width (`Modifier.weight(1f)`): `Off`, `1m`, `5m`, `10m`, `15m`, `30m`.
+- Shape: `radiusFull`. Min height 48dp (touch target).
+- Active: background `text`, text color `bg`, no border, `bodyMedium` at `ExtraBold` weight.
+- Inactive: transparent background, text `textMuted`, 1dp `border` border, `bodyMedium` at `SemiBold`.
+- State changes animate over `GrayoutMotion.Fast`.
 
-### Status Dot
-- Size: 8dp circle
-- Active: `success` fill with subtle glow (`success` at 27% opacity, 8dp blur)
-- Inactive: `off` fill, no glow
+### Wordmark (home header)
+- A compact lockup: the ring mark (`ic_grayout_foreground`) tinted with `BrandAccent`, 24dp, next to the text "Grayout" in `headingSmall`.
+- This replaces the older freestanding app header and is the only place the wordmark appears in-app.
 
-### Active/Off Badge
-- Active: `accentDim` bg, `accent` text, 12dp radius pill
-- Off: `off` bg, `offText` text
+### `GrayoutToggle`
+- Track: `text` when on, `off` when off.
+- Thumb: `bg` when on, `offText` when off.
+- Animates on `GrayoutMotion.Fast`. Haptic tick on press.
 
-### Bottom Navigation
-- 3 tabs: Home, Schedule, Settings
-- Icons: outlined stroke style, 22dp, `accent` stroke when active, `#666` when inactive
-- Active tab fills icon with `accentDim`
-- Label: 11sp, semibold, `accent` when active, `#555` when inactive
-- Bar: `bg` background, `border` top border, 12dp top padding, 28dp bottom padding (safe area)
+### `StatusDot`
+- 8dp circle. Used in rows (e.g. "Service status") to indicate liveness.
+- When on: fills with `text`. When off: fills with `off`.
+
+### Bottom navigation
+- 3 tabs: Home, Schedule, Settings.
+- Active: icon and label in `text`. Inactive: `textMuted`.
+- Bar background: `bg`. Top border: 1dp `border`.
+- Labels use `labelXSmall`.
 
 ### Buttons
-- Primary (Save): `accent` bg, `bg` text, `radius` corners, 16dp vertical padding, 16sp bold
-- Destructive (Delete): transparent bg, `danger` text, 14sp semibold
-- Add (+): `accent` bg, `bg` text, full-round pill, 13sp bold
+- Primary (Save): `text` background, `bg` label, `radius` corners, 16dp vertical padding.
+- Destructive (Delete): transparent background, `danger` label, `bodyMedium`.
+- Add (+): `text` background, `bg` label, full-round pill.
 
 ---
-
-## Screen Specs
-
-### 1. Home Screen
-
-Top to bottom:
-1. **App header** — App icon (◐ in a rounded square with `accent` gradient tint) + "Grayout" text (headingSmall)
-2. **Main toggle card** (cardPadLarge) — Large circle (120dp) as visual indicator, taps to toggle. Below: state label (headingLarge, `accent` when on, `text` when off), subtitle (bodyMedium, `textMuted`), then a row with "Grayscale" label + Toggle switch inside an inner container (`bg` background, `radiusSm`). When enabled, card gets a gradient bg from `accentDim` to `surface` and an `accent` tinted border.
-3. **Two stat cards** side by side — "Status" showing Active/Inactive (`success`/`offText`), "Next Schedule" showing time in `mono` font.
-4. **Active Schedules preview card** — Header with "Active Schedules" + count in `accent`. List of schedule summaries (name + time + days) in inner rows with `bg` background and StatusDot.
-
-### 2. Schedule List Screen
-
-Top to bottom:
-1. **Header row** — "Schedules" (headingMedium), subtitle, and "+ Add" pill button
-2. **Schedule cards** — Each card contains: Active/Off badge + Toggle in top row. Below: schedule name (titleMedium), time range in `monoSmall` (`accent` when active, `textMuted` when off), day dots row. Inactive schedules render at 50% opacity. Active cards get tinted border.
-
-### 3. Schedule Editor Screen
-
-Top to bottom:
-1. **Header** — Back button (circle, `surface` bg, chevron icon) + "Edit Schedule" (headingSmall)
-2. **Name card** — Label + text input (`bg` background, `border` border, focus border tints to `accent`)
-3. **Time card** — "Time Range" label + "All day" toggle. When not all-day: two time displays (START/END) in `mono` font with `accent` color, arrow between them.
-4. **Days card** — "Repeat on" label, row of 7 day circles (tappable), quick-select chips below
-5. **Save button** — Full-width primary button
-6. **Delete button** — Centered `danger` text
-
-### 4. Settings Screen
-
-Top to bottom:
-1. **Title** — "Settings" (headingMedium)
-2. **Service card** — Section header ("SERVICE" in `accent`, labelSmall uppercase). Rows: "Start on boot" with toggle, "Show notification" with toggle, "Service status" with arrow. Each row has label (bodyMedium+semibold) and optional subtitle (labelSmall, `textMuted`). Rows separated by `border` divider.
-3. **Setup card** — Section header "SETUP". Rows: "ADB permission", "Battery optimization" with arrows.
-4. **About card** — Section header "ABOUT". Version row. Footer tagline centered in `textDim`.
-
----
-
-## Animations
-
-- Screen transitions: fade in + 12dp slide up, 500ms
-- Toggle thumb: 250ms ease translateX
-- Color transitions: 300ms (border tint, text color changes)
-- Keep it subtle. No bouncing, no spring physics.
 
 ## General Rules
 
-- Dark theme only. No light mode.
-- No elevation/shadow anywhere. Depth via borders and subtle background tints.
-- Cards are the primary container for everything.
-- Accent color (`#A0D2C6`) is the ONLY chromatic color in the app besides danger red and success green.
-- When something is off/disabled, it goes gray — never accent-colored.
-- Generous whitespace. Don't crowd elements.
-- Monospace font only for time displays.
+- **Dark theme only.** There is no light mode, and there is no plan to add one.
+- **No hardcoded colors or sizes.** Every color must come from `GrayoutTheme.colors` (or `BrandAccent`), every dimension from `GrayoutTheme.dimens`, every text style from `GrayoutTheme.typography`, every duration from `GrayoutMotion`.
+- **State is non-chromatic.** When something is off, inactive, or disabled, it goes gray — not a faded accent. If you find yourself tinting a failure state blue or a success state green, stop.
+- **Depth is borders, not shadows.** The app uses no elevation. Cards sit on `bg`, darker than `surface`, with a 1dp border.
+- **`BrandAccent` is sparingly used.** If you're about to reach for `BrandAccent` outside the cases listed in the Philosophy section, reconsider. The whole point of keeping it out of `GrayoutTheme.colors` is to create friction.
+- **Generous whitespace.** Don't crowd elements. `sectionGap` between sections, `cardGap` between cards.
+- **Monospace only for time/number displays.** `mono` and `monoSmall` are reserved for actual numeric values the user reads as data (schedule times, next-run countdown). They are never used for regular body copy.
