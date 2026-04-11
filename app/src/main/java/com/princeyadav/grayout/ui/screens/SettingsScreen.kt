@@ -11,9 +11,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.princeyadav.grayout.ui.components.AdbCommandSheet
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.SettingsRow
 import com.princeyadav.grayout.ui.components.StatusDot
@@ -120,13 +125,16 @@ private fun SetupCard(
     val colors = GrayoutTheme.colors
     val dimens = GrayoutTheme.dimens
 
+    var showAdbSheet by remember { mutableStateOf(false) }
+
     GrayoutCard {
         Column(modifier = Modifier.padding(dimens.cardPad)) {
             SectionHeader("SETUP")
 
             SettingsRow(
                 label = "ADB permission",
-                subtitle = "adb shell pm grant com.princeyadav.grayout android.permission.WRITE_SECURE_SETTINGS",
+                subtitle = if (isAdbPermissionGranted) null else "Required for grayscale toggle",
+                onClick = { showAdbSheet = true },
                 trailing = {
                     Text(
                         text = if (isAdbPermissionGranted) "Granted" else "Not granted",
@@ -151,6 +159,13 @@ private fun SetupCard(
                 },
             )
         }
+    }
+
+    if (showAdbSheet) {
+        AdbCommandSheet(
+            isGranted = isAdbPermissionGranted,
+            onDismiss = { showAdbSheet = false },
+        )
     }
 }
 
