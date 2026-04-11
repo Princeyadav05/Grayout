@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,12 +28,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.model.Schedule
 import com.princeyadav.grayout.model.formatTime12Hour
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
+import com.princeyadav.grayout.ui.components.HapticAction
+import com.princeyadav.grayout.ui.components.performHaptic
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 import java.time.DayOfWeek
 
@@ -70,10 +75,11 @@ fun ScheduleListScreen(
 
                 Text(
                     text = "+ Add",
-                    style = typography.bodySmall,
+                    style = typography.bodySmall.copy(fontWeight = FontWeight.ExtraBold),
                     color = colors.bg,
                     modifier = Modifier
-                        .background(colors.accent, RoundedCornerShape(dimens.radiusFull))
+                        .sizeIn(minHeight = 48.dp)
+                        .background(colors.text, RoundedCornerShape(dimens.radiusFull))
                         .clip(RoundedCornerShape(dimens.radiusFull))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -154,6 +160,7 @@ private fun ScheduleCard(
     val dimens = GrayoutTheme.dimens
 
     val days = schedule.daysOfWeek.split(",").map { it.trim() }.toSet()
+    val view = LocalView.current
 
     GrayoutCard(
         isActive = schedule.isEnabled,
@@ -172,19 +179,29 @@ private fun ScheduleCard(
             ) {
                 Text(
                     text = if (schedule.isEnabled) "Active" else "Off",
-                    style = typography.labelXSmall,
-                    color = if (schedule.isEnabled) colors.accent else colors.offText,
+                    style = typography.labelXSmall.copy(
+                        fontWeight = if (schedule.isEnabled) FontWeight.ExtraBold else FontWeight.SemiBold,
+                    ),
+                    color = if (schedule.isEnabled) colors.bg else colors.offText,
                     modifier = Modifier
                         .background(
-                            if (schedule.isEnabled) colors.accentDim else colors.off,
-                            RoundedCornerShape(dimens.radiusSm),
+                            if (schedule.isEnabled) colors.text else Color.Transparent,
+                            RoundedCornerShape(dimens.radiusFull),
+                        )
+                        .border(
+                            1.dp,
+                            if (schedule.isEnabled) Color.Transparent else colors.border,
+                            RoundedCornerShape(dimens.radiusFull),
                         )
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                 )
 
                 GrayoutToggle(
                     checked = schedule.isEnabled,
-                    onCheckedChange = { onToggle() },
+                    onCheckedChange = {
+                        view.performHaptic(HapticAction.Toggle)
+                        onToggle()
+                    },
                 )
             }
 
@@ -204,7 +221,7 @@ private fun ScheduleCard(
                 Text(
                     text = "${formatTime12Hour(schedule.startTimeHour, schedule.startTimeMinute)} \u2192 ${formatTime12Hour(schedule.endTimeHour, schedule.endTimeMinute)}",
                     style = typography.monoSmall,
-                    color = if (schedule.isEnabled) colors.accent else colors.textMuted,
+                    color = if (schedule.isEnabled) colors.text else colors.textMuted,
                 )
 
                 Spacer(modifier = Modifier.height(dimens.itemGap))
@@ -253,19 +270,21 @@ private fun DayDotsRow(
                 modifier = Modifier
                     .size(dotSize)
                     .background(
-                        if (isSelected) colors.accentDim else Color.Transparent,
+                        if (isSelected) colors.text else Color.Transparent,
                         CircleShape,
                     )
                     .border(
-                        1.dp,
-                        if (isSelected) colors.accent.copy(alpha = 0.33f) else colors.border,
-                        CircleShape,
+                        width = if (isSelected) 0.dp else 1.dp,
+                        color = if (isSelected) Color.Transparent else colors.border,
+                        shape = CircleShape,
                     ),
             ) {
                 Text(
                     text = label,
-                    style = typography.labelXSmall,
-                    color = if (isSelected) colors.accent else colors.textDim,
+                    style = typography.labelXSmall.copy(
+                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                    ),
+                    color = if (isSelected) colors.bg else colors.textDim,
                 )
             }
         }
