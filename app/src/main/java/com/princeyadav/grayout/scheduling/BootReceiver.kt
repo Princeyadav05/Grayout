@@ -5,9 +5,6 @@ import android.content.Context
 import android.content.Intent
 import com.princeyadav.grayout.data.GrayoutDatabase
 import com.princeyadav.grayout.data.ScheduleRepository
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
 class BootReceiver : BroadcastReceiver() {
@@ -19,8 +16,7 @@ class BootReceiver : BroadcastReceiver() {
         val alarmManager = ScheduleAlarmManager(context)
 
         val pendingResult = goAsync()
-        @OptIn(DelicateCoroutinesApi::class)
-        GlobalScope.launch(Dispatchers.IO) {
+        receiverScope.launch {
             try {
                 alarmManager.reschedule(repository)
             } finally {
