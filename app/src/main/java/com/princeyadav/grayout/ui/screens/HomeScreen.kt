@@ -188,44 +188,42 @@ private fun MainToggleCard(
         label = "iconColor",
     )
 
-    // Breathing pulse — runs only when active AND reduce-motion is off.
-    val pulseAlpha: Float
-    val pulseOffsetDp: Float
-    if (isGrayscaleOn && !reduceMotion) {
-        val transition = rememberInfiniteTransition(label = "breathPulse")
-        val alpha by transition.animateFloat(
-            initialValue = 0.18f,
-            targetValue = 0.32f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(
-                    durationMillis = GrayoutMotion.BreathPeriodMs / 2,
-                    easing = GrayoutMotion.Easing,
-                ),
-                repeatMode = RepeatMode.Reverse,
+    // Breathing pulse — always declare the transition (Compose slot-table stability);
+    // gate its output based on isGrayscaleOn / reduceMotion below.
+    val transition = rememberInfiniteTransition(label = "breathPulse")
+    val rawPulseAlpha by transition.animateFloat(
+        initialValue = 0.18f,
+        targetValue = 0.32f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = GrayoutMotion.BreathPeriodMs / 2,
+                easing = GrayoutMotion.Easing,
             ),
-            label = "pulseAlpha",
-        )
-        val offset by transition.animateFloat(
-            initialValue = 8f,
-            targetValue = 14f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(
-                    durationMillis = GrayoutMotion.BreathPeriodMs / 2,
-                    easing = GrayoutMotion.Easing,
-                ),
-                repeatMode = RepeatMode.Reverse,
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "pulseAlpha",
+    )
+    val rawPulseOffset by transition.animateFloat(
+        initialValue = 8f,
+        targetValue = 14f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = GrayoutMotion.BreathPeriodMs / 2,
+                easing = GrayoutMotion.Easing,
             ),
-            label = "pulseOffset",
-        )
-        pulseAlpha = alpha
-        pulseOffsetDp = offset
-    } else if (isGrayscaleOn) {
-        // Reduce-motion on: render mid-value static glow.
-        pulseAlpha = 0.25f
-        pulseOffsetDp = 11f
-    } else {
-        pulseAlpha = 0f
-        pulseOffsetDp = 0f
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "pulseOffset",
+    )
+    val pulseAlpha: Float = when {
+        !isGrayscaleOn -> 0f
+        reduceMotion -> 0.25f          // reduce-motion: static mid-value glow
+        else -> rawPulseAlpha
+    }
+    val pulseOffsetDp: Float = when {
+        !isGrayscaleOn -> 0f
+        reduceMotion -> 11f
+        else -> rawPulseOffset
     }
 
     GrayoutCard(isActive = isGrayscaleOn) {
