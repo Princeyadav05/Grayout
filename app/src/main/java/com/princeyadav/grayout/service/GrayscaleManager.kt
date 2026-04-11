@@ -10,6 +10,7 @@ class GrayscaleManager(private val contentResolver: ContentResolver) {
     }
 
     fun setGrayscale(enabled: Boolean) {
+        if (isGrayscaleEnabled() == enabled) return
         if (enabled) {
             Settings.Secure.putInt(contentResolver, DALTONIZER_ENABLED, 1)
             Settings.Secure.putInt(contentResolver, DALTONIZER_MODE, 0)
