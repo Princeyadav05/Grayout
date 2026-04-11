@@ -9,11 +9,9 @@
         <include .../>
         <exclude .../>
         -->
+        <exclude domain="sharedpref" path="grayout_prefs.xml" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="sharedpref" path="grayout_prefs.xml" />
     </device-transfer>
-    -->
 </data-extraction-rules>
