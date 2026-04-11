@@ -1,5 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.GrayOut" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+      Dark-only app theme. Setting windowBackground to the brand bg here
+      eliminates the white flash during cold start before Compose takes over.
+      core-splashscreen is intentionally not a dependency, so this is the
+      fallback path described in the design polish spec.
+    -->
+    <style name="Theme.GrayOut" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/brand_bg</item>
+        <item name="android:colorBackground">@color/brand_bg</item>
+        <item name="android:statusBarColor">@color/brand_bg</item>
+        <item name="android:navigationBarColor">@color/brand_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <!--
+      Splash theme used by the launcher activity. Identical to the main theme
+      (the brand-bg windowBackground is what kills the white flash); kept as a
+      distinct style so we can swap in Android 12+ windowSplashScreen* items
+      later without touching the manifest.
+    -->
+    <style name="Theme.GrayOut.Splash" parent="Theme.GrayOut" />
+
 </resources>

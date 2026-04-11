@@ -9,7 +9,7 @@
     <path
         android:pathData="M26,54a28,28 0 1,1 56,0a28,28 0 1,1 -56,0z"
         android:fillColor="#00000000"
-        android:strokeColor="#D4D4D4"
+        android:strokeColor="#A0D2C6"
         android:strokeWidth="2"
         android:alpha="0.2" />
 
@@ -17,7 +17,7 @@
     <path
         android:pathData="M34,54a20,20 0 1,1 40,0a20,20 0 1,1 -40,0z"
         android:fillColor="#00000000"
-        android:strokeColor="#D4D4D4"
+        android:strokeColor="#A0D2C6"
         android:strokeWidth="2"
         android:alpha="0.5" />
 
@@ -25,13 +25,13 @@
     <path
         android:pathData="M42,54a12,12 0 1,1 24,0a12,12 0 1,1 -24,0z"
         android:fillColor="#00000000"
-        android:strokeColor="#D4D4D4"
+        android:strokeColor="#A0D2C6"
         android:strokeWidth="2"
         android:alpha="0.8" />
 
     <!-- Center dot: r=4, solid fill -->
     <path
         android:pathData="M50,54a4,4 0 1,1 8,0a4,4 0 1,1 -8,0z"
-        android:fillColor="#D4D4D4" />
+        android:fillColor="#A0D2C6" />
 
 </vector>
