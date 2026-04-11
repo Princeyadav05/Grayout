@@ -1,12 +1,6 @@
 package com.princeyadav.grayout.ui.screens
 
-import android.provider.Settings
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,7 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,10 +19,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Image
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,22 +30,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.R
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
 import com.princeyadav.grayout.ui.components.HapticAction
-import com.princeyadav.grayout.ui.components.StatusDot
 import com.princeyadav.grayout.ui.components.performHaptic
 import com.princeyadav.grayout.ui.theme.GrayoutMotion
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
@@ -70,8 +58,6 @@ fun HomeScreen(
     nextScheduleText: String = "Nothing scheduled",
     modifier: Modifier = Modifier,
 ) {
-    val colors = GrayoutTheme.colors
-    val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
 
     Column(
@@ -84,7 +70,13 @@ fun HomeScreen(
 
         AppHeader()
 
-        MainToggleCard(isGrayscaleOn = isGrayscaleOn, onToggle = onToggle)
+        StatusHeroCard(
+            isGrayscaleOn = isGrayscaleOn,
+            enforcementInterval = enforcementInterval,
+            nextScheduleText = nextScheduleText,
+            onToggle = onToggle,
+            onNextScheduleClick = onNavigateToSchedules,
+        )
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
 
@@ -100,10 +92,6 @@ fun HomeScreen(
             isAccessibilityEnabled = isAccessibilityEnabled,
             onClick = onNavigateToExclusions,
         )
-
-        Spacer(modifier = Modifier.height(dimens.cardGap))
-
-        StatCardsRow(isGrayscaleOn = isGrayscaleOn, nextScheduleText = nextScheduleText, onNextScheduleClick = onNavigateToSchedules)
 
         Spacer(modifier = Modifier.height(dimens.sectionGap))
     }
@@ -152,123 +140,27 @@ private fun AppHeader() {
 }
 
 @Composable
-private fun MainToggleCard(
+private fun StatusHeroCard(
     isGrayscaleOn: Boolean,
+    enforcementInterval: Int,
+    nextScheduleText: String,
     onToggle: () -> Unit,
+    onNextScheduleClick: () -> Unit,
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
     val view = LocalView.current
 
-    val reduceMotion = rememberReduceMotion()
-
-    val strokeColor by animateColorAsState(
-        targetValue = if (isGrayscaleOn) colors.borderActive else colors.border,
-        animationSpec = tween(
-            durationMillis = GrayoutMotion.Slow,
-            easing = GrayoutMotion.Easing,
-        ),
-        label = "circleStroke",
-    )
-    val strokeWidth by animateDpAsState(
-        targetValue = if (isGrayscaleOn) 2.dp else 1.dp,
-        animationSpec = tween(
-            durationMillis = GrayoutMotion.Slow,
-            easing = GrayoutMotion.Easing,
-        ),
-        label = "circleStrokeWidth",
-    )
-    val iconColor by animateColorAsState(
-        targetValue = if (isGrayscaleOn) colors.text else colors.textDim,
-        animationSpec = tween(
-            durationMillis = GrayoutMotion.Slow,
-            easing = GrayoutMotion.Easing,
-        ),
-        label = "iconColor",
-    )
-
-    // Breathing pulse — always declare the transition (Compose slot-table stability);
-    // gate its output based on isGrayscaleOn / reduceMotion below.
-    val transition = rememberInfiniteTransition(label = "breathPulse")
-    val rawPulseAlpha by transition.animateFloat(
-        initialValue = 0.25f,
-        targetValue = 0.45f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = GrayoutMotion.BreathPeriodMs / 2,
-                easing = GrayoutMotion.Easing,
-            ),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "pulseAlpha",
-    )
-    val rawPulseOffset by transition.animateFloat(
-        initialValue = 14f,
-        targetValue = 22f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = GrayoutMotion.BreathPeriodMs / 2,
-                easing = GrayoutMotion.Easing,
-            ),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "pulseOffset",
-    )
-    val pulseAlpha: Float = when {
-        !isGrayscaleOn -> 0f
-        reduceMotion -> 0.35f          // reduce-motion: static mid-value glow
-        else -> rawPulseAlpha
-    }
-    val pulseOffsetDp: Float = when {
-        !isGrayscaleOn -> 0f
-        reduceMotion -> 18f
-        else -> rawPulseOffset
-    }
-
     GrayoutCard(isActive = isGrayscaleOn) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(dimens.cardPadLarge),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .drawBehind {
-                        if (pulseAlpha > 0f) {
-                            val extraPx = pulseOffsetDp.dp.toPx()
-                            val r = size.minDimension / 2f + extraPx
-                            drawCircle(
-                                color = colors.text.copy(alpha = pulseAlpha),
-                                radius = r,
-                                center = center,
-                                style = Stroke(width = 3.dp.toPx()),
-                            )
-                        }
-                    }
-                    .background(colors.bg, CircleShape)
-                    .border(strokeWidth, strokeColor, CircleShape)
-                    .clip(CircleShape)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                    ) {
-                        view.performHaptic(HapticAction.Toggle)
-                        onToggle()
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.ic_grayout_foreground),
-                    contentDescription = "Toggle grayscale",
-                    modifier = Modifier.size(80.dp),
-                    colorFilter = ColorFilter.tint(iconColor),
-                )
-            }
+        Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
+            Text(
+                text = "STATUS",
+                style = typography.labelSmall,
+                color = colors.textMuted,
+            )
 
-            Spacer(modifier = Modifier.height(dimens.sectionGap))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 text = if (isGrayscaleOn) "Grayscale on" else "Grayscale off",
@@ -279,8 +171,7 @@ private fun MainToggleCard(
             Spacer(modifier = Modifier.height(dimens.itemGap))
 
             Text(
-                text = if (isGrayscaleOn) "Your screen is muted"
-                    else "Tap to mute your screen",
+                text = if (isGrayscaleOn) "Your screen is muted" else "Tap to mute your screen",
                 style = typography.bodyMedium,
                 color = colors.textMuted,
             )
@@ -288,10 +179,50 @@ private fun MainToggleCard(
             Spacer(modifier = Modifier.height(dimens.sectionGap))
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(colors.bg, RoundedCornerShape(dimens.radiusSm))
-                    .padding(dimens.cardPad),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(dimens.cardGap),
+            ) {
+                val pillLabel = if (enforcementInterval > 0) "${enforcementInterval}m" else "Off"
+                Text(
+                    text = pillLabel,
+                    style = typography.labelXSmall.copy(fontWeight = FontWeight.ExtraBold),
+                    color = if (enforcementInterval > 0) colors.bg else colors.offText,
+                    modifier = Modifier
+                        .background(
+                            if (enforcementInterval > 0) colors.text else Color.Transparent,
+                            RoundedCornerShape(dimens.radiusFull),
+                        )
+                        .border(
+                            1.dp,
+                            if (enforcementInterval > 0) Color.Transparent else colors.border,
+                            RoundedCornerShape(dimens.radiusFull),
+                        )
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+
+                Text(
+                    text = nextScheduleText,
+                    style = typography.monoSmall,
+                    color = colors.text,
+                    modifier = Modifier
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { onNextScheduleClick() },
+                )
+            }
+
+            Spacer(modifier = Modifier.height(dimens.sectionGap))
+
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = colors.border,
+            )
+
+            Spacer(modifier = Modifier.height(dimens.sectionGap))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -306,74 +237,6 @@ private fun MainToggleCard(
                         view.performHaptic(HapticAction.Toggle)
                         onToggle()
                     },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun rememberReduceMotion(): Boolean {
-    val resolver = LocalContext.current.contentResolver
-    return remember {
-        Settings.Global.getFloat(
-            resolver,
-            Settings.Global.ANIMATOR_DURATION_SCALE,
-            1f,
-        ) == 0f
-    }
-}
-
-@Composable
-private fun StatCardsRow(isGrayscaleOn: Boolean, nextScheduleText: String, onNextScheduleClick: () -> Unit) {
-    val colors = GrayoutTheme.colors
-    val typography = GrayoutTheme.typography
-    val dimens = GrayoutTheme.dimens
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(dimens.cardGap),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        GrayoutCard(modifier = Modifier.weight(1f)) {
-            Column(modifier = Modifier.padding(dimens.cardPad)) {
-                Text(
-                    text = "STATUS",
-                    style = typography.labelSmall,
-                    color = colors.textMuted,
-                )
-
-                Spacer(modifier = Modifier.height(dimens.itemGap))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    StatusDot(isActive = isGrayscaleOn)
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Text(
-                        text = if (isGrayscaleOn) "Running" else "Paused",
-                        style = typography.bodyMedium.copy(
-                            fontWeight = if (isGrayscaleOn) FontWeight.Bold else FontWeight.SemiBold,
-                        ),
-                        color = if (isGrayscaleOn) colors.text else colors.offText,
-                    )
-                }
-            }
-        }
-
-        GrayoutCard(modifier = Modifier.weight(1f).clickable { onNextScheduleClick() }) {
-            Column(modifier = Modifier.padding(dimens.cardPad)) {
-                Text(
-                    text = "NEXT",
-                    style = typography.labelSmall,
-                    color = colors.textMuted,
-                )
-
-                Spacer(modifier = Modifier.height(dimens.itemGap))
-
-                Text(
-                    text = nextScheduleText,
-                    style = typography.monoSmall,
-                    color = colors.textDim,
                 )
             }
         }
@@ -411,9 +274,9 @@ private fun EnforcementCard(
 
             Spacer(modifier = Modifier.height(dimens.sectionGap))
 
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(dimens.chipGap),
-                verticalArrangement = Arrangement.spacedBy(dimens.chipGap),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 val options = listOf(
                     0 to "Off",
@@ -428,6 +291,7 @@ private fun EnforcementCard(
                         label = label,
                         isActive = enforcementInterval == value,
                         onClick = { onIntervalChange(value) },
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
@@ -440,6 +304,7 @@ private fun EnforcementChip(
     label: String,
     isActive: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
@@ -472,7 +337,7 @@ private fun EnforcementChip(
     )
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .heightIn(min = 48.dp)
             .background(bg, RoundedCornerShape(dimens.radiusFull))
             .border(1.dp, borderColor, RoundedCornerShape(dimens.radiusFull))
@@ -484,7 +349,7 @@ private fun EnforcementChip(
                 view.performHaptic(HapticAction.Toggle)
                 onClick()
             }
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            .padding(horizontal = 2.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
