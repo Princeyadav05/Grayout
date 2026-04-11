@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.model.daysOfWeekList
+import com.princeyadav.grayout.model.formatTime12Hour
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.GrayscaleManager
 import kotlinx.coroutines.Dispatchers
@@ -95,7 +96,7 @@ class HomeViewModel(
             }
 
             _nextScheduleText.value = if (nextStartTime != null) {
-                "%02d:%02d".format(nextStartTime.hour, nextStartTime.minute)
+                formatTime12Hour(nextStartTime.hour, nextStartTime.minute)
             } else {
                 "—"
             }

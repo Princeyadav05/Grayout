@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.princeyadav.grayout.model.formatTime12Hour
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 import java.time.DayOfWeek
@@ -134,7 +135,7 @@ fun ScheduleEditorScreen(
                     { _, h, m -> onSetStartTime(h, m) },
                     startHour,
                     startMinute,
-                    true,
+                    false,
                 ).show()
             },
             onEndTimeClick = {
@@ -144,7 +145,7 @@ fun ScheduleEditorScreen(
                     { _, h, m -> onSetEndTime(h, m) },
                     endHour,
                     endMinute,
-                    true,
+                    false,
                 ).show()
             },
         )
@@ -320,7 +321,7 @@ private fun TimeCard(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = String.format("%02d:%02d", startHour, startMinute),
+                        text = formatTime12Hour(startHour, startMinute),
                         style = typography.mono,
                         color = colors.accent,
                         modifier = Modifier
@@ -347,7 +348,7 @@ private fun TimeCard(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = String.format("%02d:%02d", endHour, endMinute),
+                        text = formatTime12Hour(endHour, endMinute),
                         style = typography.mono,
                         color = colors.accent,
                         modifier = Modifier

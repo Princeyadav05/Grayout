@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.model.Schedule
+import com.princeyadav.grayout.model.formatTime12Hour
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
@@ -201,13 +202,7 @@ private fun ScheduleCard(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = String.format(
-                        "%02d:%02d \u2192 %02d:%02d",
-                        schedule.startTimeHour,
-                        schedule.startTimeMinute,
-                        schedule.endTimeHour,
-                        schedule.endTimeMinute,
-                    ),
+                    text = "${formatTime12Hour(schedule.startTimeHour, schedule.startTimeMinute)} \u2192 ${formatTime12Hour(schedule.endTimeHour, schedule.endTimeMinute)}",
                     style = typography.monoSmall,
                     color = if (schedule.isEnabled) colors.accent else colors.textMuted,
                 )

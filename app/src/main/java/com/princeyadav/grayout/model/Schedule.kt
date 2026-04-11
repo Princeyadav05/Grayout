@@ -23,3 +23,12 @@ val Schedule.daysOfWeekList: List<DayOfWeek>
             if (trimmed.isEmpty()) null
             else DayOfWeek.entries.firstOrNull { it.name.startsWith(trimmed) }
         }
+
+fun formatTime12Hour(hour: Int, minute: Int): String {
+    val period = if (hour < 12) "AM" else "PM"
+    val displayHour = when (hour % 12) {
+        0 -> 12
+        else -> hour % 12
+    }
+    return "%d:%02d %s".format(displayHour, minute, period)
+}
