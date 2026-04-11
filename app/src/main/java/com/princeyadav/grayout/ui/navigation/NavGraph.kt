@@ -80,6 +80,10 @@ fun GrayoutNavGraph(
             val db = remember { GrayoutDatabase.getInstance(context) }
             val scheduleRepository = remember { ScheduleRepository(db.scheduleDao()) }
             val nextScheduleText by homeViewModel.nextScheduleText.collectAsStateWithLifecycle()
+            val excludedAppIcons by homeViewModel.excludedAppIcons.collectAsStateWithLifecycle()
+            val excludedOverflowCount by homeViewModel.excludedOverflowCount.collectAsStateWithLifecycle()
+            val needsAttentionCount by homeViewModel.needsAttentionCount.collectAsStateWithLifecycle()
+            val toggleError by homeViewModel.toggleError.collectAsStateWithLifecycle()
 
             LaunchedEffect(lifecycleOwnerHome) {
                 lifecycleOwnerHome.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -90,6 +94,8 @@ fun GrayoutNavGraph(
                     ) ?: ""
                     isAccessibilityEnabledHome = services.contains("com.princeyadav.grayout")
                     homeViewModel.refreshNextSchedule(scheduleRepository)
+                    homeViewModel.refreshExcludedAppIcons()
+                    homeViewModel.refreshAttentionCount()
                 }
             }
 
@@ -109,6 +115,18 @@ fun GrayoutNavGraph(
                     }
                 },
                 nextScheduleText = nextScheduleText,
+                excludedAppIcons = excludedAppIcons,
+                excludedOverflowCount = excludedOverflowCount,
+                needsAttentionCount = needsAttentionCount,
+                onAttentionClick = {
+                    navController.navigate(Routes.SETTINGS) {
+                        popUpTo(Routes.HOME) { saveState = true }
+                        restoreState = true
+                        launchSingleTop = true
+                    }
+                },
+                toggleError = toggleError,
+                onDismissToggleError = homeViewModel::dismissToggleError,
             )
         }
         composable(Routes.SCHEDULES) {
@@ -120,9 +138,18 @@ fun GrayoutNavGraph(
                 factory = ScheduleViewModelFactory(repository, scheduleAlarmManager)
             )
             val schedules by viewModel.schedules.collectAsStateWithLifecycle()
+            val firingScheduleIds by viewModel.firingScheduleIds.collectAsStateWithLifecycle()
+
+            val lifecycleOwner = LocalLifecycleOwner.current
+            LaunchedEffect(lifecycleOwner) {
+                lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                    viewModel.refreshFiringState()
+                }
+            }
 
             ScheduleListScreen(
                 schedules = schedules,
+                firingScheduleIds = firingScheduleIds,
                 onAddSchedule = { navController.navigate("schedule_editor?id=0") },
                 onEditSchedule = { id -> navController.navigate("schedule_editor?id=$id") },
                 onToggleEnabled = viewModel::toggleEnabled,
@@ -201,7 +228,8 @@ fun GrayoutNavGraph(
                 )
             )
 
-            val filteredApps by viewModel.filteredApps.collectAsStateWithLifecycle(emptyList())
+            val excludedApps by viewModel.excludedApps.collectAsStateWithLifecycle(emptyList())
+            val allOtherApps by viewModel.allOtherApps.collectAsStateWithLifecycle(emptyList())
             val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
             val isAccessibilityEnabled by viewModel.isAccessibilityEnabled.collectAsStateWithLifecycle()
 
@@ -212,7 +240,8 @@ fun GrayoutNavGraph(
             }
 
             ExclusionListScreen(
-                apps = filteredApps,
+                excludedApps = excludedApps,
+                allOtherApps = allOtherApps,
                 searchQuery = searchQuery,
                 isAccessibilityEnabled = isAccessibilityEnabled,
                 onToggle = viewModel::toggleExclusion,
@@ -221,6 +250,7 @@ fun GrayoutNavGraph(
                     context.startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
                 },
                 onBack = { navController.popBackStack() },
+                onRefresh = viewModel::refreshApps,
             )
         }
     }
