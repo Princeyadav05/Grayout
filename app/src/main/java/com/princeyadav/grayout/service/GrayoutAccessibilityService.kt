@@ -19,18 +19,12 @@ class GrayoutAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
 
-        // Ignore events from non-application windows (IMEs/keyboards, system
-        // dialogs, notification shade, etc.). Without this filter, opening the
-        // keyboard inside an excluded app fires a window change for the IME's
-        // package and unwinds the excluded-app state, re-enabling grayscale.
-        val windowType = windows?.find { it.id == event.windowId }?.type
-        if (windowType != null && windowType != AccessibilityWindowInfo.TYPE_APPLICATION) return
-
-        val pkg = event.packageName?.toString() ?: return
-
+        // Derive the current foreground app from the windows list rather than
+        // trusting event.packageName. event.packageName can point to an IME,
+        // system dialog, or stale window; using the active TYPE_APPLICATION
+        // window gives us the actual app the user is looking at.
+        val pkg = currentForegroundAppPackage() ?: return
         if (pkg == "com.princeyadav.grayout") return
-        if (pkg == "com.android.systemui") return
-        if (pkg == "com.android.launcher" || pkg.startsWith("com.android.launcher")) return
 
         val isExcluded = exclusionPrefs.isExcluded(pkg)
         val wasActive = exclusionPrefs.isExcludedAppActive()
@@ -47,6 +41,13 @@ class GrayoutAccessibilityService : AccessibilityService() {
                 grayscaleManager.setGrayscale(true)
             }
         }
+    }
+
+    private fun currentForegroundAppPackage(): String? {
+        val appWindows = windows?.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
+            ?: return null
+        val active = appWindows.firstOrNull { it.isActive } ?: appWindows.firstOrNull() ?: return null
+        return active.root?.packageName?.toString()
     }
 
     override fun onInterrupt() {}
