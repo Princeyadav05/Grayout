@@ -70,7 +70,8 @@ fun ExclusionListScreen(
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(40.dp)
+                        .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                        .size(48.dp)
                         .background(colors.surface, RoundedCornerShape(dimens.radiusFull))
                         .border(1.dp, colors.border, RoundedCornerShape(dimens.radiusFull))
                         .clip(RoundedCornerShape(dimens.radiusFull))
