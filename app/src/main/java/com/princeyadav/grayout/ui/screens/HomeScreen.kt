@@ -1,6 +1,12 @@
 package com.princeyadav.grayout.ui.screens
 
+import android.provider.Settings
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,16 +36,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.R
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
+import com.princeyadav.grayout.ui.components.HapticAction
 import com.princeyadav.grayout.ui.components.StatusDot
+import com.princeyadav.grayout.ui.components.performHaptic
+import com.princeyadav.grayout.ui.theme.GrayoutMotion
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 
 @Composable
@@ -144,27 +157,74 @@ private fun MainToggleCard(
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
+    val view = LocalView.current
 
-    val circleFill by animateColorAsState(
-        targetValue = if (isGrayscaleOn) colors.accentDim else colors.off,
-        animationSpec = tween(300),
-        label = "circleFill",
-    )
-    val circleStroke by animateColorAsState(
-        targetValue = if (isGrayscaleOn) colors.accent.copy(alpha = 0.33f) else colors.border,
-        animationSpec = tween(300),
+    val reduceMotion = rememberReduceMotion()
+
+    val strokeColor by animateColorAsState(
+        targetValue = if (isGrayscaleOn) colors.borderActive else colors.border,
+        animationSpec = tween(
+            durationMillis = GrayoutMotion.Slow,
+            easing = GrayoutMotion.Easing,
+        ),
         label = "circleStroke",
     )
+    val strokeWidth by animateDpAsState(
+        targetValue = if (isGrayscaleOn) 2.dp else 1.dp,
+        animationSpec = tween(
+            durationMillis = GrayoutMotion.Slow,
+            easing = GrayoutMotion.Easing,
+        ),
+        label = "circleStrokeWidth",
+    )
     val iconColor by animateColorAsState(
-        targetValue = if (isGrayscaleOn) colors.accent else colors.textDim,
-        animationSpec = tween(300),
+        targetValue = if (isGrayscaleOn) colors.text else colors.textDim,
+        animationSpec = tween(
+            durationMillis = GrayoutMotion.Slow,
+            easing = GrayoutMotion.Easing,
+        ),
         label = "iconColor",
     )
-    val labelColor by animateColorAsState(
-        targetValue = if (isGrayscaleOn) colors.accent else colors.text,
-        animationSpec = tween(300),
-        label = "labelColor",
-    )
+
+    // Breathing pulse — runs only when active AND reduce-motion is off.
+    val pulseAlpha: Float
+    val pulseOffsetDp: Float
+    if (isGrayscaleOn && !reduceMotion) {
+        val transition = rememberInfiniteTransition(label = "breathPulse")
+        val alpha by transition.animateFloat(
+            initialValue = 0.18f,
+            targetValue = 0.32f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = GrayoutMotion.BreathPeriodMs / 2,
+                    easing = GrayoutMotion.Easing,
+                ),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "pulseAlpha",
+        )
+        val offset by transition.animateFloat(
+            initialValue = 8f,
+            targetValue = 14f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = GrayoutMotion.BreathPeriodMs / 2,
+                    easing = GrayoutMotion.Easing,
+                ),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "pulseOffset",
+        )
+        pulseAlpha = alpha
+        pulseOffsetDp = offset
+    } else if (isGrayscaleOn) {
+        // Reduce-motion on: render mid-value static glow.
+        pulseAlpha = 0.25f
+        pulseOffsetDp = 11f
+    } else {
+        pulseAlpha = 0f
+        pulseOffsetDp = 0f
+    }
 
     GrayoutCard(isActive = isGrayscaleOn) {
         Column(
@@ -176,13 +236,28 @@ private fun MainToggleCard(
             Box(
                 modifier = Modifier
                     .size(120.dp)
-                    .background(circleFill, CircleShape)
-                    .border(2.dp, circleStroke, CircleShape)
+                    .drawBehind {
+                        if (pulseAlpha > 0f) {
+                            val extraPx = pulseOffsetDp.dp.toPx()
+                            val r = size.minDimension / 2f + extraPx
+                            drawCircle(
+                                color = colors.text.copy(alpha = pulseAlpha),
+                                radius = r,
+                                center = center,
+                                style = Stroke(width = 2.dp.toPx()),
+                            )
+                        }
+                    }
+                    .background(colors.surface, CircleShape)
+                    .border(strokeWidth, strokeColor, CircleShape)
                     .clip(CircleShape)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                    ) { onToggle() },
+                    ) {
+                        view.performHaptic(HapticAction.Toggle)
+                        onToggle()
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
@@ -196,16 +271,16 @@ private fun MainToggleCard(
             Spacer(modifier = Modifier.height(dimens.sectionGap))
 
             Text(
-                text = if (isGrayscaleOn) "Grayscale On" else "Grayscale Off",
+                text = if (isGrayscaleOn) "On" else "Off",
                 style = typography.headingLarge,
-                color = labelColor,
+                color = colors.text,
             )
 
             Spacer(modifier = Modifier.height(dimens.itemGap))
 
             Text(
-                text = if (isGrayscaleOn) "Screen colors are turned off"
-                    else "Screen colors are normal",
+                text = if (isGrayscaleOn) "Your screen is muted"
+                    else "Tap to mute your screen",
                 style = typography.bodyMedium,
                 color = colors.textMuted,
             )
@@ -227,10 +302,25 @@ private fun MainToggleCard(
                 )
                 GrayoutToggle(
                     checked = isGrayscaleOn,
-                    onCheckedChange = { onToggle() },
+                    onCheckedChange = {
+                        view.performHaptic(HapticAction.Toggle)
+                        onToggle()
+                    },
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun rememberReduceMotion(): Boolean {
+    val resolver = LocalContext.current.contentResolver
+    return remember {
+        Settings.Global.getFloat(
+            resolver,
+            Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f,
+        ) == 0f
     }
 }
 
