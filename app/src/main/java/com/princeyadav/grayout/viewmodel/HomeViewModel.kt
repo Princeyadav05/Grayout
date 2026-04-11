@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.GrayscaleManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,8 +53,10 @@ class HomeViewModel(
 
     fun toggleGrayscale() {
         val newValue = !_isGrayscaleOn.value
-        grayscaleManager.setGrayscale(newValue)
         _isGrayscaleOn.value = newValue
+        viewModelScope.launch(Dispatchers.IO) {
+            grayscaleManager.setGrayscale(newValue)
+        }
     }
 
     fun setEnforcementInterval(minutes: Int) {
