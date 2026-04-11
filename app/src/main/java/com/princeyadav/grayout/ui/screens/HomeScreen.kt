@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -44,6 +45,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.R
@@ -442,35 +444,51 @@ private fun EnforcementChip(
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
+    val view = LocalView.current
 
     val bg by animateColorAsState(
-        targetValue = if (isActive) colors.accentDim else Color.Transparent,
-        animationSpec = tween(300),
+        targetValue = if (isActive) colors.text else Color.Transparent,
+        animationSpec = tween(
+            durationMillis = GrayoutMotion.Fast,
+            easing = GrayoutMotion.Easing,
+        ),
         label = "chipBg",
     )
     val textColor by animateColorAsState(
-        targetValue = if (isActive) colors.accent else colors.textMuted,
-        animationSpec = tween(300),
+        targetValue = if (isActive) colors.bg else colors.textMuted,
+        animationSpec = tween(
+            durationMillis = GrayoutMotion.Fast,
+            easing = GrayoutMotion.Easing,
+        ),
         label = "chipText",
     )
     val borderColor by animateColorAsState(
-        targetValue = if (isActive) colors.accent.copy(alpha = 0.33f) else colors.border,
-        animationSpec = tween(300),
+        targetValue = if (isActive) Color.Transparent else colors.border,
+        animationSpec = tween(
+            durationMillis = GrayoutMotion.Fast,
+            easing = GrayoutMotion.Easing,
+        ),
         label = "chipBorder",
     )
 
     Text(
         text = label,
-        style = typography.bodySmall,
+        style = typography.bodySmall.copy(
+            fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
+        ),
         color = textColor,
         modifier = Modifier
+            .sizeIn(minHeight = 48.dp)
             .background(bg, RoundedCornerShape(dimens.radiusFull))
             .border(1.dp, borderColor, RoundedCornerShape(dimens.radiusFull))
             .clip(RoundedCornerShape(dimens.radiusFull))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-            ) { onClick() }
+            ) {
+                view.performHaptic(HapticAction.Toggle)
+                onClick()
+            }
             .padding(horizontal = 14.dp, vertical = 6.dp),
     )
 }
