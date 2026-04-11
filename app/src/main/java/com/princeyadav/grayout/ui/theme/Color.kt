@@ -15,7 +15,7 @@ val Off = Color(0xFF3A3A3A)
 val OffText = Color(0xFF666666)
 val Danger = Color(0xFFFF6B6B)
 
-val BrandAccent = Color(0xFFA0D2C6)
+val BrandAccent = Color(0xFFB5A0D8)
 
 @Immutable
 data class GrayoutColors(

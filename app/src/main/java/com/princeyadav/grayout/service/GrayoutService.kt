@@ -97,7 +97,7 @@ class GrayoutService : Service() {
             .setSmallIcon(R.drawable.ic_tile)
             .setContentTitle("Grayscale enforcement")
             .setContentText(contentText)
-            .setColor(0xFFA0D2C6.toInt())
+            .setColor(0xFFB5A0D8.toInt())
             .setShowWhen(false)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
