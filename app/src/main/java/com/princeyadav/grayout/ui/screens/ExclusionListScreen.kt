@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -198,12 +199,15 @@ fun ExclusionListScreen(
                                 )
                                 .border(
                                     width = if (isFocused) 2.dp else 1.dp,
-                                    color = if (isFocused) colors.borderActive else colors.border,
+                                    color = if (isFocused) colors.text else colors.border,
                                     shape = RoundedCornerShape(dimens.radiusSm),
                                 )
-                                .padding(dimens.cardPad),
+                                .padding(horizontal = dimens.cardPad),
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.heightIn(min = 48.dp),
+                            ) {
                                 Box(modifier = Modifier.weight(1f)) {
                                     if (searchQuery.isEmpty()) {
                                         Text(
@@ -219,8 +223,7 @@ fun ExclusionListScreen(
                                     Box(
                                         contentAlignment = Alignment.Center,
                                         modifier = Modifier
-                                            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                                            .padding(horizontal = 4.dp)
+                                            .size(40.dp)
                                             .clickable(
                                                 interactionSource = remember { MutableInteractionSource() },
                                                 indication = null,
