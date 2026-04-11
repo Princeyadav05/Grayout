@@ -7,9 +7,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Accent,
+    primary = TextPrimary,
     onPrimary = Bg,
-    secondary = AccentDim,
+    secondary = Border,
     background = Bg,
     onBackground = TextPrimary,
     surface = Surface,

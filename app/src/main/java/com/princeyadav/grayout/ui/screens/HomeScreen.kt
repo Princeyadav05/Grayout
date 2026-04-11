@@ -42,6 +42,7 @@ import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
 import com.princeyadav.grayout.ui.components.HapticAction
 import com.princeyadav.grayout.ui.components.performHaptic
+import com.princeyadav.grayout.ui.theme.BrandAccent
 import com.princeyadav.grayout.ui.theme.GrayoutMotion
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 
@@ -114,8 +115,8 @@ private fun AppHeader() {
                 .background(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            colors.accentDim,
-                            colors.accent.copy(alpha = 0.4f),
+                            BrandAccent.copy(alpha = 0.15f),
+                            BrandAccent.copy(alpha = 0.4f),
                         ),
                     ),
                 ),

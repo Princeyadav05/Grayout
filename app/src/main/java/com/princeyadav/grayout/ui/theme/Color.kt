@@ -11,12 +11,11 @@ val BorderActive = Color(0xFF555555)
 val TextPrimary = Color(0xFFE8E8E8)
 val TextMuted = Color(0xFF777777)
 val TextDim = Color(0xFF4A4A4A)
-val Accent = Color(0xFFA0D2C6)
-val AccentDim = Color(0xFF2A3D38)
 val Off = Color(0xFF3A3A3A)
 val OffText = Color(0xFF666666)
 val Danger = Color(0xFFFF6B6B)
-val Success = Color(0xFF6BE8A0)
+
+val BrandAccent = Color(0xFFA0D2C6)
 
 @Immutable
 data class GrayoutColors(
@@ -27,12 +26,9 @@ data class GrayoutColors(
     val text: Color = TextPrimary,
     val textMuted: Color = TextMuted,
     val textDim: Color = TextDim,
-    val accent: Color = Accent,
-    val accentDim: Color = AccentDim,
     val off: Color = Off,
     val offText: Color = OffText,
     val danger: Color = Danger,
-    val success: Color = Success,
 )
 
 val LocalGrayoutColors = staticCompositionLocalOf { GrayoutColors() }

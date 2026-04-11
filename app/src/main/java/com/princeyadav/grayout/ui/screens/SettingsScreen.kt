@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.SettingsRow
 import com.princeyadav.grayout.ui.components.StatusDot
+import com.princeyadav.grayout.ui.theme.BrandAccent
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 
 @Composable
@@ -80,7 +81,7 @@ private fun SectionHeader(title: String) {
     Text(
         text = title,
         style = GrayoutTheme.typography.labelSmall,
-        color = GrayoutTheme.colors.accent,
+        color = BrandAccent,
     )
 }
 
@@ -130,7 +131,7 @@ private fun SetupCard(
                     Text(
                         text = if (isAdbPermissionGranted) "Granted" else "Not granted",
                         style = GrayoutTheme.typography.bodySmall,
-                        color = if (isAdbPermissionGranted) colors.success else colors.danger,
+                        color = if (isAdbPermissionGranted) colors.text else colors.danger,
                     )
                 },
             )
@@ -145,7 +146,7 @@ private fun SetupCard(
                     Text(
                         text = if (isBatteryUnrestricted) "Unrestricted" else "Restricted",
                         style = GrayoutTheme.typography.bodySmall,
-                        color = if (isBatteryUnrestricted) colors.success else colors.danger,
+                        color = if (isBatteryUnrestricted) colors.text else colors.danger,
                     )
                 },
             )
