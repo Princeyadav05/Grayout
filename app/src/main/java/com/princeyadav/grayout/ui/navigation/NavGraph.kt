@@ -75,7 +75,13 @@ fun GrayoutNavGraph(
                 )
             }
             var excludedAppCount by remember { mutableIntStateOf(exclusionPrefsHome.getExcludedCount()) }
-            var isAccessibilityEnabledHome by remember { mutableStateOf(false) }
+            var isAccessibilityEnabledHome by remember {
+                val services = AndroidSettings.Secure.getString(
+                    context.contentResolver,
+                    AndroidSettings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                ) ?: ""
+                mutableStateOf(services.contains("com.princeyadav.grayout"))
+            }
 
             val db = remember { GrayoutDatabase.getInstance(context) }
             val scheduleRepository = remember { ScheduleRepository(db.scheduleDao()) }
