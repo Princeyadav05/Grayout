@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -271,7 +272,7 @@ private fun NameCard(
                             )
                             .border(
                                 width = if (isFocused) 2.dp else 1.dp,
-                                color = if (isFocused) colors.borderActive else colors.border,
+                                color = if (isFocused) colors.text else colors.border,
                                 shape = RoundedCornerShape(dimens.radiusSm),
                             )
                             .padding(dimens.cardPad),
@@ -425,6 +426,7 @@ private fun DaysCard(
             Spacer(modifier = Modifier.height(dimens.sectionGap))
 
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(dimens.dayDotGap),
             ) {
                 val view = LocalView.current
@@ -434,8 +436,8 @@ private fun DaysCard(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                            .size(48.dp)
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
@@ -528,14 +530,9 @@ private fun PresetChip(
         label = "chipBorder",
     )
 
-    Text(
-        text = label,
-        style = typography.bodySmall.copy(
-            fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
-        ),
-        color = textColor,
+    Box(
         modifier = Modifier
-            .sizeIn(minHeight = 48.dp)
+            .heightIn(min = 48.dp)
             .background(bg, RoundedCornerShape(dimens.radiusFull))
             .border(1.dp, borderColor, RoundedCornerShape(dimens.radiusFull))
             .clip(RoundedCornerShape(dimens.radiusFull))
@@ -547,5 +544,14 @@ private fun PresetChip(
                 onClick()
             }
             .padding(horizontal = 14.dp, vertical = 6.dp),
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = typography.bodySmall.copy(
+                fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
+            ),
+            color = textColor,
+        )
+    }
 }
