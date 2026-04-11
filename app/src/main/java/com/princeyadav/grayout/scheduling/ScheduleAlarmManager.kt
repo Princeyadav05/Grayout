@@ -76,9 +76,9 @@ class ScheduleAlarmManager(private val context: Context) {
             val schedEnd = LocalTime.of(schedule.endTimeHour, schedule.endTimeMinute)
 
             if (schedStart.isBefore(schedEnd)) {
-                currentTime.isAfter(schedStart) && currentTime.isBefore(schedEnd)
+                !currentTime.isBefore(schedStart) && currentTime.isBefore(schedEnd)
             } else {
-                currentTime.isAfter(schedStart) || currentTime.isBefore(schedEnd)
+                !currentTime.isBefore(schedStart) || currentTime.isBefore(schedEnd)
             }
         }
 
