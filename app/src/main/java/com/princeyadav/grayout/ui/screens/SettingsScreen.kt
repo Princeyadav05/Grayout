@@ -29,8 +29,10 @@ import com.princeyadav.grayout.ui.theme.GrayoutTheme
 fun SettingsScreen(
     enforcementInterval: Int,
     isAdbPermissionGranted: Boolean,
+    isAccessibilityEnabled: Boolean,
     isBatteryUnrestricted: Boolean,
     onBatteryOptimizationClick: () -> Unit,
+    onAccessibilityClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = GrayoutTheme.colors
@@ -59,8 +61,10 @@ fun SettingsScreen(
 
         SetupCard(
             isAdbPermissionGranted = isAdbPermissionGranted,
+            isAccessibilityEnabled = isAccessibilityEnabled,
             isBatteryUnrestricted = isBatteryUnrestricted,
             onBatteryOptimizationClick = onBatteryOptimizationClick,
+            onAccessibilityClick = onAccessibilityClick,
         )
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
@@ -119,8 +123,10 @@ private fun ServiceCard(enforcementInterval: Int) {
 @Composable
 private fun SetupCard(
     isAdbPermissionGranted: Boolean,
+    isAccessibilityEnabled: Boolean,
     isBatteryUnrestricted: Boolean,
     onBatteryOptimizationClick: () -> Unit,
+    onAccessibilityClick: () -> Unit,
 ) {
     val colors = GrayoutTheme.colors
     val dimens = GrayoutTheme.dimens
@@ -140,6 +146,21 @@ private fun SetupCard(
                         text = if (isAdbPermissionGranted) "Granted" else "Not granted",
                         style = GrayoutTheme.typography.bodyMedium,
                         color = if (isAdbPermissionGranted) colors.success else colors.danger,
+                    )
+                },
+            )
+
+            HorizontalDivider(thickness = 1.dp, color = colors.border)
+
+            SettingsRow(
+                label = "Accessibility service",
+                subtitle = if (isAccessibilityEnabled) null else "Required for per-app exclusions",
+                onClick = if (!isAccessibilityEnabled) onAccessibilityClick else null,
+                trailing = {
+                    Text(
+                        text = if (isAccessibilityEnabled) "Enabled" else "Not enabled",
+                        style = GrayoutTheme.typography.bodyMedium,
+                        color = if (isAccessibilityEnabled) colors.success else colors.danger,
                     )
                 },
             )

@@ -1,16 +1,13 @@
 package com.princeyadav.grayout.viewmodel
 
-import android.content.pm.PackageManager
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.launch
 import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.service.ExclusionPrefs
-import com.princeyadav.grayout.service.GrayscaleManager
+import com.princeyadav.grayout.service.GrayscaleController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,10 +17,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 class ExclusionViewModel(
-    private val packageManager: PackageManager,
     private val exclusionPrefs: ExclusionPrefs,
-    private val grayscaleManager: GrayscaleManager,
+    private val grayscaleManager: GrayscaleController,
     private val ownPackage: String,
+    private val loadApps: () -> List<AppInfo>,
+    private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
     private val _apps = MutableStateFlow<List<AppInfo>>(emptyList())
@@ -48,30 +46,15 @@ class ExclusionViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        viewModelScope.launch(Dispatchers.IO) { loadApps() }
+        viewModelScope.launch(ioDispatcher) { reloadApps() }
     }
 
     fun refreshApps() {
-        viewModelScope.launch(Dispatchers.IO) { loadApps() }
+        viewModelScope.launch(ioDispatcher) { reloadApps() }
     }
 
-    private fun loadApps() {
-        val installed = packageManager.getInstalledApplications(0)
-            .filter { info ->
-                packageManager.getLaunchIntentForPackage(info.packageName) != null &&
-                    info.packageName != "com.princeyadav.grayout"
-            }
-            .map { info ->
-                AppInfo(
-                    packageName = info.packageName,
-                    appName = info.loadLabel(packageManager).toString(),
-                    icon = info.loadIcon(packageManager).toBitmap(width = 80, height = 80).asImageBitmap(),
-                    isExcluded = exclusionPrefs.isExcluded(info.packageName),
-                )
-            }
-            .sortedBy { it.appName.lowercase() }
-
-        _apps.value = installed
+    private fun reloadApps() {
+        _apps.value = loadApps()
     }
 
     fun toggleExclusion(packageName: String) {
@@ -96,13 +79,20 @@ class ExclusionViewModel(
 }
 
 class ExclusionViewModelFactory(
-    private val packageManager: PackageManager,
     private val exclusionPrefs: ExclusionPrefs,
-    private val grayscaleManager: GrayscaleManager,
+    private val grayscaleManager: GrayscaleController,
     private val ownPackage: String,
+    private val loadApps: () -> List<AppInfo>,
+    private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return ExclusionViewModel(packageManager, exclusionPrefs, grayscaleManager, ownPackage) as T
+        return ExclusionViewModel(
+            exclusionPrefs,
+            grayscaleManager,
+            ownPackage,
+            loadApps,
+            ioDispatcher,
+        ) as T
     }
 }

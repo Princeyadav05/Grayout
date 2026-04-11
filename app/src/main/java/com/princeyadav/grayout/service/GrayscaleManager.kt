@@ -3,24 +3,29 @@ package com.princeyadav.grayout.service
 import android.content.ContentResolver
 import android.provider.Settings
 
-class GrayscaleManager(private val contentResolver: ContentResolver) {
+class GrayscaleManager(private val contentResolver: ContentResolver) : GrayscaleController {
 
-    fun isGrayscaleEnabled(): Boolean {
+    override fun isGrayscaleEnabled(): Boolean {
         return Settings.Secure.getInt(contentResolver, DALTONIZER_ENABLED, 0) == 1
     }
 
-    fun setGrayscale(enabled: Boolean) {
-        if (isGrayscaleEnabled() == enabled) return
-        if (enabled) {
-            Settings.Secure.putInt(contentResolver, DALTONIZER_ENABLED, 1)
-            Settings.Secure.putInt(contentResolver, DALTONIZER_MODE, 0)
-        } else {
-            Settings.Secure.putInt(contentResolver, DALTONIZER_ENABLED, 0)
-            Settings.Secure.putInt(contentResolver, DALTONIZER_MODE, -1)
+    override fun setGrayscale(enabled: Boolean): Boolean {
+        if (isGrayscaleEnabled() == enabled) return true
+        return try {
+            if (enabled) {
+                Settings.Secure.putInt(contentResolver, DALTONIZER_ENABLED, 1)
+                Settings.Secure.putInt(contentResolver, DALTONIZER_MODE, 0)
+            } else {
+                Settings.Secure.putInt(contentResolver, DALTONIZER_ENABLED, 0)
+                Settings.Secure.putInt(contentResolver, DALTONIZER_MODE, -1)
+            }
+            true
+        } catch (_: SecurityException) {
+            false
         }
     }
 
-    fun isAccessibilityServiceEnabled(packageName: String): Boolean {
+    override fun isAccessibilityServiceEnabled(packageName: String): Boolean {
         val enabled = Settings.Secure.getString(
             contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
@@ -28,7 +33,7 @@ class GrayscaleManager(private val contentResolver: ContentResolver) {
         return enabled.split(":").any { it.startsWith("$packageName/") }
     }
 
-    fun canWriteSecureSettings(): Boolean = try {
+    override fun canWriteSecureSettings(): Boolean = try {
         val current = Settings.Secure.getInt(contentResolver, DALTONIZER_ENABLED, 0)
         Settings.Secure.putInt(contentResolver, DALTONIZER_ENABLED, current)
         true

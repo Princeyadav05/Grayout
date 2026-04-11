@@ -1,14 +1,6 @@
 package com.princeyadav.grayout.viewmodel
 
-import android.content.ContentResolver
-import android.content.pm.PackageManager
-import android.database.ContentObserver
 import android.graphics.Bitmap
-import android.os.Handler
-import android.os.Looper
-import android.os.PowerManager
-import android.provider.Settings
-import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -17,22 +9,25 @@ import com.princeyadav.grayout.model.daysOfWeekList
 import com.princeyadav.grayout.model.formatTime12Hour
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
-import com.princeyadav.grayout.service.GrayscaleManager
-import kotlinx.coroutines.Dispatchers
+import com.princeyadav.grayout.service.GrayscaleController
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.LocalTime
 
 class HomeViewModel(
-    private val contentResolver: ContentResolver,
-    private val grayscaleManager: GrayscaleManager,
+    private val grayscaleManager: GrayscaleController,
     private val enforcementPrefs: EnforcementPrefs,
     private val exclusionPrefs: ExclusionPrefs,
-    private val packageManager: PackageManager,
-    private val powerManager: PowerManager,
+    private val isBatteryOptimized: () -> Boolean,
+    private val loadExcludedIcons: (List<String>) -> Pair<List<Bitmap>, Int>,
+    private val ioDispatcher: CoroutineDispatcher,
     private val ownPackageName: String,
 ) : ViewModel() {
 
@@ -54,85 +49,63 @@ class HomeViewModel(
     private val _needsAttentionCount = MutableStateFlow(0)
     val needsAttentionCount: StateFlow<Int> = _needsAttentionCount.asStateFlow()
 
-    private val _toggleError = MutableStateFlow(false)
-    val toggleError: StateFlow<Boolean> = _toggleError.asStateFlow()
-
-    private val grayscaleObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
-        override fun onChange(selfChange: Boolean) {
-            _isGrayscaleOn.value = grayscaleManager.isGrayscaleEnabled()
-        }
-    }
+    private val _navigateToSetup = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val navigateToSetup: SharedFlow<Unit> = _navigateToSetup.asSharedFlow()
 
     init {
         _isGrayscaleOn.value = grayscaleManager.isGrayscaleEnabled()
         _enforcementInterval.value = enforcementPrefs.getInterval()
-        contentResolver.registerContentObserver(
-            Settings.Secure.getUriFor("accessibility_display_daltonizer_enabled"),
-            false,
-            grayscaleObserver,
-        )
         refreshExcludedAppIcons()
         refreshAttentionCount()
     }
 
+    fun refreshGrayscaleStateFromSystem() {
+        _isGrayscaleOn.value = grayscaleManager.isGrayscaleEnabled()
+    }
+
     fun toggleGrayscale() {
         val newValue = !_isGrayscaleOn.value
-        viewModelScope.launch(Dispatchers.IO) {
-            grayscaleManager.setGrayscale(newValue)
-            val actualState = grayscaleManager.isGrayscaleEnabled()
-            _isGrayscaleOn.value = actualState
-            if (actualState != newValue) {
-                _toggleError.value = true
-            } else {
-                _toggleError.value = false
+        viewModelScope.launch(ioDispatcher) {
+            val success = grayscaleManager.setGrayscale(newValue)
+            if (!success) {
+                _navigateToSetup.tryEmit(Unit)
+                return@launch
             }
+            _isGrayscaleOn.value = grayscaleManager.isGrayscaleEnabled()
         }
     }
 
-    fun dismissToggleError() {
-        _toggleError.value = false
-    }
-
     fun setEnforcementInterval(minutes: Int) {
-        enforcementPrefs.setInterval(minutes)
-        _enforcementInterval.value = minutes
+        if (minutes == 0) {
+            enforcementPrefs.setInterval(0)
+            _enforcementInterval.value = 0
+            return
+        }
+        viewModelScope.launch(ioDispatcher) {
+            if (!grayscaleManager.canWriteSecureSettings()) {
+                _navigateToSetup.tryEmit(Unit)
+                return@launch
+            }
+            enforcementPrefs.setInterval(minutes)
+            _enforcementInterval.value = minutes
+        }
     }
 
     fun refreshExcludedAppIcons() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val packages = exclusionPrefs.getExcludedPackages().toList()
-            val icons = mutableListOf<Bitmap>()
-            var loaded = 0
-            var found = 0
-            for (pkg in packages) {
-                val bitmap = try {
-                    packageManager.getApplicationIcon(pkg).toBitmap(width = 64, height = 64)
-                } catch (_: PackageManager.NameNotFoundException) {
-                    null
-                }
-                if (bitmap != null) {
-                    found++
-                    if (loaded < 3) {
-                        icons.add(bitmap)
-                        loaded++
-                    }
-                }
-            }
+        viewModelScope.launch(ioDispatcher) {
+            val (icons, overflow) = loadExcludedIcons(exclusionPrefs.getExcludedPackages().toList())
             _excludedAppIcons.value = icons
-            _excludedOverflowCount.value = (found - loaded).coerceAtLeast(0)
+            _excludedOverflowCount.value = overflow
         }
     }
 
     fun refreshAttentionCount() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             var count = 0
             if (!grayscaleManager.canWriteSecureSettings()) count++
             if (!grayscaleManager.isAccessibilityServiceEnabled(ownPackageName)) count++
-            if (!powerManager.isIgnoringBatteryOptimizations(ownPackageName)) count++
+            if (!isBatteryOptimized()) count++
             _needsAttentionCount.value = count
-            if (grayscaleManager.canWriteSecureSettings() && _toggleError.value) {
-                _toggleError.value = false
-            }
         }
     }
 
@@ -173,31 +146,26 @@ class HomeViewModel(
             }
         }
     }
-
-    override fun onCleared() {
-        super.onCleared()
-        contentResolver.unregisterContentObserver(grayscaleObserver)
-    }
 }
 
 class HomeViewModelFactory(
-    private val contentResolver: ContentResolver,
-    private val grayscaleManager: GrayscaleManager,
+    private val grayscaleManager: GrayscaleController,
     private val enforcementPrefs: EnforcementPrefs,
     private val exclusionPrefs: ExclusionPrefs,
-    private val packageManager: PackageManager,
-    private val powerManager: PowerManager,
+    private val isBatteryOptimized: () -> Boolean,
+    private val loadExcludedIcons: (List<String>) -> Pair<List<Bitmap>, Int>,
+    private val ioDispatcher: CoroutineDispatcher,
     private val ownPackageName: String,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return HomeViewModel(
-            contentResolver,
             grayscaleManager,
             enforcementPrefs,
             exclusionPrefs,
-            packageManager,
-            powerManager,
+            isBatteryOptimized,
+            loadExcludedIcons,
+            ioDispatcher,
             ownPackageName,
         ) as T
     }

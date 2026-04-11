@@ -58,10 +58,24 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.turbine)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+tasks.register("preReleaseCheck") {
+    group = "verification"
+    description = "Run all automated tests before release. Requires a connected device/emulator for instrumentation tests."
+    dependsOn("testDebugUnitTest", "connectedDebugAndroidTest")
+    doLast {
+        println("")
+        println("✓ Automated tests passed.")
+        println("→ Next: walk docs/superpowers/specs/2026-04-11-testing-manual-checklist.md on target device.")
+        println("  Tier A is mandatory. Tier B is required if you touched the relevant area this release.")
+    }
 }

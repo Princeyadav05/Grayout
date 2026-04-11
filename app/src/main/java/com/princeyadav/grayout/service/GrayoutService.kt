@@ -24,7 +24,12 @@ class GrayoutService : Service() {
     private val enforcementRunnable = object : Runnable {
         override fun run() {
             if (!exclusionPrefs.isExcludedAppActive() && !grayscaleManager.isGrayscaleEnabled()) {
-                grayscaleManager.setGrayscale(true)
+                val success = grayscaleManager.setGrayscale(true)
+                if (!success) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                    return
+                }
             }
             handler.postDelayed(this, currentInterval * 60_000L)
         }

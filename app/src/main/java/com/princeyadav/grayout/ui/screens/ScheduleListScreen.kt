@@ -111,7 +111,7 @@ fun ScheduleListScreen(
 
         if (schedules.isEmpty()) {
             item {
-                GrayoutCard {
+                GrayoutCard(wash = true) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()

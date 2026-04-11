@@ -22,6 +22,7 @@ import com.princeyadav.grayout.ui.theme.GrayoutTheme
 fun GrayoutCard(
     modifier: Modifier = Modifier,
     isActive: Boolean = false,
+    wash: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val colors = GrayoutTheme.colors
@@ -45,16 +46,21 @@ fun GrayoutCard(
         label = "cardBorderWidth",
     )
 
-    val accentWash = Brush.verticalGradient(
-        0f to BrandAccent.copy(alpha = 0.08f),
-        0.4f to Color.Transparent,
-    )
+    val washModifier = if (wash) {
+        val accentWash = Brush.verticalGradient(
+            0f to BrandAccent.copy(alpha = 0.08f),
+            0.4f to Color.Transparent,
+        )
+        Modifier.background(accentWash, shape)
+    } else {
+        Modifier
+    }
 
     Box(
         modifier = modifier
             .border(borderWidth, borderColor, shape)
             .background(colors.surface, shape)
-            .background(accentWash, shape)
+            .then(washModifier)
             .clip(shape),
     ) {
         content()

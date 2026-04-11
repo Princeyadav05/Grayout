@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+if [ -z "$JAVA_HOME" ]; then
+  if [ -d "/Applications/Android Studio.app/Contents/jbr/Contents/Home" ]; then
+    export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+  fi
+fi
+
+# Self-check: warn if hook was invoked without core.hooksPath configured
+if [ "$(git config core.hooksPath)" != ".githooks" ]; then
+  echo "warning: git hooks are not pointed at .githooks/ — run ./bootstrap.sh to activate"
+fi
+
+echo "→ Running unit tests before push..."
+./gradlew testDebugUnitTest --quiet

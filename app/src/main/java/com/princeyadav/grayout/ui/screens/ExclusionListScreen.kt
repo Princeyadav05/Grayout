@@ -119,14 +119,6 @@ fun ExclusionListScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(dimens.tightGap))
-
-            Text(
-                text = "These apps will bypass grayscale",
-                style = typography.bodyMedium,
-                color = colors.textMuted,
-            )
-
             Spacer(modifier = Modifier.height(dimens.sectionGap))
         }
 
@@ -182,70 +174,67 @@ fun ExclusionListScreen(
         item {
             var isFocused by remember { mutableStateOf(false) }
 
-            GrayoutCard {
-                BasicTextField(
-                    value = searchQuery,
-                    onValueChange = onSearchQueryChange,
-                    singleLine = true,
-                    textStyle = typography.bodyLarge.copy(color = colors.text),
-                    cursorBrush = SolidColor(colors.text),
-                    decorationBox = { innerTextField ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    colors.bg,
-                                    RoundedCornerShape(dimens.radiusSm),
-                                )
-                                .border(
-                                    width = if (isFocused) 2.dp else 1.dp,
-                                    color = if (isFocused) colors.text else colors.border,
-                                    shape = RoundedCornerShape(dimens.radiusSm),
-                                )
-                                .padding(horizontal = dimens.cardPad),
+            BasicTextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                singleLine = true,
+                textStyle = typography.bodyLarge.copy(color = colors.text),
+                cursorBrush = SolidColor(colors.text),
+                decorationBox = { innerTextField ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                colors.bg,
+                                RoundedCornerShape(dimens.radiusSm),
+                            )
+                            .border(
+                                width = if (isFocused) 2.dp else 1.dp,
+                                color = if (isFocused) colors.text else colors.border,
+                                shape = RoundedCornerShape(dimens.radiusSm),
+                            )
+                            .padding(horizontal = dimens.cardPad),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.heightIn(min = 48.dp),
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.heightIn(min = 48.dp),
-                            ) {
-                                Box(modifier = Modifier.weight(1f)) {
-                                    if (searchQuery.isEmpty()) {
-                                        Text(
-                                            text = "Search apps...",
-                                            style = typography.bodyLarge,
-                                            color = colors.textMuted,
-                                        )
-                                    }
-                                    innerTextField()
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (searchQuery.isEmpty()) {
+                                    Text(
+                                        text = "Search apps...",
+                                        style = typography.bodyLarge,
+                                        color = colors.textMuted,
+                                    )
                                 }
+                                innerTextField()
+                            }
 
-                                if (searchQuery.isNotEmpty()) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clickable(
-                                                interactionSource = remember { MutableInteractionSource() },
-                                                indication = null,
-                                            ) { onSearchQueryChange("") },
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Close,
-                                            contentDescription = "Clear search",
-                                            tint = colors.textMuted,
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
+                            if (searchQuery.isNotEmpty()) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                        ) { onSearchQueryChange("") },
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Close,
+                                        contentDescription = "Clear search",
+                                        tint = colors.textMuted,
+                                        modifier = Modifier.size(20.dp),
+                                    )
                                 }
                             }
                         }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(dimens.cardPad)
-                        .onFocusChanged { isFocused = it.isFocused },
-                )
-            }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { isFocused = it.isFocused },
+            )
 
             Spacer(modifier = Modifier.height(dimens.sectionGap))
         }
@@ -275,18 +264,6 @@ fun ExclusionListScreen(
 
                 items(excludedApps, key = { "ex_${it.packageName}" }) { app ->
                     AppRow(app = app, onToggle = onToggle, dimens = dimens, typography = typography, textColor = colors.text)
-                }
-            } else if (searchQuery.isEmpty()) {
-                item(key = "hint_empty_excluded") {
-                    Spacer(modifier = Modifier.height(dimens.sectionGap))
-                    Text(
-                        text = "Toggle an app below to keep it in color",
-                        style = typography.bodyMedium,
-                        color = colors.textMuted,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = dimens.tightGap),
-                    )
                 }
             }
 

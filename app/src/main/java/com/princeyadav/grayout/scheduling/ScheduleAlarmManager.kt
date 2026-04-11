@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import com.princeyadav.grayout.data.ScheduleRepository
+import com.princeyadav.grayout.logic.isTimeWithinWindow
 import com.princeyadav.grayout.model.daysOfWeekList
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.GrayoutService
@@ -14,11 +15,11 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 
-class ScheduleAlarmManager(private val context: Context) {
+class ScheduleAlarmManager(private val context: Context) : AlarmScheduler {
 
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
-    suspend fun reschedule(repository: ScheduleRepository) {
+    override suspend fun reschedule(repository: ScheduleRepository) {
         cancelAll()
 
         val enabledSchedules = repository.getEnabledSchedules()
@@ -84,11 +85,7 @@ class ScheduleAlarmManager(private val context: Context) {
             val schedStart = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
             val schedEnd = LocalTime.of(schedule.endTimeHour, schedule.endTimeMinute)
 
-            if (schedStart.isBefore(schedEnd)) {
-                !currentTime.isBefore(schedStart) && currentTime.isBefore(schedEnd)
-            } else {
-                !currentTime.isBefore(schedStart) || currentTime.isBefore(schedEnd)
-            }
+            isTimeWithinWindow(schedStart, schedEnd, currentTime)
         }
 
         if (isCurrentlyInSchedule) {

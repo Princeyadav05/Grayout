@@ -21,8 +21,11 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import com.princeyadav.grayout.data.GrayoutDatabase
 import com.princeyadav.grayout.data.ScheduleRepository
+import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.scheduling.ScheduleAlarmManager
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
@@ -89,7 +92,6 @@ fun GrayoutNavGraph(
             val excludedAppIcons by homeViewModel.excludedAppIcons.collectAsStateWithLifecycle()
             val excludedOverflowCount by homeViewModel.excludedOverflowCount.collectAsStateWithLifecycle()
             val needsAttentionCount by homeViewModel.needsAttentionCount.collectAsStateWithLifecycle()
-            val toggleError by homeViewModel.toggleError.collectAsStateWithLifecycle()
 
             LaunchedEffect(lifecycleOwnerHome) {
                 lifecycleOwnerHome.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -102,6 +104,16 @@ fun GrayoutNavGraph(
                     homeViewModel.refreshNextSchedule(scheduleRepository)
                     homeViewModel.refreshExcludedAppIcons()
                     homeViewModel.refreshAttentionCount()
+                }
+            }
+
+            LaunchedEffect(homeViewModel) {
+                homeViewModel.navigateToSetup.collect {
+                    navController.navigate(Routes.SETTINGS) {
+                        popUpTo(Routes.HOME) { saveState = true }
+                        restoreState = true
+                        launchSingleTop = true
+                    }
                 }
             }
 
@@ -131,8 +143,6 @@ fun GrayoutNavGraph(
                         launchSingleTop = true
                     }
                 },
-                toggleError = toggleError,
-                onDismissToggleError = homeViewModel::dismissToggleError,
             )
         }
         composable(Routes.SCHEDULES) {
@@ -211,11 +221,35 @@ fun GrayoutNavGraph(
             )
         }
         composable(Routes.SETTINGS) {
+            val context = LocalContext.current
+            val lifecycleOwner = LocalLifecycleOwner.current
+            var isAccessibilityEnabled by remember {
+                val services = AndroidSettings.Secure.getString(
+                    context.contentResolver,
+                    AndroidSettings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                ) ?: ""
+                mutableStateOf(services.contains("com.princeyadav.grayout"))
+            }
+
+            LaunchedEffect(lifecycleOwner) {
+                lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                    val services = AndroidSettings.Secure.getString(
+                        context.contentResolver,
+                        AndroidSettings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                    ) ?: ""
+                    isAccessibilityEnabled = services.contains("com.princeyadav.grayout")
+                }
+            }
+
             SettingsScreen(
                 enforcementInterval = enforcementInterval,
                 isAdbPermissionGranted = isAdbPermissionGranted,
+                isAccessibilityEnabled = isAccessibilityEnabled,
                 isBatteryUnrestricted = isBatteryUnrestricted,
                 onBatteryOptimizationClick = onBatteryOptimizationClick,
+                onAccessibilityClick = {
+                    context.startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
+                },
             )
         }
         composable(Routes.EXCLUSION_LIST) {
@@ -225,12 +259,32 @@ fun GrayoutNavGraph(
                 context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, android.content.Context.MODE_PRIVATE)
             }
             val exclusionPrefs = remember { ExclusionPrefs(prefs) }
+            val applicationContext = context.applicationContext
             val viewModel: ExclusionViewModel = viewModel(
                 factory = ExclusionViewModelFactory(
-                    context.packageManager,
-                    exclusionPrefs,
-                    GrayscaleManager(context.contentResolver),
-                    context.packageName,
+                    exclusionPrefs = exclusionPrefs,
+                    grayscaleManager = GrayscaleManager(applicationContext.contentResolver),
+                    ownPackage = context.packageName,
+                    loadApps = {
+                        applicationContext.packageManager.getInstalledApplications(0)
+                            .filter { info ->
+                                applicationContext.packageManager
+                                    .getLaunchIntentForPackage(info.packageName) != null &&
+                                    info.packageName != "com.princeyadav.grayout"
+                            }
+                            .map { info ->
+                                AppInfo(
+                                    packageName = info.packageName,
+                                    appName = info.loadLabel(applicationContext.packageManager).toString(),
+                                    icon = info.loadIcon(applicationContext.packageManager)
+                                        .toBitmap(width = 80, height = 80)
+                                        .asImageBitmap(),
+                                    isExcluded = exclusionPrefs.isExcluded(info.packageName),
+                                )
+                            }
+                            .sortedBy { it.appName.lowercase() }
+                    },
+                    ioDispatcher = kotlinx.coroutines.Dispatchers.IO,
                 )
             )
 

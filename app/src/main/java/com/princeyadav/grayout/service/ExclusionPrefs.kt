@@ -42,6 +42,13 @@ class ExclusionPrefs(private val prefs: SharedPreferences) {
         prefs.edit().putBoolean(KEY_WAS_GRAYSCALE_ON, wasOn).apply()
     }
 
+    fun clearExclusionState() {
+        prefs.edit()
+            .putBoolean(KEY_EXCLUDED_APP_ACTIVE, false)
+            .putBoolean(KEY_WAS_GRAYSCALE_ON, false)
+            .apply()
+    }
+
     companion object {
         private const val KEY_EXCLUDED_PACKAGES = "excluded_packages"
         private const val KEY_EXCLUDED_APP_ACTIVE = "excluded_app_active"

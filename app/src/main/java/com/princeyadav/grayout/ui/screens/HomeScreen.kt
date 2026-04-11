@@ -62,8 +62,6 @@ fun HomeScreen(
     excludedOverflowCount: Int = 0,
     needsAttentionCount: Int = 0,
     onAttentionClick: () -> Unit = {},
-    toggleError: Boolean = false,
-    onDismissToggleError: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val dimens = GrayoutTheme.dimens
@@ -90,11 +88,7 @@ fun HomeScreen(
             isGrayscaleOn = isGrayscaleOn,
             enforcementInterval = enforcementInterval,
             nextScheduleText = nextScheduleText,
-            toggleError = toggleError,
-            onToggle = {
-                if (toggleError) onDismissToggleError()
-                onToggle()
-            },
+            onToggle = onToggle,
             onNextScheduleClick = onNavigateToSchedules,
         )
 
@@ -162,8 +156,8 @@ private fun NeedsAttentionStrip(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(dimens.radius))
-            .background(colors.surface, RoundedCornerShape(dimens.radius))
-            .border(1.dp, colors.border, RoundedCornerShape(dimens.radius))
+            .background(colors.danger.copy(alpha = 0.08f), RoundedCornerShape(dimens.radius))
+            .border(1.dp, colors.danger.copy(alpha = 0.33f), RoundedCornerShape(dimens.radius))
             .clickable { onClick() }
             .padding(horizontal = dimens.cardPad, vertical = dimens.cardPad),
     ) {
@@ -174,7 +168,7 @@ private fun NeedsAttentionStrip(
             Box(
                 modifier = Modifier
                     .size(6.dp)
-                    .background(BrandAccent, CircleShape),
+                    .background(colors.danger, CircleShape),
             )
             Spacer(modifier = Modifier.size(8.dp))
             Text(
@@ -197,7 +191,6 @@ private fun StatusHeroCard(
     isGrayscaleOn: Boolean,
     enforcementInterval: Int,
     nextScheduleText: String,
-    toggleError: Boolean,
     onToggle: () -> Unit,
     onNextScheduleClick: () -> Unit,
 ) {
@@ -206,7 +199,7 @@ private fun StatusHeroCard(
     val dimens = GrayoutTheme.dimens
     val view = LocalView.current
 
-    GrayoutCard(isActive = isGrayscaleOn) {
+    GrayoutCard(isActive = isGrayscaleOn, wash = true) {
         Box(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
                 Row(
@@ -238,19 +231,11 @@ private fun StatusHeroCard(
 
                 Spacer(modifier = Modifier.height(dimens.tightGap))
 
-                if (toggleError) {
-                    Text(
-                        text = "Couldn't change the setting. Re-grant ADB permission.",
-                        style = typography.bodyMedium,
-                        color = colors.text,
-                    )
-                } else {
-                    Text(
-                        text = if (isGrayscaleOn) "Your screen is muted" else "Tap to mute your screen",
-                        style = typography.bodyMedium,
-                        color = colors.textMuted,
-                    )
-                }
+                Text(
+                    text = if (isGrayscaleOn) "Your screen is muted" else "Tap to mute your screen",
+                    style = typography.bodyMedium,
+                    color = colors.textMuted,
+                )
 
                 Spacer(modifier = Modifier.height(dimens.sectionGap))
 
@@ -258,23 +243,24 @@ private fun StatusHeroCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(dimens.cardGap),
                 ) {
-                    val pillLabel = if (enforcementInterval > 0) "${enforcementInterval}m" else "Off"
-                    Text(
-                        text = pillLabel,
-                        style = typography.labelXSmall.copy(fontWeight = FontWeight.ExtraBold),
-                        color = if (enforcementInterval > 0) colors.bg else colors.offText,
-                        modifier = Modifier
-                            .background(
-                                if (enforcementInterval > 0) colors.text else Color.Transparent,
-                                RoundedCornerShape(dimens.radiusFull),
-                            )
-                            .border(
-                                1.dp,
-                                if (enforcementInterval > 0) Color.Transparent else colors.border,
-                                RoundedCornerShape(dimens.radiusFull),
-                            )
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                    )
+                    if (enforcementInterval > 0) {
+                        Text(
+                            text = "${enforcementInterval}m",
+                            style = typography.labelXSmall.copy(fontWeight = FontWeight.ExtraBold),
+                            color = colors.bg,
+                            modifier = Modifier
+                                .background(
+                                    colors.text,
+                                    RoundedCornerShape(dimens.radiusFull),
+                                )
+                                .border(
+                                    1.dp,
+                                    Color.Transparent,
+                                    RoundedCornerShape(dimens.radiusFull),
+                                )
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                        )
+                    }
 
                     Text(
                         text = nextScheduleText,

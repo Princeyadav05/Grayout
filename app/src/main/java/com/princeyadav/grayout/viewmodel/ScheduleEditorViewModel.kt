@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.model.Schedule
 import com.princeyadav.grayout.model.daysOfWeekList
-import com.princeyadav.grayout.scheduling.ScheduleAlarmManager
+import com.princeyadav.grayout.scheduling.AlarmScheduler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -14,7 +14,7 @@ import java.time.DayOfWeek
 
 class ScheduleEditorViewModel(
     private val repository: ScheduleRepository,
-    private val alarmManager: ScheduleAlarmManager,
+    private val alarmManager: AlarmScheduler,
 ) : ViewModel() {
 
     private val _name = MutableStateFlow("")
@@ -150,7 +150,7 @@ class ScheduleEditorViewModel(
 
 class ScheduleEditorViewModelFactory(
     private val repository: ScheduleRepository,
-    private val alarmManager: ScheduleAlarmManager,
+    private val alarmManager: AlarmScheduler,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {

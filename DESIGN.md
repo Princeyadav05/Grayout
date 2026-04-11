@@ -17,7 +17,7 @@ The app has a **single brand accent**: `BrandAccent = #B5A0D8` (dusty lavender).
 
 `BrandAccent` is used only for:
 - Eyebrow labels (`STATUS`, `ENFORCEMENT`, `EXCLUSIONS`) at 0.75 alpha
-- The vertical gradient wash at the top of the status hero card
+- The vertical gradient wash at the top of the Status Hero card and the Schedules empty-state card
 - The foreground notification accent
 - The adaptive launcher icon tint
 - The wordmark lockup on the home header
@@ -122,6 +122,7 @@ No spring physics, no bounce, no custom easings. If you need a duration, pick `F
 - Background: `surface`. Corner: `dimens.radius` (16dp).
 - Border: 1dp `border` by default, animates to 2dp `borderActive` when `isActive = true`. The animation uses `GrayoutMotion.Slow`.
 - No elevation, no shadow. Depth is borders only.
+- `wash = true` opts into the hero accent wash. Default is false. Only the Status Hero and the Schedules empty-state card pass `wash = true`.
 
 ### Eyebrow label
 - A small uppercase text using `typography.labelSmall`, colored `BrandAccent.copy(alpha = 0.75f)`.
@@ -130,12 +131,12 @@ No spring physics, no bounce, no custom easings. If you need a duration, pick `F
 
 ### Status hero card (home)
 - One unified card that combines status + pills + toggle. There is no separate 120dp circle anymore.
-- Top edge has a vertical gradient wash: `BrandAccent` at 0.08 alpha at the top, fading to `Color.Transparent` by 40% of the card height. This is the only place the wash appears.
+- Top edge has a vertical gradient wash: `BrandAccent` at 0.08 alpha at the top, fading to `Color.Transparent` by 40% of the card height. This wash also appears on the Schedules empty-state card; it appears nowhere else.
 - Contents, top to bottom:
   1. Eyebrow row: a 6dp dot (`BrandAccent` when off, `text` when on) + the `STATUS` label.
   2. `Grayscale on` / `Grayscale off` in `headingLarge`, colored `text`.
   3. A `bodyMedium` subtitle in `textMuted` ("Your screen is muted" / "Tap to mute your screen"), or an error line in `text` if the last toggle failed.
-  4. A row with the enforcement interval pill (`Off`, `1m`, `5m`…) and the next-schedule summary in `monoSmall`.
+  4. A row with the enforcement interval pill (`1m`, `5m`, `10m`, `15m`, `30m` — hidden when enforcement is off) and the next-schedule summary in `monoSmall`.
   5. A divider, then the `Grayscale` label + `GrayoutToggle` row.
 - When grayscale is on, the card passes `isActive = true` to `GrayoutCard`, which brightens the border.
 

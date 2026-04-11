@@ -2,11 +2,16 @@ package com.princeyadav.grayout
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.ContentObserver
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.core.graphics.drawable.toBitmap
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -59,14 +64,43 @@ class MainActivity : ComponentActivity() {
 
     private val homeViewModel: HomeViewModel by viewModels {
         HomeViewModelFactory(
-            applicationContext.contentResolver,
-            GrayscaleManager(applicationContext.contentResolver),
-            enforcementPrefs,
-            exclusionPrefs,
-            applicationContext.packageManager,
-            getSystemService(PowerManager::class.java),
-            packageName,
+            grayscaleManager = GrayscaleManager(applicationContext.contentResolver),
+            enforcementPrefs = enforcementPrefs,
+            exclusionPrefs = exclusionPrefs,
+            isBatteryOptimized = {
+                getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+            },
+            loadExcludedIcons = { packages ->
+                val icons = mutableListOf<Bitmap>()
+                var loaded = 0
+                var found = 0
+                for (pkg in packages) {
+                    val bitmap = try {
+                        applicationContext.packageManager
+                            .getApplicationIcon(pkg)
+                            .toBitmap(width = 64, height = 64)
+                    } catch (_: PackageManager.NameNotFoundException) {
+                        null
+                    }
+                    if (bitmap != null) {
+                        found++
+                        if (loaded < 3) {
+                            icons.add(bitmap)
+                            loaded++
+                        }
+                    }
+                }
+                icons to (found - loaded).coerceAtLeast(0)
+            },
+            ioDispatcher = Dispatchers.IO,
+            ownPackageName = packageName,
         )
+    }
+
+    private val grayscaleObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            homeViewModel.refreshGrayscaleStateFromSystem()
+        }
     }
 
     private var isAdbPermissionGranted by mutableStateOf(false)
@@ -162,5 +196,19 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        contentResolver.registerContentObserver(
+            Settings.Secure.getUriFor("accessibility_display_daltonizer_enabled"),
+            false,
+            grayscaleObserver,
+        )
+    }
+
+    override fun onStop() {
+        super.onStop()
+        contentResolver.unregisterContentObserver(grayscaleObserver)
     }
 }
