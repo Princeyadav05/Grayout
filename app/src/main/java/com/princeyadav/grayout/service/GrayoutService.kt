@@ -40,7 +40,6 @@ class GrayoutService : Service() {
             getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE)
         )
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification(0))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -51,13 +50,17 @@ class GrayoutService : Service() {
         currentInterval = interval
         handler.removeCallbacks(enforcementRunnable)
 
-        if (interval > 0) {
-            handler.post(enforcementRunnable)
+        // Always call startForeground first to satisfy the foreground-service
+        // start-timeout contract, then tear down immediately if interval is 0.
+        startForeground(NOTIFICATION_ID, buildNotification(interval))
+
+        if (interval <= 0) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
         }
 
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, buildNotification(interval))
-
+        handler.post(enforcementRunnable)
         return START_STICKY
     }
 
@@ -85,13 +88,17 @@ class GrayoutService : Service() {
         val pendingIntent = PendingIntent.getActivity(
             this, 0, intent, PendingIntent.FLAG_IMMUTABLE
         )
+        val contentText = if (interval > 0) {
+            "Re-applies every $interval min"
+        } else {
+            "Stopping enforcement"
+        }
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_tile)
-            .setContentTitle("Grayout")
-            .setContentText(
-                if (interval > 0) "Enforcing grayscale every ${interval}m"
-                else "Grayout is idle"
-            )
+            .setContentTitle("Grayscale enforcement")
+            .setContentText(contentText)
+            .setColor(0xFFA0D2C6.toInt())
+            .setShowWhen(false)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()
