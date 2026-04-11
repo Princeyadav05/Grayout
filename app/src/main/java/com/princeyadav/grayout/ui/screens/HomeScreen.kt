@@ -67,7 +67,7 @@ fun HomeScreen(
     onEnforcementIntervalChange: (Int) -> Unit,
     onNavigateToExclusions: () -> Unit,
     onNavigateToSchedules: () -> Unit = {},
-    nextScheduleText: String = "—",
+    nextScheduleText: String = "Nothing scheduled",
     modifier: Modifier = Modifier,
 ) {
     val colors = GrayoutTheme.colors
@@ -352,9 +352,11 @@ private fun StatCardsRow(isGrayscaleOn: Boolean, nextScheduleText: String, onNex
                     Spacer(modifier = Modifier.width(12.dp))
 
                     Text(
-                        text = if (isGrayscaleOn) "Active" else "Inactive",
-                        style = typography.bodyMedium,
-                        color = if (isGrayscaleOn) colors.success else colors.offText,
+                        text = if (isGrayscaleOn) "Running" else "Paused",
+                        style = typography.bodyMedium.copy(
+                            fontWeight = if (isGrayscaleOn) FontWeight.Bold else FontWeight.SemiBold,
+                        ),
+                        color = if (isGrayscaleOn) colors.text else colors.offText,
                     )
                 }
             }
@@ -363,7 +365,7 @@ private fun StatCardsRow(isGrayscaleOn: Boolean, nextScheduleText: String, onNex
         GrayoutCard(modifier = Modifier.weight(1f).clickable { onNextScheduleClick() }) {
             Column(modifier = Modifier.padding(dimens.cardPad)) {
                 Text(
-                    text = "NEXT SCHEDULE",
+                    text = "NEXT",
                     style = typography.labelSmall,
                     color = colors.textMuted,
                 )
@@ -398,13 +400,13 @@ private fun EnforcementCard(
             Text(
                 text = "ENFORCEMENT",
                 style = typography.labelSmall,
-                color = colors.accent,
+                color = colors.textMuted,
             )
 
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Turns grayscale back on periodically, even if you switch it off",
+                text = "Re-applies grayscale on a timer — in case you switch it off",
                 style = typography.labelSmall,
                 color = colors.textMuted,
             )
@@ -513,7 +515,7 @@ private fun ExcludedAppsCard(
         subtitleText = "$count app${if (count != 1) "s" else ""} excluded"
         subtitleColor = colors.text
     } else {
-        subtitleText = "No apps excluded"
+        subtitleText = "Every app is muted"
         subtitleColor = colors.textMuted
     }
 
@@ -530,9 +532,9 @@ private fun ExcludedAppsCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "EXCLUDED APPS",
+                    text = "EXCLUSIONS",
                     style = typography.labelSmall,
-                    color = colors.accent,
+                    color = colors.textMuted,
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))

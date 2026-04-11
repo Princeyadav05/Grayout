@@ -33,7 +33,7 @@ class HomeViewModel(
     private val _enforcementInterval = MutableStateFlow(0)
     val enforcementInterval: StateFlow<Int> = _enforcementInterval.asStateFlow()
 
-    private val _nextScheduleText = MutableStateFlow("—")
+    private val _nextScheduleText = MutableStateFlow("Nothing scheduled")
     val nextScheduleText: StateFlow<String> = _nextScheduleText.asStateFlow()
 
     private val grayscaleObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -69,7 +69,7 @@ class HomeViewModel(
         viewModelScope.launch {
             val enabledSchedules = repository.getEnabledSchedules()
             if (enabledSchedules.isEmpty()) {
-                _nextScheduleText.value = "—"
+                _nextScheduleText.value = "Nothing scheduled"
                 return@launch
             }
 
@@ -98,7 +98,7 @@ class HomeViewModel(
             _nextScheduleText.value = if (nextStartTime != null) {
                 formatTime12Hour(nextStartTime.hour, nextStartTime.minute)
             } else {
-                "—"
+                "Nothing scheduled"
             }
         }
     }
