@@ -16,11 +16,12 @@ val fontProvider = GoogleFont.Provider(
     certificates = R.array.com_google_android_gms_fonts_certs,
 )
 
-val DmSansFamily = FontFamily(
-    Font(googleFont = GoogleFont("DM Sans"), fontProvider = fontProvider, weight = FontWeight.Normal),
-    Font(googleFont = GoogleFont("DM Sans"), fontProvider = fontProvider, weight = FontWeight.Medium),
-    Font(googleFont = GoogleFont("DM Sans"), fontProvider = fontProvider, weight = FontWeight.SemiBold),
-    Font(googleFont = GoogleFont("DM Sans"), fontProvider = fontProvider, weight = FontWeight.Bold),
+val PlusJakartaSansFamily = FontFamily(
+    Font(googleFont = GoogleFont("Plus Jakarta Sans"), fontProvider = fontProvider, weight = FontWeight.Normal),
+    Font(googleFont = GoogleFont("Plus Jakarta Sans"), fontProvider = fontProvider, weight = FontWeight.Medium),
+    Font(googleFont = GoogleFont("Plus Jakarta Sans"), fontProvider = fontProvider, weight = FontWeight.SemiBold),
+    Font(googleFont = GoogleFont("Plus Jakarta Sans"), fontProvider = fontProvider, weight = FontWeight.Bold),
+    Font(googleFont = GoogleFont("Plus Jakarta Sans"), fontProvider = fontProvider, weight = FontWeight.ExtraBold),
 )
 
 val JetBrainsMonoFamily = FontFamily(
@@ -31,51 +32,51 @@ val JetBrainsMonoFamily = FontFamily(
 @Immutable
 data class GrayoutTypography(
     val headingLarge: TextStyle = TextStyle(
-        fontFamily = DmSansFamily,
+        fontFamily = PlusJakartaSansFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 28.sp,
         letterSpacing = (-0.5).sp,
     ),
     val headingMedium: TextStyle = TextStyle(
-        fontFamily = DmSansFamily,
+        fontFamily = PlusJakartaSansFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 24.sp,
         letterSpacing = (-0.5).sp,
     ),
     val headingSmall: TextStyle = TextStyle(
-        fontFamily = DmSansFamily,
+        fontFamily = PlusJakartaSansFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 20.sp,
         letterSpacing = (-0.5).sp,
     ),
     val titleMedium: TextStyle = TextStyle(
-        fontFamily = DmSansFamily,
+        fontFamily = PlusJakartaSansFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 18.sp,
     ),
     val bodyLarge: TextStyle = TextStyle(
-        fontFamily = DmSansFamily,
+        fontFamily = PlusJakartaSansFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
     ),
     val bodyMedium: TextStyle = TextStyle(
-        fontFamily = DmSansFamily,
+        fontFamily = PlusJakartaSansFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
     ),
     val bodySmall: TextStyle = TextStyle(
-        fontFamily = DmSansFamily,
+        fontFamily = PlusJakartaSansFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 13.sp,
     ),
     val labelSmall: TextStyle = TextStyle(
-        fontFamily = DmSansFamily,
+        fontFamily = PlusJakartaSansFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         letterSpacing = 0.5.sp,
     ),
     val labelXSmall: TextStyle = TextStyle(
-        fontFamily = DmSansFamily,
+        fontFamily = PlusJakartaSansFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 11.sp,
     ),
