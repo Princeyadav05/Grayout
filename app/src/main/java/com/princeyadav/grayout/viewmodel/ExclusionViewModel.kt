@@ -1,8 +1,6 @@
 package com.princeyadav.grayout.viewmodel
 
-import android.content.ContentResolver
 import android.content.pm.PackageManager
-import android.provider.Settings
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.ViewModel
@@ -12,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.service.ExclusionPrefs
+import com.princeyadav.grayout.service.GrayscaleManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +21,8 @@ import kotlinx.coroutines.flow.stateIn
 class ExclusionViewModel(
     private val packageManager: PackageManager,
     private val exclusionPrefs: ExclusionPrefs,
+    private val grayscaleManager: GrayscaleManager,
+    private val ownPackage: String,
 ) : ViewModel() {
 
     private val _apps = MutableStateFlow<List<AppInfo>>(emptyList())
@@ -76,22 +77,19 @@ class ExclusionViewModel(
         _searchQuery.value = query
     }
 
-    fun checkAccessibilityService(contentResolver: ContentResolver) {
-        val enabledServices = Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-        ) ?: ""
-        _isAccessibilityEnabled.value =
-            enabledServices.contains("com.princeyadav.grayout")
+    fun checkAccessibilityService() {
+        _isAccessibilityEnabled.value = grayscaleManager.isAccessibilityServiceEnabled(ownPackage)
     }
 }
 
 class ExclusionViewModelFactory(
     private val packageManager: PackageManager,
     private val exclusionPrefs: ExclusionPrefs,
+    private val grayscaleManager: GrayscaleManager,
+    private val ownPackage: String,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return ExclusionViewModel(packageManager, exclusionPrefs) as T
+        return ExclusionViewModel(packageManager, exclusionPrefs, grayscaleManager, ownPackage) as T
     }
 }

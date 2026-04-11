@@ -20,6 +20,14 @@ class GrayscaleManager(private val contentResolver: ContentResolver) {
         }
     }
 
+    fun isAccessibilityServiceEnabled(packageName: String): Boolean {
+        val enabled = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ) ?: return false
+        return enabled.split(":").any { it.startsWith("$packageName/") }
+    }
+
     companion object {
         private const val DALTONIZER_ENABLED = "accessibility_display_daltonizer_enabled"
         private const val DALTONIZER_MODE = "accessibility_display_daltonizer"

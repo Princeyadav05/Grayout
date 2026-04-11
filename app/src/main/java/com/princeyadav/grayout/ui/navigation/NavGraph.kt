@@ -26,6 +26,7 @@ import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.scheduling.ScheduleAlarmManager
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
+import com.princeyadav.grayout.service.GrayscaleManager
 import com.princeyadav.grayout.ui.screens.ExclusionListScreen
 import com.princeyadav.grayout.ui.screens.HomeScreen
 import com.princeyadav.grayout.ui.screens.ScheduleEditorScreen
@@ -195,6 +196,8 @@ fun GrayoutNavGraph(
                 factory = ExclusionViewModelFactory(
                     context.packageManager,
                     exclusionPrefs,
+                    GrayscaleManager(context.contentResolver),
+                    context.packageName,
                 )
             )
 
@@ -204,7 +207,7 @@ fun GrayoutNavGraph(
 
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                    viewModel.checkAccessibilityService(context.contentResolver)
+                    viewModel.checkAccessibilityService()
                 }
             }
 
