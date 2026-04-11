@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.princeyadav.grayout.ui.theme.GrayoutMotion
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 
 @Composable
@@ -29,18 +30,27 @@ fun GrayoutToggle(
     val colors = GrayoutTheme.colors
 
     val trackColor by animateColorAsState(
-        targetValue = if (checked) colors.accent else colors.off,
-        animationSpec = tween(250),
+        targetValue = if (checked) colors.text else colors.off,
+        animationSpec = tween(
+            durationMillis = GrayoutMotion.Fast,
+            easing = GrayoutMotion.Easing,
+        ),
         label = "trackColor",
     )
     val thumbColor by animateColorAsState(
         targetValue = if (checked) colors.bg else colors.offText,
-        animationSpec = tween(250),
+        animationSpec = tween(
+            durationMillis = GrayoutMotion.Fast,
+            easing = GrayoutMotion.Easing,
+        ),
         label = "thumbColor",
     )
     val thumbOffset by animateDpAsState(
         targetValue = if (checked) 25.dp else 0.dp,
-        animationSpec = tween(250),
+        animationSpec = tween(
+            durationMillis = GrayoutMotion.Fast,
+            easing = GrayoutMotion.Easing,
+        ),
         label = "thumbOffset",
     )
 
