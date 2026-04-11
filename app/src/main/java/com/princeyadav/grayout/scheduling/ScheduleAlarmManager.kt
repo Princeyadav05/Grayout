@@ -5,7 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import com.princeyadav.grayout.data.ScheduleRepository
-import java.time.DayOfWeek
+import com.princeyadav.grayout.model.daysOfWeekList
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
@@ -28,9 +28,7 @@ class ScheduleAlarmManager(private val context: Context) {
         var nextIsStart = true
 
         for (schedule in enabledSchedules) {
-            val days = schedule.daysOfWeek.split(",").map { dayStr ->
-                DayOfWeek.entries.first { it.name.startsWith(dayStr.trim()) }
-            }
+            val days = schedule.daysOfWeekList
             val schedStart = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
             val schedEnd = LocalTime.of(schedule.endTimeHour, schedule.endTimeMinute)
 
@@ -69,7 +67,7 @@ class ScheduleAlarmManager(private val context: Context) {
         }
 
         val isCurrentlyInSchedule = enabledSchedules.any { schedule ->
-            val days = schedule.daysOfWeek.split(",").map { abbr -> DayOfWeek.entries.first { it.name.startsWith(abbr.trim()) } }
+            val days = schedule.daysOfWeekList
             if (now.dayOfWeek !in days) return@any false
 
             val schedStart = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)

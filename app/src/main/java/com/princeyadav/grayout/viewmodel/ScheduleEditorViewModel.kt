@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.model.Schedule
+import com.princeyadav.grayout.model.daysOfWeekList
 import com.princeyadav.grayout.scheduling.ScheduleAlarmManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,9 +51,7 @@ class ScheduleEditorViewModel(
             val schedule = repository.getById(id) ?: return@launch
             editingScheduleId = id
             _name.value = schedule.name
-            _selectedDays.value = schedule.daysOfWeek.split(",")
-                .map { abbr -> DayOfWeek.entries.first { it.name.startsWith(abbr.trim()) } }
-                .toSet()
+            _selectedDays.value = schedule.daysOfWeekList.toSet()
             _startHour.value = schedule.startTimeHour
             _startMinute.value = schedule.startTimeMinute
             _endHour.value = schedule.endTimeHour

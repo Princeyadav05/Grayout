@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.princeyadav.grayout.data.ScheduleRepository
+import com.princeyadav.grayout.model.daysOfWeekList
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.GrayscaleManager
 import kotlinx.coroutines.Dispatchers
@@ -16,7 +17,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.time.DayOfWeek
 import java.time.LocalDateTime
 import java.time.LocalTime
 
@@ -77,7 +77,7 @@ class HomeViewModel(
             var nextStartTime: LocalDateTime? = null
 
             for (schedule in enabledSchedules) {
-                val days = schedule.daysOfWeek.split(",").map { DayOfWeek.entries.first { d -> d.name.startsWith(it.trim()) } }
+                val days = schedule.daysOfWeekList
                 val schedStart = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
 
                 for (dayOffset in 0L..7L) {
