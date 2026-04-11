@@ -2,6 +2,7 @@ package com.princeyadav.grayout.service
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityWindowInfo
 
 class GrayoutAccessibilityService : AccessibilityService() {
 
@@ -17,6 +18,13 @@ class GrayoutAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+
+        // Ignore events from non-application windows (IMEs/keyboards, system
+        // dialogs, notification shade, etc.). Without this filter, opening the
+        // keyboard inside an excluded app fires a window change for the IME's
+        // package and unwinds the excluded-app state, re-enabling grayscale.
+        val windowType = windows?.find { it.id == event.windowId }?.type
+        if (windowType != null && windowType != AccessibilityWindowInfo.TYPE_APPLICATION) return
 
         val pkg = event.packageName?.toString() ?: return
 
