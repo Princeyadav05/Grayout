@@ -12,9 +12,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -73,12 +73,10 @@ fun ScheduleListScreen(
                     color = colors.text,
                 )
 
-                Text(
-                    text = "+ Add",
-                    style = typography.bodySmall.copy(fontWeight = FontWeight.ExtraBold),
-                    color = colors.bg,
+                Box(
+                    contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .sizeIn(minHeight = 48.dp)
+                        .heightIn(min = 48.dp)
                         .background(colors.text, RoundedCornerShape(dimens.radiusFull))
                         .clip(RoundedCornerShape(dimens.radiusFull))
                         .clickable(
@@ -86,7 +84,13 @@ fun ScheduleListScreen(
                             indication = null,
                         ) { onAddSchedule() }
                         .padding(horizontal = 14.dp, vertical = 6.dp),
-                )
+                ) {
+                    Text(
+                        text = "+ Add",
+                        style = typography.bodySmall.copy(fontWeight = FontWeight.ExtraBold),
+                        color = colors.bg,
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(dimens.itemGap))
