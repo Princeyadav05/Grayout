@@ -14,6 +14,7 @@ val TextDim = Color(0xFF4A4A4A)
 val Off = Color(0xFF3A3A3A)
 val OffText = Color(0xFF666666)
 val Danger = Color(0xFFFF6B6B)
+val Success = Color(0xFF6BE8A0)
 
 val BrandAccent = Color(0xFFB5A0D8)
 
@@ -29,6 +30,7 @@ data class GrayoutColors(
     val off: Color = Off,
     val offText: Color = OffText,
     val danger: Color = Danger,
+    val success: Color = Success,
 )
 
 val LocalGrayoutColors = staticCompositionLocalOf { GrayoutColors() }
