@@ -97,11 +97,11 @@ fun ExclusionListScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(dimens.itemGap))
+            Spacer(modifier = Modifier.height(dimens.tightGap))
 
             Text(
                 text = "These apps will bypass grayscale",
-                style = typography.bodySmall,
+                style = typography.bodyMedium,
                 color = colors.textMuted,
             )
 
@@ -135,15 +135,15 @@ fun ExclusionListScreen(
 
                         Text(
                             text = "Enable the Grayout accessibility service for app exclusions to work",
-                            style = typography.bodySmall,
+                            style = typography.bodyMedium,
                             color = colors.textMuted,
                         )
 
-                        Spacer(modifier = Modifier.height(dimens.itemGap))
+                        Spacer(modifier = Modifier.height(dimens.tightGap))
 
                         Text(
                             text = "Open Settings",
-                            style = typography.bodySmall.copy(fontWeight = FontWeight.ExtraBold),
+                            style = typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
                             color = colors.text,
                             modifier = Modifier
                                 .sizeIn(minHeight = 48.dp)
@@ -207,7 +207,7 @@ fun ExclusionListScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = dimens.itemGap),
+                    .padding(vertical = dimens.tightGap),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Image(

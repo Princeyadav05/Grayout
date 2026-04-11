@@ -172,7 +172,7 @@ fun ScheduleEditorScreen(
         if (overlapError != null) {
             Text(
                 text = overlapError,
-                style = typography.bodySmall,
+                style = typography.bodyMedium,
                 color = colors.danger,
             )
 
@@ -210,7 +210,7 @@ fun ScheduleEditorScreen(
 
             Text(
                 text = "Delete schedule",
-                style = typography.bodySmall,
+                style = typography.bodyMedium,
                 color = colors.danger,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
@@ -254,7 +254,7 @@ private fun NameCard(
                 color = colors.textMuted,
             )
 
-            Spacer(modifier = Modifier.height(dimens.itemGap))
+            Spacer(modifier = Modifier.height(dimens.tightGap))
 
             BasicTextField(
                 value = name,
@@ -427,7 +427,7 @@ private fun DaysCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(dimens.dayDotGap),
+                horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
             ) {
                 val view = LocalView.current
                 dayLabels.forEach { (day, label) ->
@@ -475,7 +475,7 @@ private fun DaysCard(
             Spacer(modifier = Modifier.height(dimens.sectionGap))
 
             Row(
-                horizontalArrangement = Arrangement.spacedBy(dimens.chipGap),
+                horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
             ) {
                 val presets = listOf(
                     "Every day" to everyDay,
@@ -548,7 +548,7 @@ private fun PresetChip(
     ) {
         Text(
             text = label,
-            style = typography.bodySmall.copy(
+            style = typography.bodyMedium.copy(
                 fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
             ),
             color = textColor,

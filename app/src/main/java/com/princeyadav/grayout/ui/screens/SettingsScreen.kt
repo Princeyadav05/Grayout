@@ -130,7 +130,7 @@ private fun SetupCard(
                 trailing = {
                     Text(
                         text = if (isAdbPermissionGranted) "Granted" else "Not granted",
-                        style = GrayoutTheme.typography.bodySmall,
+                        style = GrayoutTheme.typography.bodyMedium,
                         color = if (isAdbPermissionGranted) colors.text else colors.danger,
                     )
                 },
@@ -145,7 +145,7 @@ private fun SetupCard(
                 trailing = {
                     Text(
                         text = if (isBatteryUnrestricted) "Unrestricted" else "Restricted",
-                        style = GrayoutTheme.typography.bodySmall,
+                        style = GrayoutTheme.typography.bodyMedium,
                         color = if (isBatteryUnrestricted) colors.text else colors.danger,
                     )
                 },

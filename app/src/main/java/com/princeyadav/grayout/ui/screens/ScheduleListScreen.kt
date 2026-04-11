@@ -87,17 +87,17 @@ fun ScheduleListScreen(
                 ) {
                     Text(
                         text = "+ Add",
-                        style = typography.bodySmall.copy(fontWeight = FontWeight.ExtraBold),
+                        style = typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
                         color = colors.bg,
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(dimens.itemGap))
+            Spacer(modifier = Modifier.height(dimens.tightGap))
 
             Text(
                 text = "Automatic grayscale windows",
-                style = typography.bodySmall,
+                style = typography.bodyMedium,
                 color = colors.textMuted,
             )
 
@@ -122,11 +122,11 @@ fun ScheduleListScreen(
                             textAlign = TextAlign.Center,
                         )
 
-                        Spacer(modifier = Modifier.height(dimens.itemGap))
+                        Spacer(modifier = Modifier.height(dimens.tightGap))
 
                         Text(
                             text = "Tap + Add to create your first schedule",
-                            style = typography.bodySmall,
+                            style = typography.bodyMedium,
                             color = colors.textDim,
                             textAlign = TextAlign.Center,
                         )
@@ -211,7 +211,7 @@ private fun ScheduleCard(
 
             val contentAlpha = if (schedule.isEnabled) 1f else 0.5f
 
-            Spacer(modifier = Modifier.height(dimens.itemGap))
+            Spacer(modifier = Modifier.height(dimens.tightGap))
 
             Column(modifier = Modifier.alpha(contentAlpha)) {
                 Text(
@@ -228,7 +228,7 @@ private fun ScheduleCard(
                     color = if (schedule.isEnabled) colors.text else colors.textMuted,
                 )
 
-                Spacer(modifier = Modifier.height(dimens.itemGap))
+                Spacer(modifier = Modifier.height(dimens.tightGap))
 
                 DayDotsRow(
                     selectedDays = days,
@@ -262,7 +262,7 @@ private fun DayDotsRow(
     )
 
     Row(
-        horizontalArrangement = Arrangement.spacedBy(dimens.dayDotGap),
+        horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
         modifier = modifier,
     ) {
         dayLabels.forEach { (day, label) ->

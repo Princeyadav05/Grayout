@@ -169,7 +169,7 @@ private fun StatusHeroCard(
                 color = colors.text,
             )
 
-            Spacer(modifier = Modifier.height(dimens.itemGap))
+            Spacer(modifier = Modifier.height(dimens.tightGap))
 
             Text(
                 text = if (isGrayscaleOn) "Your screen is muted" else "Tap to mute your screen",
@@ -355,7 +355,7 @@ private fun EnforcementChip(
     ) {
         Text(
             text = label,
-            style = typography.bodySmall.copy(
+            style = typography.bodyMedium.copy(
                 fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
             ),
             color = textColor,

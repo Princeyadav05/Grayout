@@ -64,11 +64,6 @@ data class GrayoutTypography(
         fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
     ),
-    val bodySmall: TextStyle = TextStyle(
-        fontFamily = PlusJakartaSansFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 13.sp,
-    ),
     val labelSmall: TextStyle = TextStyle(
         fontFamily = PlusJakartaSansFamily,
         fontWeight = FontWeight.Normal,

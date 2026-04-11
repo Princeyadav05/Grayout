@@ -31,7 +31,7 @@ fun SettingsRow(
         modifier = modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(vertical = dimens.itemGap),
+            .padding(vertical = dimens.tightGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
