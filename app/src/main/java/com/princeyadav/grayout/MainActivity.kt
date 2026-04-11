@@ -27,6 +27,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.princeyadav.grayout.service.EnforcementPrefs
+import com.princeyadav.grayout.service.ExclusionPrefs
 import com.princeyadav.grayout.service.GrayscaleManager
 import com.princeyadav.grayout.service.GrayoutService
 import com.princeyadav.grayout.ui.components.BottomNavBar
@@ -50,6 +51,10 @@ class MainActivity : ComponentActivity() {
         EnforcementPrefs(getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE))
     }
 
+    private val exclusionPrefs by lazy {
+        ExclusionPrefs(getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE))
+    }
+
     private val grayscaleManager by lazy { GrayscaleManager(applicationContext.contentResolver) }
 
     private val homeViewModel: HomeViewModel by viewModels {
@@ -57,6 +62,10 @@ class MainActivity : ComponentActivity() {
             applicationContext.contentResolver,
             GrayscaleManager(applicationContext.contentResolver),
             enforcementPrefs,
+            exclusionPrefs,
+            applicationContext.packageManager,
+            getSystemService(PowerManager::class.java),
+            packageName,
         )
     }
 
@@ -70,6 +79,9 @@ class MainActivity : ComponentActivity() {
 
             val powerManager = getSystemService(PowerManager::class.java)
             isBatteryUnrestricted = powerManager.isIgnoringBatteryOptimizations(packageName)
+
+            homeViewModel.refreshAttentionCount()
+            homeViewModel.refreshExcludedAppIcons()
         }
     }
 
