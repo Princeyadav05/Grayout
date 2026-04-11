@@ -27,6 +27,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +41,7 @@ import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
 import com.princeyadav.grayout.ui.components.HapticAction
 import com.princeyadav.grayout.ui.components.performHaptic
+import com.princeyadav.grayout.ui.theme.BrandAccent
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 import java.time.DayOfWeek
 
@@ -48,6 +52,7 @@ fun ScheduleListScreen(
     onEditSchedule: (Long) -> Unit,
     onToggleEnabled: (Schedule) -> Unit,
     modifier: Modifier = Modifier,
+    firingScheduleIds: Set<Long> = emptySet(),
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
@@ -140,6 +145,7 @@ fun ScheduleListScreen(
         items(schedules, key = { it.id }) { schedule ->
             ScheduleCard(
                 schedule = schedule,
+                isFiringNow = schedule.id in firingScheduleIds,
                 onEdit = { onEditSchedule(schedule.id) },
                 onToggle = { onToggleEnabled(schedule) },
             )
@@ -156,6 +162,7 @@ fun ScheduleListScreen(
 @Composable
 private fun ScheduleCard(
     schedule: Schedule,
+    isFiringNow: Boolean,
     onEdit: () -> Unit,
     onToggle: () -> Unit,
 ) {
@@ -166,8 +173,22 @@ private fun ScheduleCard(
     val days = schedule.daysOfWeek.split(",").map { it.trim() }.toSet()
     val view = LocalView.current
 
+    val badgeText = when {
+        isFiringNow -> "Now"
+        schedule.isEnabled -> "On"
+        else -> "Off"
+    }
+    val badgeBg = when {
+        isFiringNow -> BrandAccent
+        schedule.isEnabled -> colors.text
+        else -> Color.Transparent
+    }
+    val badgeTextColor = if (schedule.isEnabled) colors.bg else colors.offText
+    val badgeBorderColor = if (schedule.isEnabled) Color.Transparent else colors.border
+    val badgeFontWeight = if (schedule.isEnabled) FontWeight.ExtraBold else FontWeight.SemiBold
+
     GrayoutCard(
-        isActive = schedule.isEnabled,
+        isActive = isFiringNow,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(
@@ -175,26 +196,43 @@ private fun ScheduleCard(
                 indication = null,
             ) { onEdit() },
     ) {
-        Column(modifier = Modifier.padding(dimens.cardPad)) {
+        val accentBarModifier = if (isFiringNow) {
+            Modifier.drawBehind {
+                val barWidthPx = 2.dp.toPx()
+                val topInsetPx = 12.dp.toPx()
+                val bottomInsetPx = 12.dp.toPx()
+                drawRect(
+                    color = BrandAccent,
+                    topLeft = Offset(0f, topInsetPx),
+                    size = Size(
+                        width = barWidthPx,
+                        height = size.height - topInsetPx - bottomInsetPx,
+                    ),
+                )
+            }
+        } else {
+            Modifier
+        }
+
+        Column(
+            modifier = Modifier
+                .then(accentBarModifier)
+                .padding(dimens.cardPad),
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = if (schedule.isEnabled) "Active" else "Off",
-                    style = typography.labelXSmall.copy(
-                        fontWeight = if (schedule.isEnabled) FontWeight.ExtraBold else FontWeight.SemiBold,
-                    ),
-                    color = if (schedule.isEnabled) colors.bg else colors.offText,
+                    text = badgeText,
+                    style = typography.labelXSmall.copy(fontWeight = badgeFontWeight),
+                    color = badgeTextColor,
                     modifier = Modifier
-                        .background(
-                            if (schedule.isEnabled) colors.text else Color.Transparent,
-                            RoundedCornerShape(dimens.radiusFull),
-                        )
+                        .background(badgeBg, RoundedCornerShape(dimens.radiusFull))
                         .border(
                             1.dp,
-                            if (schedule.isEnabled) Color.Transparent else colors.border,
+                            badgeBorderColor,
                             RoundedCornerShape(dimens.radiusFull),
                         )
                         .padding(horizontal = 10.dp, vertical = 4.dp),
