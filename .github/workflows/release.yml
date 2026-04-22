@@ -71,14 +71,16 @@ jobs:
             echo "## What's Changed"
             echo ""
             FEATS=$(git log --pretty=format:'- %s (%h)' "$RANGE" | grep -E '^- feat(\(|:)' || true)
-            [ -n "$FEATS" ] && { echo "### Features"; echo "$FEATS"; echo ""; }
+            if [ -n "$FEATS" ]; then echo "### Features"; echo "$FEATS"; echo ""; fi
             FIXES=$(git log --pretty=format:'- %s (%h)' "$RANGE" | grep -E '^- fix(\(|:)' || true)
-            [ -n "$FIXES" ] && { echo "### Fixes"; echo "$FIXES"; echo ""; }
+            if [ -n "$FIXES" ]; then echo "### Fixes"; echo "$FIXES"; echo ""; fi
             OTHER=$(git log --pretty=format:'- %s (%h)' "$RANGE" | grep -vE '^- (feat|fix)(\(|:)' || true)
-            [ -n "$OTHER" ] && { echo "### Other"; echo "$OTHER"; echo ""; }
+            if [ -n "$OTHER" ]; then echo "### Other"; echo "$OTHER"; echo ""; fi
             echo "---"
-            echo "**SHA-256:** \`$(cat ${{ steps.artifacts.outputs.sha }} | awk '{print $1}')\`"
-            [ -n "$PREV_TAG" ] && echo "**Full changelog:** https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${{ steps.version.outputs.tag }}"
+            echo "**SHA-256:** \`$(awk '{print $1}' ${{ steps.artifacts.outputs.sha }})\`"
+            if [ -n "$PREV_TAG" ]; then
+              echo "**Full changelog:** https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${{ steps.version.outputs.tag }}"
+            fi
           } > release-notes.md
 
       - name: Create GitHub release
