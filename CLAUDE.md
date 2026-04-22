@@ -64,3 +64,12 @@ app/src/main/java/com/princeyadav/grayout/
   - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `style`, `perf`, `ci`
   - Scope: primary module/area (e.g., `theme`, `nav`, `service`, `settings`)
   - Example: `feat(theme): set up compose theme from design system`
+
+## Releases
+
+- Full release ritual lives in `RELEASING.md` at the repo root. Read it before cutting a release.
+- Releases are tag-triggered: pushing `vX.Y.Z` runs `.github/workflows/release.yml`, which builds a signed APK and publishes a GitHub release.
+- `versionCode` and `versionName` are derived from the git tag at CI build time via `versionFromTag()` in `app/build.gradle.kts`. **Never bump them manually** — the defaults (`1.0.0-dev` / `1`) are only for local dev builds.
+- Signing keystore lives in GitHub Secrets (`SIGNING_KEYSTORE_BASE64` + `SIGNING_KEY_ALIAS` + `SIGNING_STORE_PASSWORD` + `SIGNING_KEY_PASSWORD`). Never commit keystores, passwords, or `local.properties`. `.gitignore` already covers `*.jks` and `*.keystore`.
+- Release notes auto-generate from conventional commits between tags — another reason the `type(scope): desc` format is required.
+- Universal APK only. No AAB, no per-ABI splits, no Play Store, no F-Droid in current scope.
