@@ -4,6 +4,22 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// Read version from git tag when building for release; fall back to a dev version for local builds.
+// Tag format: v<major>.<minor>.<patch> (e.g. v1.2.3). Set by CI as RELEASE_VERSION env var.
+fun versionFromTag(): Pair<String, Int> {
+    val tag = System.getenv("RELEASE_VERSION")
+        ?: return "1.0.0-dev" to 1
+    val semver = tag.removePrefix("v")
+    val (major, minor, patch) = semver.split(".").map { it.toInt() }
+    require(major in 0..99 && minor in 0..99 && patch in 0..99) {
+        "Version components must be 0–99 (got $semver)"
+    }
+    val code = major * 10_000 + minor * 100 + patch
+    return semver to code
+}
+
+val (appVersionName, appVersionCode) = versionFromTag()
+
 android {
     namespace = "com.princeyadav.grayout"
     compileSdk {
@@ -16,15 +32,27 @@ android {
         applicationId = "com.princeyadav.grayout"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            // Populated from env vars in CI; left null locally so release builds fail fast
+            // instead of silently producing an unsigned or debug-signed APK.
+            storeFile = System.getenv("SIGNING_KEYSTORE_PATH")?.let { file(it) }
+            storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+            keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+            keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
