@@ -10,7 +10,9 @@ fun versionFromTag(): Pair<String, Int> {
     val tag = System.getenv("RELEASE_VERSION")
         ?: return "1.0.0-dev" to 1
     val semver = tag.removePrefix("v")
-    val (major, minor, patch) = semver.split(".").map { it.toInt() }
+    val parts = semver.split(".")
+    require(parts.size == 3) { "Version must be M.m.p (got $semver)" }
+    val (major, minor, patch) = parts.map { it.toInt() }
     require(major in 0..99 && minor in 0..99 && patch in 0..99) {
         "Version components must be 0–99 (got $semver)"
     }
