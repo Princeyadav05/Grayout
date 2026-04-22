@@ -31,11 +31,25 @@ A personal Android app that enforces grayscale mode to reduce phone addiction.
 - Single-activity MVVM architecture
 - Foreground Service + WorkManager
 
-## Building
+## Download
+
+Grab the latest signed APK from [Releases](https://github.com/Princeyadav05/Grayout/releases/latest).
+
+Verify the download:
 
 ```bash
-./gradlew assembleDebug
+shasum -a 256 grayout-v*.apk
 ```
+
+Match the output against the `.sha256` file attached to the release. On Linux, `sha256sum` works the same way.
+
+## Building from source
+
+```bash
+./gradlew assembleDebug   # debug build for local dev
+```
+
+For the release build process, see [RELEASING.md](RELEASING.md).
 
 ## License
 
