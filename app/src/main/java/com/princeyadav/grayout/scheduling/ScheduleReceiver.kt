@@ -29,6 +29,7 @@ class ScheduleReceiver : BroadcastReceiver() {
                 context.startForegroundService(serviceIntent)
             }
         } else {
+            context.stopService(Intent(context, GrayoutService::class.java))
             grayscaleManager.setGrayscale(false)
         }
 

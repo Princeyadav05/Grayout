@@ -201,7 +201,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         contentResolver.registerContentObserver(
-            Settings.Secure.getUriFor("accessibility_display_daltonizer_enabled"),
+            GrayscaleManager.DALTONIZER_ENABLED_URI,
             false,
             grayscaleObserver,
         )

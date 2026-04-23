@@ -1,18 +1,21 @@
 package com.princeyadav.grayout.service
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
 
 class GrayoutAccessibilityService : AccessibilityService() {
 
     private lateinit var exclusionPrefs: ExclusionPrefs
+    private lateinit var enforcementPrefs: EnforcementPrefs
     private lateinit var grayscaleManager: GrayscaleManager
 
     override fun onCreate() {
         super.onCreate()
         val prefs = getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE)
         exclusionPrefs = ExclusionPrefs(prefs)
+        enforcementPrefs = EnforcementPrefs(prefs)
         grayscaleManager = GrayscaleManager(contentResolver)
     }
 
@@ -39,6 +42,11 @@ class GrayoutAccessibilityService : AccessibilityService() {
             exclusionPrefs.setWasGrayscaleOnBeforeExclusion(false)
             if (wasOn) {
                 grayscaleManager.setGrayscale(true)
+            } else if (enforcementPrefs.getInterval() > 0) {
+                startForegroundService(
+                    Intent(this, GrayoutService::class.java)
+                        .putExtra(GrayoutService.EXTRA_EXCLUSION_ENDED, true)
+                )
             }
         }
     }

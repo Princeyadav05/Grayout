@@ -1,6 +1,7 @@
 package com.princeyadav.grayout.service
 
 import android.content.ContentResolver
+import android.net.Uri
 import android.provider.Settings
 
 class GrayscaleManager(private val contentResolver: ContentResolver) : GrayscaleController {
@@ -44,5 +45,6 @@ class GrayscaleManager(private val contentResolver: ContentResolver) : Grayscale
     companion object {
         private const val DALTONIZER_ENABLED = "accessibility_display_daltonizer_enabled"
         private const val DALTONIZER_MODE = "accessibility_display_daltonizer"
+        val DALTONIZER_ENABLED_URI: Uri = Settings.Secure.getUriFor(DALTONIZER_ENABLED)
     }
 }

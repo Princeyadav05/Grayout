@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.database.ContentObserver
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -20,18 +21,44 @@ class GrayoutService : Service() {
     private lateinit var exclusionPrefs: ExclusionPrefs
     private val handler = Handler(Looper.getMainLooper())
     private var currentInterval = 0
+    private var countdownTargetMs = 0L
 
-    private val enforcementRunnable = object : Runnable {
-        override fun run() {
-            if (!exclusionPrefs.isExcludedAppActive() && !grayscaleManager.isGrayscaleEnabled()) {
-                val success = grayscaleManager.setGrayscale(true)
-                if (!success) {
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
-                    return
-                }
+    private val enforcementRunnable = Runnable {
+        countdownTargetMs = 0L
+        if (!exclusionPrefs.isExcludedAppActive() && !grayscaleManager.isGrayscaleEnabled()) {
+            val success = grayscaleManager.setGrayscale(true)
+            if (!success) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return@Runnable
             }
-            handler.postDelayed(this, currentInterval * 60_000L)
+        }
+        updateNotification(countdownTarget = null)
+    }
+
+    // Reacts to external grayscale changes instead of polling on a fixed cadence.
+    // Self-triggers (from our own setGrayscale calls) are harmless: the ON branch
+    // cancels nothing, and the exclusion guard prevents fighting the accessibility service.
+    private val grayscaleObserver = object : ContentObserver(handler) {
+        override fun onChange(selfChange: Boolean) {
+            if (currentInterval <= 0) return
+
+            handler.removeCallbacks(enforcementRunnable)
+            countdownTargetMs = 0L
+
+            if (exclusionPrefs.isExcludedAppActive()) {
+                updateNotification(countdownTarget = null)
+                return
+            }
+
+            if (!grayscaleManager.isGrayscaleEnabled()) {
+                val delayMs = currentInterval * 60_000L
+                countdownTargetMs = System.currentTimeMillis() + delayMs
+                handler.postDelayed(enforcementRunnable, delayMs)
+                updateNotification(countdownTarget = countdownTargetMs)
+            } else {
+                updateNotification(countdownTarget = null)
+            }
         }
     }
 
@@ -45,32 +72,77 @@ class GrayoutService : Service() {
             getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE)
         )
         createNotificationChannel()
+        contentResolver.registerContentObserver(
+            GrayscaleManager.DALTONIZER_ENABLED_URI, false, grayscaleObserver
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.getBooleanExtra(EXTRA_EXCLUSION_ENDED, false) == true) {
+            if (currentInterval <= 0) currentInterval = enforcementPrefs.getInterval()
+            val now = System.currentTimeMillis()
+            val hasActiveCountdown = countdownTargetMs > now
+
+            if (!hasActiveCountdown && currentInterval > 0 && !grayscaleManager.isGrayscaleEnabled()) {
+                val success = grayscaleManager.setGrayscale(true)
+                if (!success) {
+                    startForeground(NOTIFICATION_ID, buildNotification(currentInterval))
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+            }
+
+            if (hasActiveCountdown) {
+                startForeground(NOTIFICATION_ID, buildNotification(currentInterval, countdownTargetMs))
+            } else {
+                startForeground(NOTIFICATION_ID, buildNotification(currentInterval))
+            }
+            return START_STICKY
+        }
+
         val interval = intent?.getIntExtra(EXTRA_INTERVAL, -1)
             ?.takeIf { it >= 0 }
             ?: enforcementPrefs.getInterval()
 
+        val intervalChanged = interval != currentInterval
         currentInterval = interval
-        handler.removeCallbacks(enforcementRunnable)
-
-        // Always call startForeground first to satisfy the foreground-service
-        // start-timeout contract, then tear down immediately if interval is 0.
-        startForeground(NOTIFICATION_ID, buildNotification(interval))
 
         if (interval <= 0) {
+            handler.removeCallbacks(enforcementRunnable)
+            countdownTargetMs = 0L
+            startForeground(NOTIFICATION_ID, buildNotification(interval))
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
 
-        handler.post(enforcementRunnable)
+        val now = System.currentTimeMillis()
+        val hasActiveCountdown = countdownTargetMs > now
+
+        if (hasActiveCountdown && !intervalChanged) {
+            startForeground(NOTIFICATION_ID, buildNotification(interval, countdownTargetMs))
+        } else {
+            handler.removeCallbacks(enforcementRunnable)
+            countdownTargetMs = 0L
+
+            if (!exclusionPrefs.isExcludedAppActive() && !grayscaleManager.isGrayscaleEnabled()) {
+                val delayMs = currentInterval * 60_000L
+                countdownTargetMs = now + delayMs
+                handler.postDelayed(enforcementRunnable, delayMs)
+                startForeground(NOTIFICATION_ID, buildNotification(interval, countdownTargetMs))
+            } else {
+                startForeground(NOTIFICATION_ID, buildNotification(interval))
+            }
+        }
+
         return START_STICKY
     }
 
     override fun onDestroy() {
         handler.removeCallbacks(enforcementRunnable)
+        contentResolver.unregisterContentObserver(grayscaleObserver)
+        countdownTargetMs = 0L
         super.onDestroy()
     }
 
@@ -86,32 +158,52 @@ class GrayoutService : Service() {
         manager.createNotificationChannel(channel)
     }
 
-    private fun buildNotification(interval: Int): Notification {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
+    private fun buildNotification(
+        interval: Int,
+        countdownTarget: Long? = null,
+    ): Notification {
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent, PendingIntent.FLAG_IMMUTABLE
+            this,
+            0,
+            Intent(this, MainActivity::class.java).apply {
+                this.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            },
+            PendingIntent.FLAG_IMMUTABLE,
         )
-        val contentText = if (interval > 0) {
-            "Re-applies every $interval min"
-        } else {
-            "Stopping enforcement"
-        }
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_tile)
             .setContentTitle("Grayscale enforcement")
-            .setContentText(contentText)
             .setColor(0xFFB5A0D8.toInt())
-            .setShowWhen(false)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .build()
+
+        if (countdownTarget != null) {
+            builder.setContentText("Re-enabling in")
+                .setUsesChronometer(true)
+                .setChronometerCountDown(true)
+                .setWhen(countdownTarget)
+                .setShowWhen(true)
+        } else if (interval > 0) {
+            builder.setContentText("Enforcement active")
+                .setShowWhen(false)
+        } else {
+            builder.setContentText("Stopping enforcement")
+                .setShowWhen(false)
+        }
+
+        return builder.build()
+    }
+
+    private fun updateNotification(countdownTarget: Long?) {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(NOTIFICATION_ID, buildNotification(currentInterval, countdownTarget))
     }
 
     companion object {
         const val CHANNEL_ID = "grayout_service"
         const val NOTIFICATION_ID = 1
         const val EXTRA_INTERVAL = "enforcement_interval_minutes"
+        const val EXTRA_EXCLUSION_ENDED = "exclusion_ended"
     }
 }
