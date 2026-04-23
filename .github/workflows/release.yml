@@ -30,8 +30,8 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Run unit tests
-        run: ./gradlew :app:testDebugUnitTest
+      - name: Run tests and lint
+        run: ./gradlew :app:testDebugUnitTest :app:lint
 
       - name: Decode keystore
         env:
