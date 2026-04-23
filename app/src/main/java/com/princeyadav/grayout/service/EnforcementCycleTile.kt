@@ -2,6 +2,7 @@ package com.princeyadav.grayout.service
 
 import android.content.Intent
 import android.graphics.drawable.Icon
+import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import com.princeyadav.grayout.R
@@ -43,7 +44,9 @@ class EnforcementCycleTile : TileService() {
         val interval = prefs.getInterval()
         tile.state = if (interval > 0) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.label = "Enforcement"
-        tile.subtitle = if (interval > 0) "Every $interval min" else "Off"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            tile.subtitle = if (interval > 0) "Every $interval min" else "Off"
+        }
         tile.icon = Icon.createWithResource(this, R.drawable.ic_tile)
         tile.updateTile()
     }

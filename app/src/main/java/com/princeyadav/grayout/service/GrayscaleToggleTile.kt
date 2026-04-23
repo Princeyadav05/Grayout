@@ -1,6 +1,7 @@
 package com.princeyadav.grayout.service
 
 import android.graphics.drawable.Icon
+import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import com.princeyadav.grayout.R
@@ -25,7 +26,9 @@ class GrayscaleToggleTile : TileService() {
         val isEnabled = GrayscaleManager(contentResolver).isGrayscaleEnabled()
         tile.state = if (isEnabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.label = "Grayscale"
-        tile.subtitle = if (isEnabled) "On" else "Off"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            tile.subtitle = if (isEnabled) "On" else "Off"
+        }
         tile.icon = Icon.createWithResource(this, R.drawable.ic_tile)
         tile.updateTile()
     }
