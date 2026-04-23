@@ -1,0 +1,13 @@
+Grayout enforces grayscale mode on your Android device to help you reduce phone usage. A colorless screen is less engaging, which makes it easier to put your phone down.
+
+Features:
+- Toggle grayscale on and off with a single tap
+- Quick Settings tiles for fast access
+- Automatic enforcement on a timer so grayscale turns back on after you disable it
+- Per-app exclusions so specific apps (maps, photos) stay in color
+- Schedule grayscale for specific days and time windows
+- Runs as a lightweight foreground service
+
+Setup requires a one-time ADB command to grant the secure settings permission. No root needed.
+
+Grayout is free, open source, and contains no ads or tracking.
