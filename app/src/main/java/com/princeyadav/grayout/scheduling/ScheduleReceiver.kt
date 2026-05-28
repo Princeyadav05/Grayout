@@ -29,8 +29,10 @@ class ScheduleReceiver : BroadcastReceiver() {
                 context.startForegroundService(serviceIntent)
             }
         } else {
-            context.stopService(Intent(context, GrayoutService::class.java))
             grayscaleManager.setGrayscale(false)
+            val stopIntent = Intent(context, GrayoutService::class.java)
+                .putExtra(GrayoutService.EXTRA_INTERVAL, 0)
+            context.startForegroundService(stopIntent)
         }
 
         val db = GrayoutDatabase.getInstance(context)

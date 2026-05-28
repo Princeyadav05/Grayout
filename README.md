@@ -52,14 +52,36 @@ Match the output against the `.sha256` file attached to the release. On Linux, `
 
 After installing, grant the secure settings permission via ADB:
 
-1. Connect your device via USB with ADB debugging enabled
-2. Run:
+1. Enable USB debugging in **Settings > Developer Options**
+2. Connect your device via USB and authorize the computer when prompted
+3. Run:
    ```bash
    adb shell pm grant com.princeyadav.grayout android.permission.WRITE_SECURE_SETTINGS
    ```
-3. Open the app
+4. Open the app
 
 This is a one-time step. The permission persists across reboots and app updates.
+
+### OnePlus / OPPO / Realme devices
+
+These devices block ADB from granting permissions by default. If you get this error:
+
+```
+SecurityException: grantRuntimePermission: Neither user 2000 nor current process
+has android.permission.GRANT_RUNTIME_PERMISSIONS
+```
+
+You need to enable an extra toggle first:
+
+1. Go to **Settings > Additional Settings > Developer Options**
+2. Scroll down to the **Apps** section
+3. Enable **"Disable Permission Monitoring"**
+4. Toggle **USB Debugging** off, then back on
+5. **Reboot your phone**
+6. Reconnect USB, re-authorize the computer if prompted
+7. Run the `adb shell pm grant` command above
+
+The toggle may also be called **"USB debugging (Security settings)"** depending on your OxygenOS/ColorOS version. The reboot after enabling it is required.
 
 ## Tech
 
