@@ -36,6 +36,10 @@ Thumbs.db
 docs/superpowers/
 .superpowers/
 
+# Agent tooling (local only)
+.claude/
+.playwright-mcp/
+
 # Misc
 *.log
 *.tmp
