@@ -7,7 +7,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.launch
 import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.service.ExclusionPrefs
-import com.princeyadav.grayout.service.GrayscaleController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,8 +17,8 @@ import kotlinx.coroutines.flow.stateIn
 
 class ExclusionViewModel(
     private val exclusionPrefs: ExclusionPrefs,
-    private val grayscaleManager: GrayscaleController,
-    private val ownPackage: String,
+    private val usageAccessProbe: () -> Boolean,
+    private val onExclusionListChanged: () -> Unit,
     private val loadApps: () -> List<AppInfo>,
     private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
@@ -29,8 +28,8 @@ class ExclusionViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _isAccessibilityEnabled = MutableStateFlow(true)
-    val isAccessibilityEnabled: StateFlow<Boolean> = _isAccessibilityEnabled.asStateFlow()
+    private val _isUsageAccessGranted = MutableStateFlow(true)
+    val isUsageAccessGranted: StateFlow<Boolean> = _isUsageAccessGranted.asStateFlow()
 
     val filteredApps: StateFlow<List<AppInfo>> = combine(_apps, _searchQuery) { apps, query ->
         if (query.isBlank()) apps
@@ -67,21 +66,22 @@ class ExclusionViewModel(
             if (app.packageName == packageName) app.copy(isExcluded = !app.isExcluded)
             else app
         }
+        onExclusionListChanged()
     }
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
     }
 
-    fun checkAccessibilityService() {
-        _isAccessibilityEnabled.value = grayscaleManager.isAccessibilityServiceEnabled(ownPackage)
+    fun checkUsageAccess() {
+        _isUsageAccessGranted.value = usageAccessProbe()
     }
 }
 
 class ExclusionViewModelFactory(
     private val exclusionPrefs: ExclusionPrefs,
-    private val grayscaleManager: GrayscaleController,
-    private val ownPackage: String,
+    private val usageAccessProbe: () -> Boolean,
+    private val onExclusionListChanged: () -> Unit,
     private val loadApps: () -> List<AppInfo>,
     private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModelProvider.Factory {
@@ -89,8 +89,8 @@ class ExclusionViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return ExclusionViewModel(
             exclusionPrefs,
-            grayscaleManager,
-            ownPackage,
+            usageAccessProbe,
+            onExclusionListChanged,
             loadApps,
             ioDispatcher,
         ) as T

@@ -5,7 +5,6 @@ import androidx.compose.ui.graphics.ImageBitmapConfig
 import androidx.compose.ui.graphics.colorspace.ColorSpace
 import androidx.compose.ui.graphics.colorspace.ColorSpaces
 import app.cash.turbine.test
-import com.princeyadav.grayout.fakes.FakeGrayscaleController
 import com.princeyadav.grayout.fakes.FakeSharedPreferences
 import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.service.ExclusionPrefs
@@ -67,16 +66,19 @@ class ExclusionViewModelTest {
 
     @get:Rule val dispatcherRule = MainDispatcherRule()
 
-    private lateinit var grayscale: FakeGrayscaleController
     private lateinit var exclusionPrefs: ExclusionPrefs
     private var fakeApps: List<AppInfo> = emptyList()
+    private var changedCount = 0
 
-    private fun vm(apps: List<AppInfo> = emptyList()): ExclusionViewModel {
+    private fun vm(
+        apps: List<AppInfo> = emptyList(),
+        usageGranted: Boolean = true,
+    ): ExclusionViewModel {
         fakeApps = apps
         return ExclusionViewModel(
             exclusionPrefs = exclusionPrefs,
-            grayscaleManager = grayscale,
-            ownPackage = "com.princeyadav.grayout",
+            usageAccessProbe = { usageGranted },
+            onExclusionListChanged = { changedCount++ },
             loadApps = { fakeApps },
             ioDispatcher = dispatcherRule.dispatcher,
         )
@@ -84,30 +86,28 @@ class ExclusionViewModelTest {
 
     @Before
     fun setUp() {
-        grayscale = FakeGrayscaleController()
         exclusionPrefs = ExclusionPrefs(FakeSharedPreferences())
+        changedCount = 0
     }
 
     @Test
-    fun `checkAccessibilityService sets isAccessibilityEnabled true when service enabled`() = runTest {
-        grayscale.accessibilityEnabled = true
-        val viewModel = vm()
+    fun `checkUsageAccess sets isUsageAccessGranted true when granted`() = runTest {
+        val viewModel = vm(usageGranted = true)
         advanceUntilIdle()
 
-        viewModel.checkAccessibilityService()
+        viewModel.checkUsageAccess()
 
-        assertTrue(viewModel.isAccessibilityEnabled.value)
+        assertTrue(viewModel.isUsageAccessGranted.value)
     }
 
     @Test
-    fun `checkAccessibilityService sets isAccessibilityEnabled false when service disabled`() = runTest {
-        grayscale.accessibilityEnabled = false
-        val viewModel = vm()
+    fun `checkUsageAccess sets isUsageAccessGranted false when not granted`() = runTest {
+        val viewModel = vm(usageGranted = false)
         advanceUntilIdle()
 
-        viewModel.checkAccessibilityService()
+        viewModel.checkUsageAccess()
 
-        assertFalse(viewModel.isAccessibilityEnabled.value)
+        assertFalse(viewModel.isUsageAccessGranted.value)
     }
 
     @Test
@@ -133,6 +133,19 @@ class ExclusionViewModelTest {
         viewModel.toggleExclusion("com.example.test")
 
         assertFalse(exclusionPrefs.isExcluded("com.example.test"))
+    }
+
+    @Test
+    fun `toggleExclusion invokes onExclusionListChanged`() = runTest {
+        val viewModel = vm(
+            apps = listOf(fakeAppInfo("com.example.test", "Test", isExcluded = false)),
+        )
+        advanceUntilIdle()
+
+        viewModel.toggleExclusion("com.example.test") // add
+        viewModel.toggleExclusion("com.example.test") // remove
+
+        assertEquals(2, changedCount)
     }
 
     @Test

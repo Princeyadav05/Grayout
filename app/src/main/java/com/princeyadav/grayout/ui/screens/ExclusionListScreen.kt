@@ -55,10 +55,10 @@ fun ExclusionListScreen(
     excludedApps: List<AppInfo>,
     allOtherApps: List<AppInfo>,
     searchQuery: String,
-    isAccessibilityEnabled: Boolean,
+    isUsageAccessGranted: Boolean,
     onToggle: (String) -> Unit,
     onSearchQueryChange: (String) -> Unit,
-    onOpenAccessibilitySettings: () -> Unit,
+    onOpenUsageAccessSettings: () -> Unit,
     onBack: () -> Unit,
     onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -122,7 +122,7 @@ fun ExclusionListScreen(
             Spacer(modifier = Modifier.height(dimens.sectionGap))
         }
 
-        if (!isAccessibilityEnabled) {
+        if (!isUsageAccessGranted) {
             item {
                 GrayoutCard {
                     Column(
@@ -140,7 +140,7 @@ fun ExclusionListScreen(
                             .padding(dimens.cardPad),
                     ) {
                         Text(
-                            text = "Accessibility Service Required",
+                            text = "Usage access required",
                             style = typography.bodyMedium,
                             color = colors.danger,
                         )
@@ -148,7 +148,7 @@ fun ExclusionListScreen(
                         Spacer(modifier = Modifier.height(4.dp))
 
                         Text(
-                            text = "Enable the Grayout accessibility service for app exclusions to work",
+                            text = "Grant Usage access so Grayout can tell which app is open and pause grayscale for excluded apps",
                             style = typography.bodyMedium,
                             color = colors.textMuted,
                         )
@@ -161,7 +161,7 @@ fun ExclusionListScreen(
                             color = colors.text,
                             modifier = Modifier
                                 .sizeIn(minHeight = 48.dp)
-                                .clickable { onOpenAccessibilitySettings() }
+                                .clickable { onOpenUsageAccessSettings() }
                                 .padding(vertical = 12.dp),
                         )
                     }

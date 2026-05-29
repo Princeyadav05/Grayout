@@ -29,10 +29,10 @@ import com.princeyadav.grayout.ui.theme.GrayoutTheme
 fun SettingsScreen(
     enforcementInterval: Int,
     isAdbPermissionGranted: Boolean,
-    isAccessibilityEnabled: Boolean,
+    isUsageAccessGranted: Boolean,
     isBatteryUnrestricted: Boolean,
     onBatteryOptimizationClick: () -> Unit,
-    onAccessibilityClick: () -> Unit,
+    onUsageAccessClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = GrayoutTheme.colors
@@ -61,10 +61,10 @@ fun SettingsScreen(
 
         SetupCard(
             isAdbPermissionGranted = isAdbPermissionGranted,
-            isAccessibilityEnabled = isAccessibilityEnabled,
+            isUsageAccessGranted = isUsageAccessGranted,
             isBatteryUnrestricted = isBatteryUnrestricted,
             onBatteryOptimizationClick = onBatteryOptimizationClick,
-            onAccessibilityClick = onAccessibilityClick,
+            onUsageAccessClick = onUsageAccessClick,
         )
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
@@ -123,10 +123,10 @@ private fun ServiceCard(enforcementInterval: Int) {
 @Composable
 private fun SetupCard(
     isAdbPermissionGranted: Boolean,
-    isAccessibilityEnabled: Boolean,
+    isUsageAccessGranted: Boolean,
     isBatteryUnrestricted: Boolean,
     onBatteryOptimizationClick: () -> Unit,
-    onAccessibilityClick: () -> Unit,
+    onUsageAccessClick: () -> Unit,
 ) {
     val colors = GrayoutTheme.colors
     val dimens = GrayoutTheme.dimens
@@ -153,14 +153,14 @@ private fun SetupCard(
             HorizontalDivider(thickness = 1.dp, color = colors.border)
 
             SettingsRow(
-                label = "Accessibility service",
-                subtitle = if (isAccessibilityEnabled) null else "Required for per-app exclusions",
-                onClick = if (!isAccessibilityEnabled) onAccessibilityClick else null,
+                label = "Usage access",
+                subtitle = if (isUsageAccessGranted) null else "Required for per-app exclusions",
+                onClick = if (!isUsageAccessGranted) onUsageAccessClick else null,
                 trailing = {
                     Text(
-                        text = if (isAccessibilityEnabled) "Enabled" else "Not enabled",
+                        text = if (isUsageAccessGranted) "Granted" else "Not granted",
                         style = GrayoutTheme.typography.bodyMedium,
-                        color = if (isAccessibilityEnabled) colors.success else colors.danger,
+                        color = if (isUsageAccessGranted) colors.success else colors.danger,
                     )
                 },
             )

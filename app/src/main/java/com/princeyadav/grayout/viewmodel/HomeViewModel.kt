@@ -28,7 +28,7 @@ class HomeViewModel(
     private val isBatteryOptimized: () -> Boolean,
     private val loadExcludedIcons: (List<String>) -> Pair<List<Bitmap>, Int>,
     private val ioDispatcher: CoroutineDispatcher,
-    private val ownPackageName: String,
+    private val usageAccessProbe: () -> Boolean,
 ) : ViewModel() {
 
     private val _isGrayscaleOn = MutableStateFlow(false)
@@ -103,7 +103,7 @@ class HomeViewModel(
         viewModelScope.launch(ioDispatcher) {
             var count = 0
             if (!grayscaleManager.canWriteSecureSettings()) count++
-            if (!grayscaleManager.isAccessibilityServiceEnabled(ownPackageName)) count++
+            if (!usageAccessProbe()) count++
             if (!isBatteryOptimized()) count++
             _needsAttentionCount.value = count
         }
@@ -155,7 +155,7 @@ class HomeViewModelFactory(
     private val isBatteryOptimized: () -> Boolean,
     private val loadExcludedIcons: (List<String>) -> Pair<List<Bitmap>, Int>,
     private val ioDispatcher: CoroutineDispatcher,
-    private val ownPackageName: String,
+    private val usageAccessProbe: () -> Boolean,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -166,7 +166,7 @@ class HomeViewModelFactory(
             isBatteryOptimized,
             loadExcludedIcons,
             ioDispatcher,
-            ownPackageName,
+            usageAccessProbe,
         ) as T
     }
 }

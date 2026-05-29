@@ -10,11 +10,13 @@ import org.junit.Test
 
 /**
  * Scenario-based tests that simulate the enforcement + exclusion interaction
- * across GrayoutService and GrayoutAccessibilityService.
+ * across GrayoutService and the foreground detector.
  *
  * The real services are tightly coupled to Android (Service lifecycle, Handler,
- * ContentObserver). These tests replicate the state transitions each service
- * performs using fakes, walking through the same decision branches manually.
+ * ContentObserver). These tests replicate the state transitions using fakes,
+ * driving the exclusion edges through the real [nextExclusionTransition] +
+ * [applyExclusionTransition] so the suite is a true parity oracle for the
+ * detector, while the countdown/alarm branches are walked manually.
  */
 class EnforcementScenarioTest {
 
@@ -35,7 +37,7 @@ class EnforcementScenarioTest {
         grayscale = FakeGrayscaleController()
     }
 
-    // -- helpers that mirror GrayoutService / GrayoutAccessibilityService logic --
+    // -- helpers that mirror GrayoutService / the foreground detector logic --
 
     /** Simulates the ContentObserver detecting grayscale was turned off. */
     private fun observerDetectsGrayscaleOff(intervalMinutes: Int) {
@@ -52,32 +54,69 @@ class EnforcementScenarioTest {
         }
     }
 
-    /** Simulates GrayoutAccessibilityService entering an excluded app. */
+    /**
+     * Simulates the detector observing an excluded app come to the foreground.
+     * Drives the real [nextExclusionTransition] + [applyExclusionTransition].
+     */
     private fun enterExcludedApp() {
-        exclusionPrefs.setWasGrayscaleOnBeforeExclusion(grayscale.isGrayscaleEnabled())
-        exclusionPrefs.setExcludedAppActive(true)
-        grayscale.setGrayscale(false)
+        val transition = nextExclusionTransition(
+            foregroundPackage = "com.excluded.app",
+            ownPackage = "com.princeyadav.grayout",
+            isExcluded = true,
+            excludedAppActive = exclusionPrefs.isExcludedAppActive(),
+            grayscaleEnabled = grayscale.isGrayscaleEnabled(),
+            wasGrayscaleOnBeforeExclusion = exclusionPrefs.wasGrayscaleOnBeforeExclusion(),
+        )
+        applyExclusionTransition(
+            transition, exclusionPrefs, grayscale, enforcementPrefs.getInterval(),
+        ) { /* signal ignored on enter */ }
     }
 
     /**
-     * Simulates GrayoutAccessibilityService exiting an excluded app.
-     * Returns true if it sent EXTRA_EXCLUSION_ENDED to the service.
+     * Simulates the detector observing a non-excluded app come to the foreground
+     * (leaving the excluded app). Drives the real [nextExclusionTransition] +
+     * [applyExclusionTransition]. Returns true if the exit signalled the service
+     * to re-enable (the old re-enable signaling path).
      */
     private fun exitExcludedApp(): Boolean {
-        val wasOn = exclusionPrefs.wasGrayscaleOnBeforeExclusion()
-        exclusionPrefs.setExcludedAppActive(false)
-        exclusionPrefs.setWasGrayscaleOnBeforeExclusion(false)
-        if (wasOn) {
-            grayscale.setGrayscale(true)
-            return false
-        } else if (enforcementPrefs.getInterval() > 0) {
-            return true // signals service via EXTRA_EXCLUSION_ENDED
+        var signaled = false
+        val transition = nextExclusionTransition(
+            foregroundPackage = "com.other.app",
+            ownPackage = "com.princeyadav.grayout",
+            isExcluded = false,
+            excludedAppActive = exclusionPrefs.isExcludedAppActive(),
+            grayscaleEnabled = grayscale.isGrayscaleEnabled(),
+            wasGrayscaleOnBeforeExclusion = exclusionPrefs.wasGrayscaleOnBeforeExclusion(),
+        )
+        applyExclusionTransition(
+            transition, exclusionPrefs, grayscale, enforcementPrefs.getInterval(),
+        ) { signaled = true }
+        return signaled
+    }
+
+    /** Mirrors GrayoutService.reconcileStrandedExclusion(). */
+    private fun reconcileStranded() {
+        if (exclusionPrefs.isExcludedAppActive()) {
+            val wasOn = exclusionPrefs.wasGrayscaleOnBeforeExclusion()
+            exclusionPrefs.clearExclusionState()
+            if (wasOn) grayscale.setGrayscale(true)
         }
-        return false
+    }
+
+    /** Mirrors GrayoutService.onStartCommand branch (B): reconcile only on a
+     * null-intent sticky/warm revival, never on an explicit (re)start. */
+    private fun branchBReconcile(intentIsNull: Boolean) {
+        if (intentIsNull) reconcileStranded()
+    }
+
+    /** Mirrors GrayoutService.onStartCommand branch (C): at interval > 0, reconcile
+     * only when the last excluded app was removed (excludedCount == 0). */
+    private fun branchCReconcile(excludedCount: Int) {
+        if (excludedCount == 0) reconcileStranded()
     }
 
     /**
-     * Simulates GrayoutService receiving EXTRA_EXCLUSION_ENDED.
+     * Simulates GrayoutService receiving re-enable signaling.
      * Re-enables grayscale immediately only if no active countdown remains.
      */
     private fun serviceReceivesExclusionEnded() {
@@ -144,7 +183,7 @@ class EnforcementScenarioTest {
         assertFalse(grayscale.isGrayscaleEnabled())
         assertFalse(countdownPending)
 
-        // User exits excluded app -> wasOn=false, sends EXTRA_EXCLUSION_ENDED
+        // User exits excluded app -> wasOn=false, sends re-enable signaling
         val sentToService = exitExcludedApp()
         assertTrue(sentToService)
 
@@ -426,11 +465,11 @@ class EnforcementScenarioTest {
         countdownFires()
         assertFalse(grayscale.isGrayscaleEnabled())
 
-        // User exits excluded app -> EXTRA_EXCLUSION_ENDED
+        // User exits excluded app -> re-enable signaling
         val sentToService = exitExcludedApp()
         assertTrue(sentToService)
 
-        // Service handles EXTRA_EXCLUSION_ENDED: no active countdown, interval > 0
+        // Service handles re-enable signaling: no active countdown, interval > 0
         serviceReceivesExclusionEnded()
         assertTrue(grayscale.isGrayscaleEnabled())
     }
@@ -518,7 +557,7 @@ class EnforcementScenarioTest {
         countdownFires()
         assertFalse(grayscale.isGrayscaleEnabled())
 
-        // Exit -> EXTRA_EXCLUSION_ENDED -> re-enable
+        // Exit -> re-enable signaling -> re-enable
         val sentToService = exitExcludedApp()
         assertTrue(sentToService)
         serviceReceivesExclusionEnded()
@@ -531,6 +570,126 @@ class EnforcementScenarioTest {
 
         exitExcludedApp()
         assertTrue(grayscale.isGrayscaleEnabled())
+    }
+
+    @Test
+    fun `recovery - stranded exclusion exit clears flags and restores grayscale when wasOn`() {
+        // Detector/pure-fn level recovery, deliberately bypassing GrayoutApp (an
+        // Application subclass not exercised in JVM unit tests). GrayoutApp
+        // .clearExclusionState() is the PRIMARY cold-start healer; this exercises
+        // the secondary warm-restart path via the real Exit transition.
+        enforcementPrefs.setInterval(0)
+        exclusionPrefs.setExcludedAppActive(true)
+        exclusionPrefs.setWasGrayscaleOnBeforeExclusion(true)
+        grayscale.grayscaleEnabled = false
+
+        val sentToService = exitExcludedApp()
+
+        assertFalse(exclusionPrefs.isExcludedAppActive())
+        assertFalse(exclusionPrefs.wasGrayscaleOnBeforeExclusion())
+        assertTrue(grayscale.isGrayscaleEnabled())
+        assertFalse(sentToService) // wasOn path restores directly, no service signal
+    }
+
+    @Test
+    fun `last excluded app removed at interval 0 restores grayscale when wasOn`() {
+        // Mirrors GrayoutService branch A/B reconcileStrandedExclusion: when the
+        // last excluded app is removed at interval 0, the service stops/heals and
+        // restores the user's manual ON.
+        enforcementPrefs.setInterval(0)
+        exclusionPrefs.setExcludedAppActive(true)
+        exclusionPrefs.setWasGrayscaleOnBeforeExclusion(true)
+        grayscale.grayscaleEnabled = false
+        assertFalse(shouldServiceRun(0, exclusionPrefs.getExcludedCount()))
+
+        reconcileStranded()
+
+        assertFalse(exclusionPrefs.isExcludedAppActive())
+        assertFalse(exclusionPrefs.wasGrayscaleOnBeforeExclusion())
+        assertTrue(grayscale.isGrayscaleEnabled())
+    }
+
+    @Test
+    fun `schedule end with excluded apps keeps service alive`() {
+        // Schedule END sends interval 0 after setGrayscale(false). With >=1
+        // excluded app the service stays alive (branch B) and does not revert the
+        // schedule-end grayscale-off.
+        enforcementPrefs.setInterval(0)
+        exclusionPrefs.addExcludedPackage("com.excluded.app")
+        grayscale.setGrayscale(false)
+
+        assertTrue(shouldServiceRun(0, exclusionPrefs.getExcludedCount()))
+        assertFalse(grayscale.isGrayscaleEnabled())
+    }
+
+    @Test
+    fun `schedule end with no exclusions stops service`() {
+        enforcementPrefs.setInterval(0)
+
+        assertFalse(shouldServiceRun(0, exclusionPrefs.getExcludedCount()))
+    }
+
+    @Test
+    fun `interval 0 mid-session toggle does not reconcile active exclusion`() {
+        // Regression guard (review round 1): an exclusion-list toggle restarts the
+        // service with a NON-null intent (branch B). With a legitimate active
+        // session it must NOT reconcile, which would clear the flag and re-gray
+        // mid-session while the user is parked on Grayout / an excluded app.
+        enforcementPrefs.setInterval(0)
+        exclusionPrefs.addExcludedPackage("com.excluded.app")
+        exclusionPrefs.addExcludedPackage("com.other.excluded") // count stays >=1 after a toggle
+        exclusionPrefs.setExcludedAppActive(true)
+        exclusionPrefs.setWasGrayscaleOnBeforeExclusion(true)
+        grayscale.grayscaleEnabled = false
+
+        branchBReconcile(intentIsNull = false)
+
+        assertTrue(exclusionPrefs.isExcludedAppActive())
+        assertFalse(grayscale.isGrayscaleEnabled())
+    }
+
+    @Test
+    fun `interval 0 sticky revival reconciles stranded exclusion`() {
+        enforcementPrefs.setInterval(0)
+        exclusionPrefs.addExcludedPackage("com.excluded.app")
+        exclusionPrefs.setExcludedAppActive(true)
+        exclusionPrefs.setWasGrayscaleOnBeforeExclusion(true)
+        grayscale.grayscaleEnabled = false
+
+        branchBReconcile(intentIsNull = true)
+
+        assertFalse(exclusionPrefs.isExcludedAppActive())
+        assertTrue(grayscale.isGrayscaleEnabled())
+    }
+
+    @Test
+    fun `interval gt 0 last excluded app removed restores grayscale when wasOn`() {
+        // Regression guard (review round 2): at interval > 0, removing the LAST
+        // excluded app while inside it must reconcile the stranded flag (branch C),
+        // else grayscale stays off and enforcement is blocked until a cold start.
+        enforcementPrefs.setInterval(5)
+        exclusionPrefs.setExcludedAppActive(true)
+        exclusionPrefs.setWasGrayscaleOnBeforeExclusion(true)
+        grayscale.grayscaleEnabled = false // last app removed -> excludedCount now 0
+
+        branchCReconcile(excludedCount = exclusionPrefs.getExcludedCount())
+
+        assertFalse(exclusionPrefs.isExcludedAppActive())
+        assertTrue(grayscale.isGrayscaleEnabled())
+    }
+
+    @Test
+    fun `interval gt 0 with remaining excluded apps does not reconcile active session`() {
+        enforcementPrefs.setInterval(5)
+        exclusionPrefs.addExcludedPackage("com.still.excluded") // count stays >=1
+        exclusionPrefs.setExcludedAppActive(true)
+        exclusionPrefs.setWasGrayscaleOnBeforeExclusion(true)
+        grayscale.grayscaleEnabled = false
+
+        branchCReconcile(excludedCount = exclusionPrefs.getExcludedCount())
+
+        assertTrue(exclusionPrefs.isExcludedAppActive())
+        assertFalse(grayscale.isGrayscaleEnabled())
     }
 
     // -- helpers for alarm-based tests --

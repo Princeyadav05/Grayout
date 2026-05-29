@@ -1,5 +1,6 @@
 package com.princeyadav.grayout.ui.navigation
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.provider.Settings as AndroidSettings
 import androidx.compose.runtime.Composable
@@ -29,7 +30,8 @@ import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.scheduling.ScheduleAlarmManager
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
-import com.princeyadav.grayout.service.GrayscaleManager
+import com.princeyadav.grayout.service.GrayoutService
+import com.princeyadav.grayout.service.UsageAccess
 import com.princeyadav.grayout.ui.screens.ExclusionListScreen
 import com.princeyadav.grayout.ui.screens.HomeScreen
 import com.princeyadav.grayout.ui.screens.ScheduleEditorScreen
@@ -78,12 +80,8 @@ fun GrayoutNavGraph(
                 )
             }
             var excludedAppCount by remember { mutableIntStateOf(exclusionPrefsHome.getExcludedCount()) }
-            var isAccessibilityEnabledHome by remember {
-                val services = AndroidSettings.Secure.getString(
-                    context.contentResolver,
-                    AndroidSettings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-                ) ?: ""
-                mutableStateOf(services.contains("com.princeyadav.grayout"))
+            var isUsageAccessGrantedHome by remember {
+                mutableStateOf(UsageAccess.isGranted(context))
             }
 
             val db = remember { GrayoutDatabase.getInstance(context) }
@@ -96,11 +94,7 @@ fun GrayoutNavGraph(
             LaunchedEffect(lifecycleOwnerHome) {
                 lifecycleOwnerHome.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                     excludedAppCount = exclusionPrefsHome.getExcludedCount()
-                    val services = AndroidSettings.Secure.getString(
-                        context.contentResolver,
-                        AndroidSettings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-                    ) ?: ""
-                    isAccessibilityEnabledHome = services.contains("com.princeyadav.grayout")
+                    isUsageAccessGrantedHome = UsageAccess.isGranted(context)
                     homeViewModel.refreshNextSchedule(scheduleRepository)
                     homeViewModel.refreshExcludedAppIcons()
                     homeViewModel.refreshAttentionCount()
@@ -121,7 +115,7 @@ fun GrayoutNavGraph(
                 isGrayscaleOn = isGrayscaleOn,
                 enforcementInterval = enforcementInterval,
                 excludedAppCount = excludedAppCount,
-                isAccessibilityEnabled = isAccessibilityEnabledHome,
+                isUsageAccessGranted = isUsageAccessGrantedHome,
                 onToggle = homeViewModel::toggleGrayscale,
                 onEnforcementIntervalChange = homeViewModel::setEnforcementInterval,
                 onNavigateToExclusions = { navController.navigate(Routes.EXCLUSION_LIST) },
@@ -223,32 +217,28 @@ fun GrayoutNavGraph(
         composable(Routes.SETTINGS) {
             val context = LocalContext.current
             val lifecycleOwner = LocalLifecycleOwner.current
-            var isAccessibilityEnabled by remember {
-                val services = AndroidSettings.Secure.getString(
-                    context.contentResolver,
-                    AndroidSettings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-                ) ?: ""
-                mutableStateOf(services.contains("com.princeyadav.grayout"))
+            var isUsageAccessGranted by remember {
+                mutableStateOf(UsageAccess.isGranted(context))
             }
 
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                    val services = AndroidSettings.Secure.getString(
-                        context.contentResolver,
-                        AndroidSettings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-                    ) ?: ""
-                    isAccessibilityEnabled = services.contains("com.princeyadav.grayout")
+                    isUsageAccessGranted = UsageAccess.isGranted(context)
                 }
             }
 
             SettingsScreen(
                 enforcementInterval = enforcementInterval,
                 isAdbPermissionGranted = isAdbPermissionGranted,
-                isAccessibilityEnabled = isAccessibilityEnabled,
+                isUsageAccessGranted = isUsageAccessGranted,
                 isBatteryUnrestricted = isBatteryUnrestricted,
                 onBatteryOptimizationClick = onBatteryOptimizationClick,
-                onAccessibilityClick = {
-                    context.startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
+                onUsageAccessClick = {
+                    try {
+                        context.startActivity(Intent(AndroidSettings.ACTION_USAGE_ACCESS_SETTINGS))
+                    } catch (_: ActivityNotFoundException) {
+                        context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
+                    }
                 },
             )
         }
@@ -263,8 +253,12 @@ fun GrayoutNavGraph(
             val viewModel: ExclusionViewModel = viewModel(
                 factory = ExclusionViewModelFactory(
                     exclusionPrefs = exclusionPrefs,
-                    grayscaleManager = GrayscaleManager(applicationContext.contentResolver),
-                    ownPackage = context.packageName,
+                    usageAccessProbe = { UsageAccess.isGranted(applicationContext) },
+                    onExclusionListChanged = {
+                        applicationContext.startForegroundService(
+                            Intent(applicationContext, GrayoutService::class.java)
+                        )
+                    },
                     loadApps = {
                         applicationContext.packageManager.getInstalledApplications(0)
                             .filter { info ->
@@ -291,11 +285,11 @@ fun GrayoutNavGraph(
             val excludedApps by viewModel.excludedApps.collectAsStateWithLifecycle(emptyList())
             val allOtherApps by viewModel.allOtherApps.collectAsStateWithLifecycle(emptyList())
             val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
-            val isAccessibilityEnabled by viewModel.isAccessibilityEnabled.collectAsStateWithLifecycle()
+            val isUsageAccessGranted by viewModel.isUsageAccessGranted.collectAsStateWithLifecycle()
 
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                    viewModel.checkAccessibilityService()
+                    viewModel.checkUsageAccess()
                 }
             }
 
@@ -303,11 +297,15 @@ fun GrayoutNavGraph(
                 excludedApps = excludedApps,
                 allOtherApps = allOtherApps,
                 searchQuery = searchQuery,
-                isAccessibilityEnabled = isAccessibilityEnabled,
+                isUsageAccessGranted = isUsageAccessGranted,
                 onToggle = viewModel::toggleExclusion,
                 onSearchQueryChange = viewModel::setSearchQuery,
-                onOpenAccessibilitySettings = {
-                    context.startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
+                onOpenUsageAccessSettings = {
+                    try {
+                        context.startActivity(Intent(AndroidSettings.ACTION_USAGE_ACCESS_SETTINGS))
+                    } catch (_: ActivityNotFoundException) {
+                        context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
+                    }
                 },
                 onBack = { navController.popBackStack() },
                 onRefresh = viewModel::refreshApps,

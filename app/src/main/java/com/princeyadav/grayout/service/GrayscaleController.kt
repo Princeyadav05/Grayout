@@ -9,6 +9,5 @@ package com.princeyadav.grayout.service
 interface GrayscaleController {
     fun isGrayscaleEnabled(): Boolean
     fun setGrayscale(enabled: Boolean): Boolean
-    fun isAccessibilityServiceEnabled(packageName: String): Boolean
     fun canWriteSecureSettings(): Boolean
 }

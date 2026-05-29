@@ -17,7 +17,6 @@ import com.princeyadav.grayout.service.GrayscaleController
 class FakeGrayscaleController : GrayscaleController {
     var grayscaleEnabled = false
     var canWrite = true
-    var accessibilityEnabled = false
     var setGrayscaleCallCount = 0
 
     override fun isGrayscaleEnabled() = grayscaleEnabled
@@ -30,6 +29,4 @@ class FakeGrayscaleController : GrayscaleController {
     }
 
     override fun canWriteSecureSettings() = canWrite
-
-    override fun isAccessibilityServiceEnabled(packageName: String) = accessibilityEnabled
 }

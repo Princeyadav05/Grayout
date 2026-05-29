@@ -6,28 +6,46 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.database.ContentObserver
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.princeyadav.grayout.MainActivity
 import com.princeyadav.grayout.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 class GrayoutService : Service() {
 
     private lateinit var grayscaleManager: GrayscaleManager
     private lateinit var enforcementPrefs: EnforcementPrefs
     private lateinit var exclusionPrefs: ExclusionPrefs
+    private lateinit var detector: ForegroundAppDetector
     private val handler = Handler(Looper.getMainLooper())
+    private val detectorScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var currentInterval = 0
     private var countdownTargetMs = 0L
+    private var isScreenInteractive = true
 
     private val grayscaleObserver = object : ContentObserver(handler) {
         override fun onChange(selfChange: Boolean) {
+            // Intentional no-op at interval 0: enforcement must never schedule
+            // then, and the detector (not the observer) drives all exclusion
+            // side-effects in that mode, so there is no observer<->detector
+            // write-feedback loop. Consequence: the static "Watching excluded apps"
+            // notification is not refreshed on grayscale changes at interval 0,
+            // which is acceptable (the copy is static).
             if (currentInterval <= 0) return
 
             cancelEnforcementAlarm()
@@ -49,49 +67,58 @@ class GrayoutService : Service() {
         }
     }
 
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_ON -> {
+                    isScreenInteractive = true
+                    if (exclusionPrefs.getExcludedCount() > 0) detector.start()
+                }
+                Intent.ACTION_SCREEN_OFF -> {
+                    isScreenInteractive = false
+                    detector.stop()
+                }
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         grayscaleManager = GrayscaleManager(contentResolver)
-        enforcementPrefs = EnforcementPrefs(
-            getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE)
-        )
-        exclusionPrefs = ExclusionPrefs(
-            getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE)
-        )
+        val prefs = getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE)
+        enforcementPrefs = EnforcementPrefs(prefs)
+        exclusionPrefs = ExclusionPrefs(prefs)
         createNotificationChannel()
         contentResolver.registerContentObserver(
             GrayscaleManager.DALTONIZER_ENABLED_URI, false, grayscaleObserver
         )
+
+        detector = ForegroundAppDetector(
+            provider = UsageStatsForegroundProvider(this),
+            exclusionPrefs = exclusionPrefs,
+            enforcementPrefs = enforcementPrefs,
+            grayscale = grayscaleManager,
+            ownPackage = packageName,
+            // handleExclusionEnded touches startForeground/AlarmManager, which
+            // expect the service main thread, so marshal it off the detector's
+            // background poll thread onto the main handler.
+            onExclusionEnded = { handler.post { handleExclusionEnded() } },
+            scope = detectorScope,
+        )
+
+        isScreenInteractive = getSystemService(PowerManager::class.java).isInteractive
+        ContextCompat.registerReceiver(
+            this,
+            screenReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_SCREEN_OFF)
+            },
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.getBooleanExtra(EXTRA_EXCLUSION_ENDED, false) == true) {
-            if (currentInterval <= 0) currentInterval = enforcementPrefs.getInterval()
-            val now = System.currentTimeMillis()
-            val hasActiveCountdown = countdownTargetMs > now
-            val reEnablePending = hasActiveCountdown || hasPendingEnforcementAlarm()
-
-            if (shouldReEnableOnExclusionEnd(
-                    currentInterval, reEnablePending, grayscaleManager.isGrayscaleEnabled(),
-                )
-            ) {
-                val success = grayscaleManager.setGrayscale(true)
-                if (!success) {
-                    startForeground(NOTIFICATION_ID, buildNotification(currentInterval))
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
-                    return START_NOT_STICKY
-                }
-            }
-
-            if (hasActiveCountdown) {
-                startForeground(NOTIFICATION_ID, buildNotification(currentInterval, countdownTargetMs))
-            } else {
-                startForeground(NOTIFICATION_ID, buildNotification(currentInterval))
-            }
-            return START_STICKY
-        }
-
         val interval = intent?.getIntExtra(EXTRA_INTERVAL, -1)
             ?.takeIf { it >= 0 }
             ?: enforcementPrefs.getInterval()
@@ -99,14 +126,50 @@ class GrayoutService : Service() {
         val intervalChanged = interval != currentInterval
         currentInterval = interval
 
-        if (interval <= 0) {
+        val excludedCount = exclusionPrefs.getExcludedCount()
+
+        // (A) Nothing to do: enforcement off and no excluded apps -> stop fully.
+        if (!shouldServiceRun(interval, excludedCount)) {
+            reconcileStrandedExclusion()
             cancelEnforcementAlarm()
             countdownTargetMs = 0L
+            detector.stop()
             startForeground(NOTIFICATION_ID, buildNotification(interval))
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
+
+        // (B) Alive only for exclusions (interval == 0, excludedCount > 0).
+        // No enforcement alarm; neutral notification; detector gated on screen.
+        if (interval == 0) {
+            // Heal a stranded flag ONLY on a sticky/warm process revival (null
+            // intent). On an explicit (re)start carrying an intent — app open, an
+            // exclusion-list toggle, boot, schedule, tile — a true excludedAppActive
+            // is a LIVE session, not stranded; reconciling would clear it and
+            // re-gray mid-session (a visible flicker when the user returns to the
+            // excluded app). The detector self-heals via a proper Exit on its next
+            // non-own, non-excluded tick, and GrayoutApp heals cold starts.
+            if (intent == null) reconcileStrandedExclusion()
+            cancelEnforcementAlarm()
+            countdownTargetMs = 0L
+            startForeground(NOTIFICATION_ID, buildNotification(0, exclusionOnly = true))
+            if (isScreenInteractive) detector.start() else detector.stop()
+            return START_STICKY
+        }
+
+        // (C) interval > 0.
+        // Heal a stranded flag when the last excluded app was just removed
+        // (excludedCount == 0) while a session was active — branches (A)/(B) cover
+        // interval 0; this covers interval > 0. Without it, removing the app you
+        // are inside leaves excludedAppActive stuck true: grayscale stays off, the
+        // detector can no longer Exit (tickOnce no-ops at 0 exclusions), and
+        // applyEnforcementTick short-circuits on the flag, blocking all future
+        // enforcement until a cold start. Guarded on excludedCount == 0 so a live
+        // multi-exclusion session is never cleared, and reconcile self-guards on
+        // isExcludedAppActive() (no-op in the normal no-exclusions case). Placed
+        // before the scheduling block so a wasOn=false heal re-arms the alarm.
+        if (excludedCount == 0) reconcileStrandedExclusion()
 
         val now = System.currentTimeMillis()
         val hasActiveCountdown = countdownTargetMs > now
@@ -129,11 +192,61 @@ class GrayoutService : Service() {
             }
         }
 
+        if (excludedCount > 0 && isScreenInteractive) detector.start() else detector.stop()
         return START_STICKY
+    }
+
+    /**
+     * Re-applies grayscale when an excluded app closes and a re-enable is needed.
+     * Invoked by the detector (via a [handler] post onto the main thread) when an
+     * Exit transition has no saved wasOn but enforcement is active.
+     */
+    private fun handleExclusionEnded() {
+        if (currentInterval <= 0) currentInterval = enforcementPrefs.getInterval()
+        val now = System.currentTimeMillis()
+        val hasActiveCountdown = countdownTargetMs > now
+        val reEnablePending = hasActiveCountdown || hasPendingEnforcementAlarm()
+
+        if (shouldReEnableOnExclusionEnd(
+                currentInterval, reEnablePending, grayscaleManager.isGrayscaleEnabled(),
+            )
+        ) {
+            val success = grayscaleManager.setGrayscale(true)
+            if (!success) {
+                detector.stop()
+                startForeground(NOTIFICATION_ID, buildNotification(currentInterval))
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return
+            }
+        }
+
+        if (hasActiveCountdown) {
+            startForeground(NOTIFICATION_ID, buildNotification(currentInterval, countdownTargetMs))
+        } else {
+            startForeground(NOTIFICATION_ID, buildNotification(currentInterval))
+        }
+    }
+
+    /**
+     * Clears a stranded `excludedAppActive` flag and restores grayscale if it was
+     * on when the excluded app was entered, covering a screen-off teardown that
+     * left the flag set. [GrayoutApp.clearExclusionState] remains the primary
+     * cold-start healer; it does not restore wasOn, so this covers warm restart.
+     */
+    private fun reconcileStrandedExclusion() {
+        if (exclusionPrefs.isExcludedAppActive()) {
+            val wasOn = exclusionPrefs.wasGrayscaleOnBeforeExclusion()
+            exclusionPrefs.clearExclusionState()
+            if (wasOn) grayscaleManager.setGrayscale(true)
+        }
     }
 
     override fun onDestroy() {
         contentResolver.unregisterContentObserver(grayscaleObserver)
+        detector.stop()
+        detectorScope.cancel()
+        unregisterReceiver(screenReceiver)
         countdownTargetMs = 0L
         super.onDestroy()
     }
@@ -153,6 +266,7 @@ class GrayoutService : Service() {
     private fun buildNotification(
         interval: Int,
         countdownTarget: Long? = null,
+        exclusionOnly: Boolean = false,
     ): Notification {
         val pendingIntent = PendingIntent.getActivity(
             this,
@@ -174,6 +288,9 @@ class GrayoutService : Service() {
             val targetTime = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
                 .format(java.util.Date(countdownTarget))
             builder.setContentText("Re-enabling around $targetTime")
+                .setShowWhen(false)
+        } else if (exclusionOnly) {
+            builder.setContentText("Watching excluded apps")
                 .setShowWhen(false)
         } else if (interval > 0) {
             builder.setContentText("Enforcement active")
@@ -247,7 +364,6 @@ class GrayoutService : Service() {
         const val CHANNEL_ID = "grayout_service"
         const val NOTIFICATION_ID = 1
         const val EXTRA_INTERVAL = "enforcement_interval_minutes"
-        const val EXTRA_EXCLUSION_ENDED = "exclusion_ended"
         const val ACTION_ENFORCEMENT_TICK = "com.princeyadav.grayout.ENFORCEMENT_TICK"
         private const val ENFORCEMENT_ALARM_REQUEST_CODE = 2001
     }

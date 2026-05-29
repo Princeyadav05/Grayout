@@ -30,11 +30,10 @@ class HomeViewModelTest {
 
     private fun vm(
         canWrite: Boolean = true,
-        accessibilityEnabled: Boolean = true,
+        usageAccessGranted: Boolean = true,
         isBatteryOptimized: Boolean = true,
     ): HomeViewModel {
         grayscale.canWrite = canWrite
-        grayscale.accessibilityEnabled = accessibilityEnabled
         batteryOptimized = isBatteryOptimized
         return HomeViewModel(
             grayscaleManager = grayscale,
@@ -43,7 +42,7 @@ class HomeViewModelTest {
             isBatteryOptimized = { batteryOptimized },
             loadExcludedIcons = { _ -> emptyList<android.graphics.Bitmap>() to 0 },
             ioDispatcher = dispatcherRule.dispatcher,
-            ownPackageName = "com.princeyadav.grayout",
+            usageAccessProbe = { usageAccessGranted },
         )
     }
 
@@ -120,10 +119,10 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `refreshAttentionCount returns 3 when ADB, accessibility, and battery all missing`() = runTest {
+    fun `refreshAttentionCount returns 3 when ADB, usage access, and battery all missing`() = runTest {
         val homeViewModel = vm(
             canWrite = false,
-            accessibilityEnabled = false,
+            usageAccessGranted = false,
             isBatteryOptimized = false,
         )
         advanceUntilIdle()
@@ -138,7 +137,7 @@ class HomeViewModelTest {
     fun `refreshAttentionCount returns 0 when all permissions granted`() = runTest {
         val homeViewModel = vm(
             canWrite = true,
-            accessibilityEnabled = true,
+            usageAccessGranted = true,
             isBatteryOptimized = true,
         )
         advanceUntilIdle()
@@ -153,8 +152,23 @@ class HomeViewModelTest {
     fun `refreshAttentionCount returns 1 when only battery optimization is restricted`() = runTest {
         val homeViewModel = vm(
             canWrite = true,
-            accessibilityEnabled = true,
+            usageAccessGranted = true,
             isBatteryOptimized = false,
+        )
+        advanceUntilIdle()
+
+        homeViewModel.refreshAttentionCount()
+        advanceUntilIdle()
+
+        assertEquals(1, homeViewModel.needsAttentionCount.value)
+    }
+
+    @Test
+    fun `refreshAttentionCount returns 1 when only usage access missing`() = runTest {
+        val homeViewModel = vm(
+            canWrite = true,
+            usageAccessGranted = false,
+            isBatteryOptimized = true,
         )
         advanceUntilIdle()
 

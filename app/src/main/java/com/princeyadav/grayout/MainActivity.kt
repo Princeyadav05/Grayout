@@ -35,6 +35,7 @@ import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
 import com.princeyadav.grayout.service.GrayscaleManager
 import com.princeyadav.grayout.service.GrayoutService
+import com.princeyadav.grayout.service.UsageAccess
 import com.princeyadav.grayout.ui.components.BottomNavBar
 import com.princeyadav.grayout.ui.navigation.GrayoutNavGraph
 import com.princeyadav.grayout.ui.navigation.Routes
@@ -93,7 +94,7 @@ class MainActivity : ComponentActivity() {
                 icons to (found - loaded).coerceAtLeast(0)
             },
             ioDispatcher = Dispatchers.IO,
-            ownPackageName = packageName,
+            usageAccessProbe = { UsageAccess.isGranted(applicationContext) },
         )
     }
 

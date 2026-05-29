@@ -52,7 +52,7 @@ fun HomeScreen(
     isGrayscaleOn: Boolean,
     enforcementInterval: Int,
     excludedAppCount: Int,
-    isAccessibilityEnabled: Boolean,
+    isUsageAccessGranted: Boolean,
     onToggle: () -> Unit,
     onEnforcementIntervalChange: (Int) -> Unit,
     onNavigateToExclusions: () -> Unit,
@@ -103,7 +103,7 @@ fun HomeScreen(
 
         ExcludedAppsCard(
             count = excludedAppCount,
-            isAccessibilityEnabled = isAccessibilityEnabled,
+            isUsageAccessGranted = isUsageAccessGranted,
             excludedAppIcons = excludedAppIcons,
             excludedOverflowCount = excludedOverflowCount,
             onClick = onNavigateToExclusions,
@@ -428,7 +428,7 @@ private fun EnforcementChip(
 @Composable
 private fun ExcludedAppsCard(
     count: Int,
-    isAccessibilityEnabled: Boolean,
+    isUsageAccessGranted: Boolean,
     excludedAppIcons: List<Bitmap>,
     excludedOverflowCount: Int,
     onClick: () -> Unit,
@@ -440,7 +440,7 @@ private fun ExcludedAppsCard(
     val subtitleText: String
     val subtitleColor: androidx.compose.ui.graphics.Color
 
-    if (!isAccessibilityEnabled && count > 0) {
+    if (!isUsageAccessGranted && count > 0) {
         subtitleText = "Setup required"
         subtitleColor = colors.danger
     } else if (count > 0) {

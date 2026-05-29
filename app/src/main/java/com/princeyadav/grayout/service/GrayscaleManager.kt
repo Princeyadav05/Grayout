@@ -26,14 +26,6 @@ class GrayscaleManager(private val contentResolver: ContentResolver) : Grayscale
         }
     }
 
-    override fun isAccessibilityServiceEnabled(packageName: String): Boolean {
-        val enabled = Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-        ) ?: return false
-        return enabled.split(":").any { it.startsWith("$packageName/") }
-    }
-
     override fun canWriteSecureSettings(): Boolean = try {
         val current = Settings.Secure.getInt(contentResolver, DALTONIZER_ENABLED, 0)
         Settings.Secure.putInt(contentResolver, DALTONIZER_ENABLED, current)

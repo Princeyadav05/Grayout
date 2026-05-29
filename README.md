@@ -46,7 +46,7 @@ shasum -a 256 grayout-v*.apk
 
 Match the output against the `.sha256` file attached to the release. On Linux, `sha256sum` works the same way.
 
-> **Play Protect note:** If you install via a browser download, Google Play Protect may block the installation because the app uses an accessibility service (for per-app exclusions). This is a known limitation with sideloaded apps that use accessibility permissions. To get around it, use Option 1 or Option 2 instead. Both bypass Play Protect entirely.
+> **Play Protect note:** If you install via a browser download, Google Play Protect may warn before installing, as it does for many sideloaded apps. To avoid the warning, use Option 1 or Option 2 instead. Both bypass Play Protect entirely.
 
 ## Setup
 
