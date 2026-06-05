@@ -84,7 +84,7 @@ class GrayoutService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        grayscaleManager = GrayscaleManager(contentResolver)
+        grayscaleManager = GrayscaleManager(this)
         val prefs = getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE)
         enforcementPrefs = EnforcementPrefs(prefs)
         exclusionPrefs = ExclusionPrefs(prefs)

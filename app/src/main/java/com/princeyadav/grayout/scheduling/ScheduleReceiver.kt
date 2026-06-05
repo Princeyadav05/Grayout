@@ -12,7 +12,7 @@ import kotlinx.coroutines.launch
 
 class ScheduleReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val grayscaleManager = GrayscaleManager(context.contentResolver)
+        val grayscaleManager = GrayscaleManager(context)
         val enforcementPrefs = EnforcementPrefs(
             context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
         )

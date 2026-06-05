@@ -61,11 +61,11 @@ class MainActivity : ComponentActivity() {
         ExclusionPrefs(getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE))
     }
 
-    private val grayscaleManager by lazy { GrayscaleManager(applicationContext.contentResolver) }
+    private val grayscaleManager by lazy { GrayscaleManager(applicationContext) }
 
     private val homeViewModel: HomeViewModel by viewModels {
         HomeViewModelFactory(
-            grayscaleManager = GrayscaleManager(applicationContext.contentResolver),
+            grayscaleManager = GrayscaleManager(applicationContext),
             enforcementPrefs = enforcementPrefs,
             exclusionPrefs = exclusionPrefs,
             isBatteryOptimized = {

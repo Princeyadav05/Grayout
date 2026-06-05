@@ -18,7 +18,7 @@ class EnforcementAlarmReceiver : BroadcastReceiver() {
         applyEnforcementTick(
             EnforcementPrefs(prefs),
             ExclusionPrefs(prefs),
-            GrayscaleManager(context.contentResolver),
+            GrayscaleManager(context),
         )
     }
 }

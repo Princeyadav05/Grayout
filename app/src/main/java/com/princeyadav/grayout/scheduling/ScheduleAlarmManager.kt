@@ -89,7 +89,7 @@ class ScheduleAlarmManager(private val context: Context) : AlarmScheduler {
         }
 
         if (isCurrentlyInSchedule) {
-            val grayscaleManager = GrayscaleManager(context.contentResolver)
+            val grayscaleManager = GrayscaleManager(context)
             grayscaleManager.setGrayscale(true)
 
             val enforcementPrefs = EnforcementPrefs(

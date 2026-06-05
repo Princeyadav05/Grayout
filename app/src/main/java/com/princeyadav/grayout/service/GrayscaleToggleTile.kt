@@ -15,7 +15,7 @@ class GrayscaleToggleTile : TileService() {
 
     override fun onClick() {
         super.onClick()
-        val manager = GrayscaleManager(contentResolver)
+        val manager = GrayscaleManager(this)
         val isEnabled = manager.isGrayscaleEnabled()
         manager.setGrayscale(!isEnabled)
         updateTile()
@@ -23,7 +23,7 @@ class GrayscaleToggleTile : TileService() {
 
     private fun updateTile() {
         val tile = qsTile ?: return
-        val isEnabled = GrayscaleManager(contentResolver).isGrayscaleEnabled()
+        val isEnabled = GrayscaleManager(this).isGrayscaleEnabled()
         tile.state = if (isEnabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.label = "Grayscale"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
