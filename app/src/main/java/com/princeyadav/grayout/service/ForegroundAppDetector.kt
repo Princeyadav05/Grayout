@@ -129,6 +129,7 @@ class ForegroundAppDetector(
     private val ownPackage: String,
     private val onExclusionEnded: () -> Unit,
     private val scope: CoroutineScope,
+    private val isScreenOn: () -> Boolean = { true },
     private val pollIntervalMs: Long = POLL_INTERVAL_MS,
 ) {
     private var loopJob: Job? = null
@@ -178,6 +179,13 @@ class ForegroundAppDetector(
             grayscaleEnabled = grayscaleEnabled,
             wasGrayscaleOnBeforeExclusion = exclusionPrefs.wasGrayscaleOnBeforeExclusion(),
         )
+        // The detector must not mutate the FSM once the screen is off. This poll runs on
+        // a background thread, and stop()'s cooperative cancel cannot abort a tick already
+        // in progress, so a tick that began while the screen was on could otherwise land
+        // here after GrayoutService cleared the exclusion state on SCREEN_OFF, re-Enter,
+        // and undo the pre-gray (see preGrayOnScreenOff). Checked after the read so it
+        // reflects screen state at apply time; isScreenInteractive is @Volatile.
+        if (!isScreenOn()) return
         applyExclusionTransition(
             transition = transition,
             exclusionPrefs = exclusionPrefs,

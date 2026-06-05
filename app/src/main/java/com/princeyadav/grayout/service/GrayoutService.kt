@@ -36,6 +36,10 @@ class GrayoutService : Service() {
     private val detectorScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var currentInterval = 0
     private var countdownTargetMs = 0L
+
+    // Read by the detector's background poll thread (isScreenOn), written on the main
+    // thread from screenReceiver, so it must be @Volatile for cross-thread visibility.
+    @Volatile
     private var isScreenInteractive = true
 
     private val grayscaleObserver = object : ContentObserver(handler) {
@@ -76,6 +80,10 @@ class GrayoutService : Service() {
                 }
                 Intent.ACTION_SCREEN_OFF -> {
                     isScreenInteractive = false
+                    // Wake gray, never into colour: if a live exclusion session is
+                    // suppressing a previously-on grayscale, re-assert it now and reset
+                    // the FSM so it re-enters cleanly on the next screen-on.
+                    preGrayOnScreenOff(exclusionPrefs, grayscaleManager)
                     detector.stop()
                 }
             }
@@ -104,6 +112,7 @@ class GrayoutService : Service() {
             // background poll thread onto the main handler.
             onExclusionEnded = { handler.post { handleExclusionEnded() } },
             scope = detectorScope,
+            isScreenOn = { isScreenInteractive },
         )
 
         isScreenInteractive = getSystemService(PowerManager::class.java).isInteractive
@@ -382,3 +391,40 @@ fun shouldReEnableOnExclusionEnd(
     reEnablePending: Boolean,
     grayscaleEnabled: Boolean,
 ): Boolean = interval > 0 && !reEnablePending && !grayscaleEnabled
+
+/**
+ * Whether SCREEN_OFF should pre-assert grayscale so the device wakes gray rather
+ * than leaking colour for the UsageStats detection window.
+ *
+ * Only when a live exclusion session is suppressing grayscale ([excludedAppActive])
+ * AND the user's pre-exclusion state was grayscale-on ([wasGrayscaleOnBeforeExclusion]).
+ * If they were intentionally in colour before opening the excluded app, forcing gray
+ * on screen-off would override their real state, so we leave it.
+ */
+fun shouldPreGrayOnScreenOff(
+    excludedAppActive: Boolean,
+    wasGrayscaleOnBeforeExclusion: Boolean,
+): Boolean = excludedAppActive && wasGrayscaleOnBeforeExclusion
+
+/**
+ * Applies [shouldPreGrayOnScreenOff] on the SCREEN_OFF edge: re-assert grayscale
+ * and reset the exclusion FSM so it re-enters cleanly on the next screen-on. The
+ * exclusion state is cleared ONLY if the re-gray write actually stuck, so a lost
+ * permission can't strand the FSM with grayscale off but the flags reset. Returns
+ * whether it pre-grayed. Testable with fakes, mirroring [applyExclusionTransition].
+ */
+fun preGrayOnScreenOff(
+    exclusionPrefs: ExclusionPrefs,
+    grayscale: GrayscaleController,
+): Boolean {
+    if (!shouldPreGrayOnScreenOff(
+            exclusionPrefs.isExcludedAppActive(),
+            exclusionPrefs.wasGrayscaleOnBeforeExclusion(),
+        )
+    ) {
+        return false
+    }
+    if (!grayscale.setGrayscale(true)) return false
+    exclusionPrefs.clearExclusionState()
+    return true
+}

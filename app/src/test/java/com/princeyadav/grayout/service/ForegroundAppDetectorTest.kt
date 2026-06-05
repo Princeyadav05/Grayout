@@ -29,15 +29,17 @@ class ForegroundAppDetectorTest {
     private lateinit var provider: FakeForegroundAppProvider
     private var endedCount = 0
 
-    private fun detector(): ForegroundAppDetector = ForegroundAppDetector(
-        provider = provider,
-        exclusionPrefs = exclusionPrefs,
-        enforcementPrefs = enforcementPrefs,
-        grayscale = grayscale,
-        ownPackage = own,
-        onExclusionEnded = { endedCount++ },
-        scope = CoroutineScope(Dispatchers.Unconfined),
-    )
+    private fun detector(isScreenOn: () -> Boolean = { true }): ForegroundAppDetector =
+        ForegroundAppDetector(
+            provider = provider,
+            exclusionPrefs = exclusionPrefs,
+            enforcementPrefs = enforcementPrefs,
+            grayscale = grayscale,
+            ownPackage = own,
+            onExclusionEnded = { endedCount++ },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            isScreenOn = isScreenOn,
+        )
 
     @Before
     fun setUp() {
@@ -102,6 +104,22 @@ class ForegroundAppDetectorTest {
         assertFalse(exclusionPrefs.isExcludedAppActive())
         assertEquals(0, grayscale.setGrayscaleCallCount)
         assertEquals(0, endedCount)
+        assertTrue(grayscale.isGrayscaleEnabled()) // untouched
+    }
+
+    @Test
+    fun `tickOnce does not apply a transition when the screen is off`() {
+        exclusionPrefs.addExcludedPackage("com.excluded")
+        grayscale.grayscaleEnabled = true
+        // Screen has gone off; an in-flight tick must not mutate the FSM, or it could
+        // re-Enter and undo a SCREEN_OFF pre-gray (the detector/receiver race).
+        val detector = detector(isScreenOn = { false })
+
+        provider.foregroundPackage = "com.excluded" // would otherwise Enter
+        detector.tickOnce()
+
+        assertFalse(exclusionPrefs.isExcludedAppActive())
+        assertEquals(0, grayscale.setGrayscaleCallCount)
         assertTrue(grayscale.isGrayscaleEnabled()) // untouched
     }
 
