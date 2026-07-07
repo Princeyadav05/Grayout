@@ -1,6 +1,7 @@
 package com.princeyadav.grayout.logic
 
 import com.princeyadav.grayout.model.Schedule
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -95,6 +96,16 @@ class ScheduleTimeWindowTest {
     }
 
     @Test
+    fun `isCurrentlyFiring returns true for MON-only midnight-crossing window on Tuesday morning`() {
+        val s = schedule(
+            daysOfWeek = "MON",
+            startHour = 22, endHour = 2,
+        )
+        val now = at(DayOfWeek.TUESDAY, 1, 0)
+        assertTrue(isCurrentlyFiring(s, now))
+    }
+
+    @Test
     fun `isCurrentlyFiring returns false outside midnight-crossing window at 10-00`() {
         val s = schedule(
             daysOfWeek = "MON,TUE,WED,THU,FRI,SAT,SUN",
@@ -102,5 +113,19 @@ class ScheduleTimeWindowTest {
         )
         val now = at(DayOfWeek.MONDAY, 10, 0)
         assertFalse(isCurrentlyFiring(s, now))
+    }
+
+    @Test
+    fun `nextScheduleEvent returns end of MON-only midnight-crossing window on Tuesday morning`() {
+        val s = schedule(
+            daysOfWeek = "MON",
+            startHour = 22, endHour = 2,
+        )
+        val now = at(DayOfWeek.TUESDAY, 1, 0)
+
+        val event = checkNotNull(nextScheduleEvent(listOf(s), now))
+
+        assertEquals(LocalDateTime.of(mondayDate.plusDays(1), LocalTime.of(2, 0)), event.dateTime)
+        assertFalse(event.isStart)
     }
 }

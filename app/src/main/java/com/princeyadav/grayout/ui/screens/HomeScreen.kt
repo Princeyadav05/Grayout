@@ -299,6 +299,7 @@ private fun StatusHeroCard(
                             view.performHaptic(HapticAction.Toggle)
                             onToggle()
                         },
+                        contentDescription = "Grayscale",
                     )
                 }
             }

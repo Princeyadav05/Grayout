@@ -2,6 +2,7 @@ package com.princeyadav.grayout.service
 
 import com.princeyadav.grayout.fakes.FakeGrayscaleController
 import com.princeyadav.grayout.fakes.FakeSharedPreferences
+import com.princeyadav.grayout.scheduling.serviceIntervalExtraForScheduleEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -494,42 +495,53 @@ class EnforcementScenarioTest {
     }
 
     @Test
-    fun `schedule end turns off grayscale before stopping service`() {
+    fun `schedule end preserves standing enforcement interval`() {
         enforcementPrefs.setInterval(5)
         grayscale.setGrayscale(true)
 
-        // Simulates ScheduleReceiver schedule-end path (post-fix ordering):
+        // Simulates ScheduleReceiver schedule-end path:
         // 1. setGrayscale(false) FIRST
         grayscale.setGrayscale(false)
         assertFalse(grayscale.isGrayscaleEnabled())
 
-        // 2. Then send interval=0 to service
-        enforcementPrefs.setInterval(0)
-        val currentInterval = enforcementPrefs.getInterval()
-        assertEquals(0, currentInterval)
+        // 2. Then send the receiver's interval extra to service.
+        val currentInterval = checkNotNull(
+            serviceIntervalExtraForScheduleEvent(
+                isStart = false,
+                persistedInterval = enforcementPrefs.getInterval(),
+            )
+        )
+        assertEquals(5, currentInterval)
+        assertTrue(shouldServiceRun(currentInterval, exclusionPrefs.getExcludedCount()))
 
-        // Service processes interval=0: cancels alarm, stops
-        countdownPending = false
-        countdownTargetMs = 0L
+        // Service branch C sees grayscale off and schedules the next enforcement tick.
+        observerDetectsGrayscaleOff(currentInterval)
+        assertTrue(countdownPending)
+        assertTrue(countdownTargetMs > 0L)
         assertFalse(grayscale.isGrayscaleEnabled())
     }
 
     @Test
-    fun `schedule end with pending countdown - alarm cancelled, grayscale off`() {
+    fun `schedule end with pending countdown preserves standing enforcement alarm`() {
         enforcementPrefs.setInterval(5)
         grayscale.setGrayscale(false)
         observerDetectsGrayscaleOff(5)
         assertTrue(countdownPending)
 
-        // Schedule ends: grayscale off first (already off), then interval=0
+        // Schedule ends: grayscale off first (already off), then persisted interval.
         grayscale.setGrayscale(false)
-        enforcementPrefs.setInterval(0)
+        val interval = checkNotNull(
+            serviceIntervalExtraForScheduleEvent(
+                isStart = false,
+                persistedInterval = enforcementPrefs.getInterval(),
+            )
+        )
+        assertEquals(5, interval)
+        assertTrue(shouldServiceRun(interval, exclusionPrefs.getExcludedCount()))
 
-        // Service processes interval=0
-        countdownPending = false
-        countdownTargetMs = 0L
-        val interval = enforcementPrefs.getInterval()
-        assertEquals(0, interval)
+        // Service branch C keeps the pending countdown because the interval did not change.
+        assertTrue(countdownPending)
+        assertTrue(countdownTargetMs > 0L)
         assertFalse(grayscale.isGrayscaleEnabled())
     }
 

@@ -17,10 +17,65 @@ import java.time.LocalTime
 internal fun isCurrentlyFiring(schedule: Schedule, now: LocalDateTime): Boolean {
     if (!schedule.isEnabled) return false
     val days = schedule.daysOfWeekList
-    if (now.dayOfWeek !in days) return false
     val start = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
     val end = LocalTime.of(schedule.endTimeHour, schedule.endTimeMinute)
-    return isTimeWithinWindow(start, end, now.toLocalTime())
+    val current = now.toLocalTime()
+
+    if (start.isBefore(end)) {
+        return now.dayOfWeek in days && isTimeWithinWindow(start, end, current)
+    }
+
+    return when {
+        !current.isBefore(start) -> now.dayOfWeek in days
+        current.isBefore(end) -> now.minusDays(1).dayOfWeek in days
+        else -> false
+    }
+}
+
+internal data class ScheduleEvent(
+    val dateTime: LocalDateTime,
+    val isStart: Boolean,
+)
+
+internal fun nextScheduleEvent(
+    schedules: List<Schedule>,
+    now: LocalDateTime,
+): ScheduleEvent? {
+    val today = now.toLocalDate()
+    var nextEvent: ScheduleEvent? = null
+
+    for (schedule in schedules) {
+        if (!schedule.isEnabled) continue
+
+        val days = schedule.daysOfWeekList
+        val start = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
+        val end = LocalTime.of(schedule.endTimeHour, schedule.endTimeMinute)
+
+        for (dayOffset in -1L..7L) {
+            val startDate = today.plusDays(dayOffset)
+            if (startDate.dayOfWeek !in days) continue
+
+            val startDateTime = LocalDateTime.of(startDate, start)
+            nextEvent = nextSoonerEvent(nextEvent, startDateTime, isStart = true, now)
+
+            val endDate = if (start.isBefore(end)) startDate else startDate.plusDays(1)
+            val endDateTime = LocalDateTime.of(endDate, end)
+            nextEvent = nextSoonerEvent(nextEvent, endDateTime, isStart = false, now)
+        }
+    }
+
+    return nextEvent
+}
+
+private fun nextSoonerEvent(
+    currentNext: ScheduleEvent?,
+    candidateDateTime: LocalDateTime,
+    isStart: Boolean,
+    now: LocalDateTime,
+): ScheduleEvent? {
+    if (!candidateDateTime.isAfter(now)) return currentNext
+    if (currentNext != null && !candidateDateTime.isBefore(currentNext.dateTime)) return currentNext
+    return ScheduleEvent(candidateDateTime, isStart)
 }
 
 /**

@@ -20,18 +20,21 @@ class ScheduleReceiver : BroadcastReceiver() {
         if (intent.action != ScheduleAlarmManager.ACTION_SCHEDULE_FIRE) return
 
         val isStart = intent.getBooleanExtra(ScheduleAlarmManager.EXTRA_IS_START, false)
+        val intervalExtra = serviceIntervalExtraForScheduleEvent(
+            isStart = isStart,
+            persistedInterval = enforcementPrefs.getInterval(),
+        )
         if (isStart) {
             grayscaleManager.setGrayscale(true)
-            val interval = enforcementPrefs.getInterval()
-            if (interval > 0) {
+            if (intervalExtra != null) {
                 val serviceIntent = Intent(context, GrayoutService::class.java)
-                    .putExtra(GrayoutService.EXTRA_INTERVAL, interval)
+                    .putExtra(GrayoutService.EXTRA_INTERVAL, intervalExtra)
                 context.startForegroundService(serviceIntent)
             }
         } else {
             grayscaleManager.setGrayscale(false)
             val stopIntent = Intent(context, GrayoutService::class.java)
-                .putExtra(GrayoutService.EXTRA_INTERVAL, 0)
+                .putExtra(GrayoutService.EXTRA_INTERVAL, checkNotNull(intervalExtra))
             context.startForegroundService(stopIntent)
         }
 
@@ -47,5 +50,15 @@ class ScheduleReceiver : BroadcastReceiver() {
                 pendingResult.finish()
             }
         }
+    }
+}
+
+internal fun serviceIntervalExtraForScheduleEvent(
+    isStart: Boolean,
+    persistedInterval: Int,
+): Int? {
+    return when {
+        isStart && persistedInterval <= 0 -> null
+        else -> persistedInterval
     }
 }

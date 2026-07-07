@@ -6,13 +6,12 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import com.princeyadav.grayout.data.ScheduleRepository
-import com.princeyadav.grayout.logic.isTimeWithinWindow
-import com.princeyadav.grayout.model.daysOfWeekList
+import com.princeyadav.grayout.logic.isCurrentlyFiring
+import com.princeyadav.grayout.logic.nextScheduleEvent
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.GrayoutService
 import com.princeyadav.grayout.service.GrayscaleManager
 import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.ZoneId
 
 class ScheduleAlarmManager(private val context: Context) : AlarmScheduler {
@@ -26,49 +25,14 @@ class ScheduleAlarmManager(private val context: Context) : AlarmScheduler {
         if (enabledSchedules.isEmpty()) return
 
         val now = LocalDateTime.now()
-        val today = now.toLocalDate()
-        val currentTime = now.toLocalTime()
+        val nextEvent = nextScheduleEvent(enabledSchedules, now)
 
-        var nextEventTime: LocalDateTime? = null
-        var nextIsStart = true
-
-        for (schedule in enabledSchedules) {
-            val days = schedule.daysOfWeekList
-            val schedStart = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
-            val schedEnd = LocalTime.of(schedule.endTimeHour, schedule.endTimeMinute)
-
-            for (dayOffset in 0L..7L) {
-                val checkDate = today.plusDays(dayOffset)
-                val checkDow = checkDate.dayOfWeek
-
-                if (checkDow !in days) continue
-
-                val startDt = LocalDateTime.of(checkDate, schedStart)
-                if (startDt.isAfter(now)) {
-                    if (nextEventTime == null || startDt.isBefore(nextEventTime)) {
-                        nextEventTime = startDt
-                        nextIsStart = true
-                    }
-                }
-
-                val endDate = if (schedStart.isAfter(schedEnd) || schedStart == schedEnd) {
-                    checkDate.plusDays(1)
-                } else {
-                    checkDate
-                }
-                val endDt = LocalDateTime.of(endDate, schedEnd)
-                if (endDt.isAfter(now)) {
-                    if (nextEventTime == null || endDt.isBefore(nextEventTime)) {
-                        nextEventTime = endDt
-                        nextIsStart = false
-                    }
-                }
-            }
-        }
-
-        if (nextEventTime != null) {
-            val epochMillis = nextEventTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-            setExactAlarm(epochMillis, nextIsStart)
+        if (nextEvent != null) {
+            val epochMillis = nextEvent.dateTime
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+            setExactAlarm(epochMillis, nextEvent.isStart)
         }
 
         // One-directional state sync: if the current time falls inside an active schedule
@@ -78,15 +42,7 @@ class ScheduleAlarmManager(private val context: Context) : AlarmScheduler {
         //
         // Applied inline (no broadcast) to avoid the receiver-reschedule loop that the
         // previous state-sync broadcast caused.
-        val isCurrentlyInSchedule = enabledSchedules.any { schedule ->
-            val days = schedule.daysOfWeekList
-            if (now.dayOfWeek !in days) return@any false
-
-            val schedStart = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
-            val schedEnd = LocalTime.of(schedule.endTimeHour, schedule.endTimeMinute)
-
-            isTimeWithinWindow(schedStart, schedEnd, currentTime)
-        }
+        val isCurrentlyInSchedule = enabledSchedules.any { isCurrentlyFiring(it, now) }
 
         if (isCurrentlyInSchedule) {
             val grayscaleManager = GrayscaleManager(context)

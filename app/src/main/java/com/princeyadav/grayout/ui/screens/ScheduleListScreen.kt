@@ -244,6 +244,7 @@ private fun ScheduleCard(
                         view.performHaptic(HapticAction.Toggle)
                         onToggle()
                     },
+                    contentDescription = "Schedule ${schedule.name}",
                 )
             }
 

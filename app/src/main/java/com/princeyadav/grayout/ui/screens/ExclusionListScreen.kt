@@ -340,6 +340,7 @@ private fun AppRow(
         GrayoutToggle(
             checked = app.isExcluded,
             onCheckedChange = { onToggle(app.packageName) },
+            contentDescription = "Exclude ${app.appName}",
         )
     }
 }
