@@ -67,6 +67,40 @@ internal fun nextScheduleEvent(
     return nextEvent
 }
 
+/**
+ * The soonest future window-start across [schedules], or null if none is upcoming.
+ *
+ * Starts are day-anchored (a window always starts on one of its own days), so a
+ * plain 0..7 forward scan is correct here — unlike the end-of-window math in
+ * [nextScheduleEvent], no yesterday offset is needed. Kept in logic/ so the Home
+ * screen's "next schedule" text and any other caller share one implementation.
+ */
+internal fun nextScheduleStart(
+    schedules: List<Schedule>,
+    now: LocalDateTime,
+): LocalDateTime? {
+    val today = now.toLocalDate()
+    var soonest: LocalDateTime? = null
+
+    for (schedule in schedules) {
+        if (!schedule.isEnabled) continue
+        val days = schedule.daysOfWeekList
+        val start = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
+
+        for (dayOffset in 0L..7L) {
+            val startDate = today.plusDays(dayOffset)
+            if (startDate.dayOfWeek !in days) continue
+            val startDateTime = LocalDateTime.of(startDate, start)
+            if (startDateTime.isAfter(now)) {
+                if (soonest == null || startDateTime.isBefore(soonest)) soonest = startDateTime
+                break
+            }
+        }
+    }
+
+    return soonest
+}
+
 private fun nextSoonerEvent(
     currentNext: ScheduleEvent?,
     candidateDateTime: LocalDateTime,

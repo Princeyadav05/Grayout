@@ -45,11 +45,13 @@ class ScheduleEditorViewModel(
     val isSaved: StateFlow<Boolean> = _isSaved
 
     private var editingScheduleId: Long = 0L
+    private var editingIsEnabled: Boolean = true
 
     fun loadSchedule(id: Long) {
         viewModelScope.launch {
             val schedule = repository.getById(id) ?: return@launch
             editingScheduleId = id
+            editingIsEnabled = schedule.isEnabled
             _name.value = schedule.name
             _selectedDays.value = schedule.daysOfWeekList.toSet()
             _startHour.value = schedule.startTimeHour
@@ -108,6 +110,11 @@ class ScheduleEditorViewModel(
                 return@launch
             }
 
+            if (_startHour.value == _endHour.value && _startMinute.value == _endMinute.value) {
+                _overlapError.value = "Start and end time can't be the same"
+                return@launch
+            }
+
             val daysOfWeek = days.sorted().joinToString(",") {
                 it.name.take(3)
             }
@@ -131,6 +138,7 @@ class ScheduleEditorViewModel(
                 startTimeMinute = _startMinute.value,
                 endTimeHour = _endHour.value,
                 endTimeMinute = _endMinute.value,
+                isEnabled = editingIsEnabled,
             )
             repository.save(schedule)
             alarmManager.reschedule(repository)

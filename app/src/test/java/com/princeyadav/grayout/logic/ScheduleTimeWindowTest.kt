@@ -3,6 +3,7 @@ package com.princeyadav.grayout.logic
 import com.princeyadav.grayout.model.Schedule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.DayOfWeek
@@ -113,6 +114,40 @@ class ScheduleTimeWindowTest {
         )
         val now = at(DayOfWeek.MONDAY, 10, 0)
         assertFalse(isCurrentlyFiring(s, now))
+    }
+
+    @Test
+    fun `nextScheduleStart returns today's later start`() {
+        val s = schedule(daysOfWeek = "MON", startHour = 14)
+        val now = at(DayOfWeek.MONDAY, 9, 0)
+        assertEquals(at(DayOfWeek.MONDAY, 14, 0), nextScheduleStart(listOf(s), now))
+    }
+
+    @Test
+    fun `nextScheduleStart rolls to next matching day when today's start has passed`() {
+        val s = schedule(daysOfWeek = "MON", startHour = 9)
+        val now = at(DayOfWeek.MONDAY, 12, 0)
+        // Next MON is 7 days out from the anchor Monday.
+        assertEquals(
+            LocalDateTime.of(mondayDate.plusDays(7), LocalTime.of(9, 0)),
+            nextScheduleStart(listOf(s), now),
+        )
+    }
+
+    @Test
+    fun `nextScheduleStart picks soonest across schedules and skips disabled`() {
+        val enabled = schedule(daysOfWeek = "MON", startHour = 18)
+        val disabledEarlier = schedule(daysOfWeek = "MON", startHour = 15, isEnabled = false)
+        val now = at(DayOfWeek.MONDAY, 12, 0)
+        assertEquals(
+            at(DayOfWeek.MONDAY, 18, 0),
+            nextScheduleStart(listOf(enabled, disabledEarlier), now),
+        )
+    }
+
+    @Test
+    fun `nextScheduleStart returns null when no schedules`() {
+        assertNull(nextScheduleStart(emptyList(), at(DayOfWeek.MONDAY, 12, 0)))
     }
 
     @Test

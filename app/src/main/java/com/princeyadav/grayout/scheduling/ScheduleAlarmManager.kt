@@ -55,7 +55,7 @@ class ScheduleAlarmManager(private val context: Context) : AlarmScheduler {
             if (interval > 0) {
                 val serviceIntent = Intent(context, GrayoutService::class.java)
                     .putExtra(GrayoutService.EXTRA_INTERVAL, interval)
-                context.startForegroundService(serviceIntent)
+                context.startForegroundServiceSafely(serviceIntent)
             }
         }
     }
