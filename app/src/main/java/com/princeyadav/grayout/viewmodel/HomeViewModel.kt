@@ -29,6 +29,7 @@ class HomeViewModel(
     private val loadExcludedIcons: (List<String>) -> Pair<List<Bitmap>, Int>,
     private val ioDispatcher: CoroutineDispatcher,
     private val usageAccessProbe: () -> Boolean,
+    serviceRunning: StateFlow<Boolean>,
 ) : ViewModel() {
 
     private val _isGrayscaleOn = MutableStateFlow(false)
@@ -48,6 +49,9 @@ class HomeViewModel(
 
     private val _needsAttentionCount = MutableStateFlow(0)
     val needsAttentionCount: StateFlow<Int> = _needsAttentionCount.asStateFlow()
+
+    /** Live service-running status for the Settings diagnostics row. */
+    val isServiceRunning: StateFlow<Boolean> = serviceRunning
 
     private val _navigateToSetup = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val navigateToSetup: SharedFlow<Unit> = _navigateToSetup.asSharedFlow()
@@ -156,6 +160,7 @@ class HomeViewModelFactory(
     private val loadExcludedIcons: (List<String>) -> Pair<List<Bitmap>, Int>,
     private val ioDispatcher: CoroutineDispatcher,
     private val usageAccessProbe: () -> Boolean,
+    private val serviceRunning: StateFlow<Boolean>,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -167,6 +172,7 @@ class HomeViewModelFactory(
             loadExcludedIcons,
             ioDispatcher,
             usageAccessProbe,
+            serviceRunning,
         ) as T
     }
 }

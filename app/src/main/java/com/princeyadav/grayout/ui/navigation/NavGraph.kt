@@ -1,7 +1,10 @@
 package com.princeyadav.grayout.ui.navigation
 
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.provider.Settings as AndroidSettings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,6 +47,23 @@ import com.princeyadav.grayout.viewmodel.ScheduleEditorViewModel
 import com.princeyadav.grayout.viewmodel.ScheduleEditorViewModelFactory
 import com.princeyadav.grayout.viewmodel.ScheduleViewModel
 import com.princeyadav.grayout.viewmodel.ScheduleViewModelFactory
+
+/**
+ * The installed APK's versionName (git-tag-derived at release, "1.0.0-dev" locally),
+ * or "unknown" if unavailable. Reads the real artifact instead of a hardcoded string.
+ */
+private fun installedVersionName(context: Context): String = try {
+    val pm = context.packageManager
+    val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        pm.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
+    } else {
+        @Suppress("DEPRECATION")
+        pm.getPackageInfo(context.packageName, 0)
+    }
+    info.versionName?.takeIf { it.isNotBlank() } ?: "unknown"
+} catch (_: PackageManager.NameNotFoundException) {
+    "unknown"
+}
 
 object Routes {
     const val HOME = "home"
@@ -220,6 +240,8 @@ fun GrayoutNavGraph(
             var isUsageAccessGranted by remember {
                 mutableStateOf(UsageAccess.isGranted(context))
             }
+            val isServiceRunning by homeViewModel.isServiceRunning.collectAsStateWithLifecycle()
+            val versionName = remember(context) { installedVersionName(context) }
 
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -229,6 +251,8 @@ fun GrayoutNavGraph(
 
             SettingsScreen(
                 enforcementInterval = enforcementInterval,
+                isServiceRunning = isServiceRunning,
+                versionName = versionName,
                 isAdbPermissionGranted = isAdbPermissionGranted,
                 isUsageAccessGranted = isUsageAccessGranted,
                 isBatteryUnrestricted = isBatteryUnrestricted,

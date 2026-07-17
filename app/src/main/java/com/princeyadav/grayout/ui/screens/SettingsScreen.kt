@@ -28,6 +28,8 @@ import com.princeyadav.grayout.ui.theme.GrayoutTheme
 @Composable
 fun SettingsScreen(
     enforcementInterval: Int,
+    isServiceRunning: Boolean,
+    versionName: String,
     isAdbPermissionGranted: Boolean,
     isUsageAccessGranted: Boolean,
     isBatteryUnrestricted: Boolean,
@@ -55,7 +57,10 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(dimens.sectionGap))
 
-        ServiceCard(enforcementInterval = enforcementInterval)
+        ServiceCard(
+            enforcementInterval = enforcementInterval,
+            isServiceRunning = isServiceRunning,
+        )
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
 
@@ -69,7 +74,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
 
-        AboutCard()
+        AboutCard(versionName = versionName)
 
         Spacer(modifier = Modifier.height(dimens.sectionGap))
 
@@ -95,7 +100,7 @@ private fun SectionHeader(title: String) {
 }
 
 @Composable
-private fun ServiceCard(enforcementInterval: Int) {
+private fun ServiceCard(enforcementInterval: Int, isServiceRunning: Boolean) {
     val colors = GrayoutTheme.colors
     val dimens = GrayoutTheme.dimens
 
@@ -113,8 +118,8 @@ private fun ServiceCard(enforcementInterval: Int) {
 
             SettingsRow(
                 label = "Service status",
-                subtitle = "Running",
-                trailing = { StatusDot(isActive = true) },
+                subtitle = if (isServiceRunning) "Running" else "Stopped",
+                trailing = { StatusDot(isActive = isServiceRunning) },
             )
         }
     }
@@ -191,7 +196,7 @@ private fun SetupCard(
 }
 
 @Composable
-private fun AboutCard() {
+private fun AboutCard(versionName: String) {
     val colors = GrayoutTheme.colors
     val dimens = GrayoutTheme.dimens
 
@@ -201,7 +206,7 @@ private fun AboutCard() {
 
             SettingsRow(
                 label = "Version",
-                subtitle = "1.0",
+                subtitle = versionName,
             )
 
             HorizontalDivider(thickness = 1.dp, color = colors.border)

@@ -25,6 +25,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class GrayoutService : Service() {
 
@@ -125,6 +128,8 @@ class GrayoutService : Service() {
             },
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+
+        _isRunning.value = true
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -252,6 +257,7 @@ class GrayoutService : Service() {
     }
 
     override fun onDestroy() {
+        _isRunning.value = false
         contentResolver.unregisterContentObserver(grayscaleObserver)
         detector.stop()
         detectorScope.cancel()
@@ -370,6 +376,17 @@ class GrayoutService : Service() {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()
 
     companion object {
+        private val _isRunning = MutableStateFlow(false)
+
+        /**
+         * Whether a [GrayoutService] instance is alive (onCreate..onDestroy),
+         * observed for diagnostics on the Settings screen. Reflects actual liveness
+         * — including self-stops when enforcement is off with no exclusions, or on a
+         * lost WRITE_SECURE_SETTINGS permission — not just whether the service is
+         * configured to run. Emits so the UI updates live, not only on screen resume.
+         */
+        val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
+
         const val CHANNEL_ID = "grayout_service"
         const val NOTIFICATION_ID = 1
         const val EXTRA_INTERVAL = "enforcement_interval_minutes"

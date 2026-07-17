@@ -9,6 +9,7 @@ import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
 import com.princeyadav.grayout.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -27,14 +28,17 @@ class HomeViewModelTest {
     private lateinit var enforcementPrefs: EnforcementPrefs
     private lateinit var exclusionPrefs: ExclusionPrefs
     private var batteryOptimized = true // true = exempt/granted
+    private val serviceRunning = MutableStateFlow(false)
 
     private fun vm(
         canWrite: Boolean = true,
         usageAccessGranted: Boolean = true,
         isBatteryOptimized: Boolean = true,
+        serviceRunning: Boolean = false,
     ): HomeViewModel {
         grayscale.canWrite = canWrite
         batteryOptimized = isBatteryOptimized
+        this.serviceRunning.value = serviceRunning
         return HomeViewModel(
             grayscaleManager = grayscale,
             enforcementPrefs = enforcementPrefs,
@@ -43,6 +47,7 @@ class HomeViewModelTest {
             loadExcludedIcons = { _ -> emptyList<android.graphics.Bitmap>() to 0 },
             ioDispatcher = dispatcherRule.dispatcher,
             usageAccessProbe = { usageAccessGranted },
+            serviceRunning = this.serviceRunning,
         )
     }
 
@@ -188,5 +193,28 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertEquals("No active schedule", homeViewModel.nextScheduleText.value)
+    }
+
+    @Test
+    fun `isServiceRunning reflects the injected flow at construction`() = runTest {
+        val running = vm(serviceRunning = true)
+        advanceUntilIdle()
+        assertTrue(running.isServiceRunning.value)
+
+        val stopped = vm(serviceRunning = false)
+        advanceUntilIdle()
+        assertFalse(stopped.isServiceRunning.value)
+    }
+
+    @Test
+    fun `isServiceRunning follows the service flow live without a refresh call`() = runTest {
+        val homeViewModel = vm(serviceRunning = true)
+        advanceUntilIdle()
+        assertTrue(homeViewModel.isServiceRunning.value)
+
+        serviceRunning.value = false
+        advanceUntilIdle()
+
+        assertFalse(homeViewModel.isServiceRunning.value)
     }
 }
