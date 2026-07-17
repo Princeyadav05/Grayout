@@ -35,9 +35,9 @@ class EnforcementTickTest {
         enforcementPrefs.setInterval(5)
         grayscale.grayscaleEnabled = false
 
-        val applied = applyEnforcementTick(enforcementPrefs, exclusionPrefs, grayscale)
+        val result = applyEnforcementTick(enforcementPrefs, exclusionPrefs, grayscale)
 
-        assertTrue(applied)
+        assertEquals(EnforcementTickResult.Applied, result)
         assertTrue(grayscale.isGrayscaleEnabled())
     }
 
@@ -46,9 +46,9 @@ class EnforcementTickTest {
         enforcementPrefs.setInterval(0)
         grayscale.grayscaleEnabled = false
 
-        val applied = applyEnforcementTick(enforcementPrefs, exclusionPrefs, grayscale)
+        val result = applyEnforcementTick(enforcementPrefs, exclusionPrefs, grayscale)
 
-        assertFalse(applied)
+        assertEquals(EnforcementTickResult.Skipped, result)
         assertFalse(grayscale.isGrayscaleEnabled())
         assertEquals(0, grayscale.setGrayscaleCallCount)
     }
@@ -59,9 +59,9 @@ class EnforcementTickTest {
         exclusionPrefs.setExcludedAppActive(true)
         grayscale.grayscaleEnabled = false
 
-        val applied = applyEnforcementTick(enforcementPrefs, exclusionPrefs, grayscale)
+        val result = applyEnforcementTick(enforcementPrefs, exclusionPrefs, grayscale)
 
-        assertFalse(applied)
+        assertEquals(EnforcementTickResult.Skipped, result)
         assertFalse(grayscale.isGrayscaleEnabled())
         assertEquals(0, grayscale.setGrayscaleCallCount)
     }
@@ -71,22 +71,22 @@ class EnforcementTickTest {
         enforcementPrefs.setInterval(5)
         grayscale.grayscaleEnabled = true
 
-        val applied = applyEnforcementTick(enforcementPrefs, exclusionPrefs, grayscale)
+        val result = applyEnforcementTick(enforcementPrefs, exclusionPrefs, grayscale)
 
-        assertFalse(applied)
+        assertEquals(EnforcementTickResult.Skipped, result)
         assertTrue(grayscale.isGrayscaleEnabled())
         assertEquals(0, grayscale.setGrayscaleCallCount)
     }
 
     @Test
-    fun `returns false when secure-settings write fails`() {
+    fun `reports WriteFailed when secure-settings write is rejected`() {
         enforcementPrefs.setInterval(5)
         grayscale.grayscaleEnabled = false
-        grayscale.canWrite = false
+        grayscale.canWrite = false // e.g. WRITE_SECURE_SETTINGS revoked
 
-        val applied = applyEnforcementTick(enforcementPrefs, exclusionPrefs, grayscale)
+        val result = applyEnforcementTick(enforcementPrefs, exclusionPrefs, grayscale)
 
-        assertFalse(applied)
+        assertEquals(EnforcementTickResult.WriteFailed, result)
         assertFalse(grayscale.isGrayscaleEnabled())
     }
 }

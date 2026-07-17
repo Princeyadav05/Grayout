@@ -6,7 +6,19 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-/** How often the detector samples the foreground app while armed. */
+/**
+ * How often the detector samples the foreground app while armed.
+ *
+ * ponytail: fixed 1s, deliberately not adaptive. Backing off when the foreground
+ * package looks stable would add the backoff window to enter/exit detection — the
+ * user would stare at an excluded app in grayscale (or leak colour after leaving
+ * one) for that whole window, regressing the feature's core promise, because the
+ * change we'd react to is only observed at poll time. The cost is already bounded:
+ * the loop runs only while the screen is on (whose display draw dwarfs a 1s
+ * UsageStats query) AND at least one exclusion is configured (both gated by the
+ * caller). Revisit with adaptive cadence only if battery profiling shows this
+ * loop is a real drain.
+ */
 const val POLL_INTERVAL_MS = 1_000L
 
 /** How far back [UsageStatsForegroundProvider] looks for foreground events. */

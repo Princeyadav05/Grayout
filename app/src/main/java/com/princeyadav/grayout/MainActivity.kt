@@ -29,6 +29,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.princeyadav.grayout.service.EnforcementPrefs
@@ -43,7 +44,6 @@ import com.princeyadav.grayout.ui.theme.GrayoutTheme
 import com.princeyadav.grayout.viewmodel.HomeViewModel
 import com.princeyadav.grayout.viewmodel.HomeViewModelFactory
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -72,26 +72,23 @@ class MainActivity : ComponentActivity() {
                 getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
             },
             loadExcludedIcons = { packages ->
+                val pm = applicationContext.packageManager
                 val icons = mutableListOf<Bitmap>()
-                var loaded = 0
-                var found = 0
+                var installedCount = 0
                 for (pkg in packages) {
-                    val bitmap = try {
-                        applicationContext.packageManager
-                            .getApplicationIcon(pkg)
-                            .toBitmap(width = 64, height = 64)
+                    // Cheap ApplicationInfo lookup (no bitmap) counts every installed
+                    // excluded app for the "+N" badge; only the first 3 are decoded.
+                    val info = try {
+                        pm.getApplicationInfo(pkg, 0)
                     } catch (_: PackageManager.NameNotFoundException) {
-                        null
+                        continue
                     }
-                    if (bitmap != null) {
-                        found++
-                        if (loaded < 3) {
-                            icons.add(bitmap)
-                            loaded++
-                        }
+                    installedCount++
+                    if (icons.size < 3) {
+                        icons.add(pm.getApplicationIcon(info).toBitmap(width = 64, height = 64))
                     }
                 }
-                icons to (found - loaded).coerceAtLeast(0)
+                icons to (installedCount - icons.size).coerceAtLeast(0)
             },
             ioDispatcher = Dispatchers.IO,
             usageAccessProbe = { UsageAccess.isGranted(applicationContext) },
@@ -135,14 +132,23 @@ class MainActivity : ComponentActivity() {
 
         startForegroundService(Intent(this, GrayoutService::class.java))
 
+        // Push interval changes to the service, but only while at least STARTED: a
+        // background startForegroundService throws ForegroundServiceStartNotAllowedException
+        // on API 31+. repeatOnLifecycle re-collects on each STARTED and cancels below
+        // it, so no emission is processed while backgrounded. The lastSent guard skips
+        // the StateFlow replay on resume while still delivering a change that landed
+        // while stopped (its value differs), so no genuine update is dropped.
+        var lastSentInterval: Int? = null
         lifecycleScope.launch {
-            homeViewModel.enforcementInterval
-                .drop(1)
-                .collect { interval ->
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                homeViewModel.enforcementInterval.collect { interval ->
+                    if (interval == lastSentInterval) return@collect
+                    lastSentInterval = interval
                     val intent = Intent(this@MainActivity, GrayoutService::class.java)
                         .putExtra(GrayoutService.EXTRA_INTERVAL, interval)
                     startForegroundService(intent)
                 }
+            }
         }
 
         refreshSystemChecks()

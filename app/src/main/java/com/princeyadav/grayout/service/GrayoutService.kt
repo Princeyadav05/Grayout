@@ -66,7 +66,7 @@ class GrayoutService : Service() {
             if (!grayscaleManager.isGrayscaleEnabled()) {
                 val delayMs = currentInterval * 60_000L
                 countdownTargetMs = System.currentTimeMillis() + delayMs
-                scheduleEnforcementAlarm(countdownTargetMs)
+                scheduleEnforcementAlarm(this@GrayoutService, countdownTargetMs)
                 updateNotification(countdownTarget = countdownTargetMs)
             } else {
                 updateNotification(countdownTarget = null)
@@ -144,7 +144,7 @@ class GrayoutService : Service() {
 
         // (A) Nothing to do: enforcement off and no excluded apps -> stop fully.
         if (!shouldServiceRun(interval, excludedCount)) {
-            reconcileStrandedExclusion()
+            reconcileStrandedExclusion(exclusionPrefs, grayscaleManager)
             cancelEnforcementAlarm()
             countdownTargetMs = 0L
             detector.stop()
@@ -164,7 +164,7 @@ class GrayoutService : Service() {
             // re-gray mid-session (a visible flicker when the user returns to the
             // excluded app). The detector self-heals via a proper Exit on its next
             // non-own, non-excluded tick, and GrayoutApp heals cold starts.
-            if (intent == null) reconcileStrandedExclusion()
+            if (intent == null) reconcileStrandedExclusion(exclusionPrefs, grayscaleManager)
             cancelEnforcementAlarm()
             countdownTargetMs = 0L
             startForeground(NOTIFICATION_ID, buildNotification(0, exclusionOnly = true))
@@ -183,7 +183,7 @@ class GrayoutService : Service() {
         // multi-exclusion session is never cleared, and reconcile self-guards on
         // isExcludedAppActive() (no-op in the normal no-exclusions case). Placed
         // before the scheduling block so a wasOn=false heal re-arms the alarm.
-        if (excludedCount == 0) reconcileStrandedExclusion()
+        if (excludedCount == 0) reconcileStrandedExclusion(exclusionPrefs, grayscaleManager)
 
         val now = System.currentTimeMillis()
         val hasActiveCountdown = countdownTargetMs > now
@@ -199,7 +199,7 @@ class GrayoutService : Service() {
             if (!exclusionPrefs.isExcludedAppActive() && !grayscaleManager.isGrayscaleEnabled()) {
                 val delayMs = currentInterval * 60_000L
                 countdownTargetMs = now + delayMs
-                scheduleEnforcementAlarm(countdownTargetMs)
+                scheduleEnforcementAlarm(this, countdownTargetMs)
                 startForeground(NOTIFICATION_ID, buildNotification(interval, countdownTargetMs))
             } else {
                 startForeground(NOTIFICATION_ID, buildNotification(interval))
@@ -239,20 +239,6 @@ class GrayoutService : Service() {
             startForeground(NOTIFICATION_ID, buildNotification(currentInterval, countdownTargetMs))
         } else {
             startForeground(NOTIFICATION_ID, buildNotification(currentInterval))
-        }
-    }
-
-    /**
-     * Clears a stranded `excludedAppActive` flag and restores grayscale if it was
-     * on when the excluded app was entered, covering a screen-off teardown that
-     * left the flag set. [GrayoutApp.clearExclusionState] remains the primary
-     * cold-start healer; it does not restore wasOn, so this covers warm restart.
-     */
-    private fun reconcileStrandedExclusion() {
-        if (exclusionPrefs.isExcludedAppActive()) {
-            val wasOn = exclusionPrefs.wasGrayscaleOnBeforeExclusion()
-            exclusionPrefs.clearExclusionState()
-            if (wasOn) grayscaleManager.setGrayscale(true)
         }
     }
 
@@ -323,33 +309,6 @@ class GrayoutService : Service() {
         manager.notify(NOTIFICATION_ID, buildNotification(currentInterval, countdownTarget))
     }
 
-    private fun scheduleEnforcementAlarm(triggerAtMillis: Long) {
-        val intent = Intent(this, EnforcementAlarmReceiver::class.java)
-            .setAction(ACTION_ENFORCEMENT_TICK)
-        val pi = PendingIntent.getBroadcast(
-            this, ENFORCEMENT_ALARM_REQUEST_CODE, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val am = getSystemService(AlarmManager::class.java)
-        val elapsedTarget = SystemClock.elapsedRealtime() +
-            (triggerAtMillis - System.currentTimeMillis())
-        try {
-            if (canScheduleExact(am)) {
-                am.setExactAndAllowWhileIdle(
-                    AlarmManager.ELAPSED_REALTIME_WAKEUP, elapsedTarget, pi,
-                )
-            } else {
-                am.setAndAllowWhileIdle(
-                    AlarmManager.ELAPSED_REALTIME_WAKEUP, elapsedTarget, pi,
-                )
-            }
-        } catch (_: SecurityException) {
-            am.setAndAllowWhileIdle(
-                AlarmManager.ELAPSED_REALTIME_WAKEUP, elapsedTarget, pi,
-            )
-        }
-    }
-
     private fun cancelEnforcementAlarm() {
         val intent = Intent(this, EnforcementAlarmReceiver::class.java)
             .setAction(ACTION_ENFORCEMENT_TICK)
@@ -372,9 +331,6 @@ class GrayoutService : Service() {
         ) != null
     }
 
-    private fun canScheduleExact(am: AlarmManager): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()
-
     companion object {
         private val _isRunning = MutableStateFlow(false)
 
@@ -391,7 +347,9 @@ class GrayoutService : Service() {
         const val NOTIFICATION_ID = 1
         const val EXTRA_INTERVAL = "enforcement_interval_minutes"
         const val ACTION_ENFORCEMENT_TICK = "com.princeyadav.grayout.ENFORCEMENT_TICK"
-        private const val ENFORCEMENT_ALARM_REQUEST_CODE = 2001
+        // internal so EnforcementAlarmReceiver (via scheduleEnforcementAlarm) can
+        // reschedule a retry on the same PendingIntent after a failed tick.
+        internal const val ENFORCEMENT_ALARM_REQUEST_CODE = 2001
     }
 }
 
@@ -408,6 +366,58 @@ fun shouldReEnableOnExclusionEnd(
     reEnablePending: Boolean,
     grayscaleEnabled: Boolean,
 ): Boolean = interval > 0 && !reEnablePending && !grayscaleEnabled
+
+/**
+ * Schedules (or reschedules) the enforcement re-enable alarm to fire at
+ * [triggerAtMillis] (wall-clock). Shared by [GrayoutService] and
+ * [EnforcementAlarmReceiver] (the receiver reschedules a retry when a tick's write
+ * fails, so a transient failure resolves next interval and a restored permission
+ * auto-recovers). Falls back to an inexact alarm when exact alarms are unavailable
+ * or revoked, mirroring the countdown-alarm contract.
+ */
+internal fun scheduleEnforcementAlarm(context: Context, triggerAtMillis: Long) {
+    val intent = Intent(context, EnforcementAlarmReceiver::class.java)
+        .setAction(GrayoutService.ACTION_ENFORCEMENT_TICK)
+    val pi = PendingIntent.getBroadcast(
+        context, GrayoutService.ENFORCEMENT_ALARM_REQUEST_CODE, intent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    val am = context.getSystemService(AlarmManager::class.java)
+    val elapsedTarget = SystemClock.elapsedRealtime() +
+        (triggerAtMillis - System.currentTimeMillis())
+    val canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()
+    try {
+        if (canExact) {
+            am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, elapsedTarget, pi)
+        } else {
+            am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, elapsedTarget, pi)
+        }
+    } catch (_: SecurityException) {
+        am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, elapsedTarget, pi)
+    }
+}
+
+/**
+ * Clears a stranded `excludedAppActive` flag, restoring grayscale first if it was
+ * on when the excluded app was entered. Shared by [GrayoutService] (warm restart:
+ * a screen-off teardown that left the flag set) and [com.princeyadav.grayout.GrayoutApp]
+ * (cold start: process death inside an excluded app) so both wake gray, not colour.
+ *
+ * Writes grayscale BEFORE clearing the flags and clears only if the write stuck —
+ * so a revoked WRITE_SECURE_SETTINGS can't strand the FSM with grayscale off and
+ * the recovery evidence (`wasOn`) destroyed. Mirrors [preGrayOnScreenOff]. Returns
+ * whether it restored grayscale. Testable with fakes.
+ */
+fun reconcileStrandedExclusion(
+    exclusionPrefs: ExclusionPrefs,
+    grayscale: GrayscaleController,
+): Boolean {
+    if (!exclusionPrefs.isExcludedAppActive()) return false
+    val wasOn = exclusionPrefs.wasGrayscaleOnBeforeExclusion()
+    if (wasOn && !grayscale.setGrayscale(true)) return false
+    exclusionPrefs.clearExclusionState()
+    return wasOn
+}
 
 /**
  * Whether SCREEN_OFF should pre-assert grayscale so the device wakes gray rather
