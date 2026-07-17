@@ -21,14 +21,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +46,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -52,6 +62,8 @@ import com.princeyadav.grayout.ui.components.performHaptic
 import com.princeyadav.grayout.ui.theme.GrayoutMotion
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 import java.time.DayOfWeek
+import java.time.format.TextStyle
+import java.util.Locale
 
 @Composable
 fun ScheduleEditorScreen(
@@ -77,6 +89,7 @@ fun ScheduleEditorScreen(
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
     val context = LocalContext.current
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -142,7 +155,7 @@ fun ScheduleEditorScreen(
                     { _, h, m -> onSetStartTime(h, m) },
                     startHour,
                     startMinute,
-                    false,
+                    android.text.format.DateFormat.is24HourFormat(context),
                 ).show()
             },
             onEndTimeClick = {
@@ -152,7 +165,7 @@ fun ScheduleEditorScreen(
                     { _, h, m -> onSetEndTime(h, m) },
                     endHour,
                     endMinute,
-                    false,
+                    android.text.format.DateFormat.is24HourFormat(context),
                 ).show()
             },
         )
@@ -221,13 +234,24 @@ fun ScheduleEditorScreen(
                         indication = null,
                     ) {
                         view.performHaptic(HapticAction.Destructive)
-                        onDelete()
+                        showDeleteConfirm = true
                     }
                     .padding(vertical = 12.dp),
             )
         }
 
         Spacer(modifier = Modifier.height(dimens.sectionGap))
+    }
+
+    if (showDeleteConfirm) {
+        DeleteConfirmSheet(
+            scheduleName = name,
+            onConfirm = {
+                showDeleteConfirm = false
+                onDelete()
+            },
+            onDismiss = { showDeleteConfirm = false },
+        )
     }
 }
 
@@ -355,6 +379,7 @@ private fun TimeCard(
                     text = "\u2192",
                     style = typography.headingMedium,
                     color = colors.textDim,
+                    modifier = Modifier.clearAndSetSemantics {},
                 )
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -432,19 +457,23 @@ private fun DaysCard(
                 val view = LocalView.current
                 dayLabels.forEach { (day, label) ->
                     val isSelected = day in selectedDays
+                    val dayName = day.getDisplayName(TextStyle.FULL, Locale.getDefault())
 
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 48.dp)
-                            .clickable(
+                            .toggleable(
+                                value = isSelected,
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
+                                role = Role.Checkbox,
                             ) {
                                 view.performHaptic(HapticAction.Toggle)
                                 onToggleDay(day)
-                            },
+                            }
+                            .semantics { contentDescription = dayName },
                     ) {
                         Box(
                             contentAlignment = Alignment.Center,
@@ -465,7 +494,8 @@ private fun DaysCard(
                                 style = typography.labelXSmall.copy(
                                     fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
                                 ),
-                                color = if (isSelected) colors.bg else colors.textDim,
+                                color = if (isSelected) colors.bg else colors.textMuted,
+                                modifier = Modifier.clearAndSetSemantics {},
                             )
                         }
                     }
@@ -543,6 +573,10 @@ private fun PresetChip(
                 view.performHaptic(HapticAction.Toggle)
                 onClick()
             }
+            .semantics {
+                role = Role.RadioButton
+                selected = isActive
+            }
             .padding(horizontal = 14.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -553,5 +587,102 @@ private fun PresetChip(
             ),
             color = textColor,
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DeleteConfirmSheet(
+    scheduleName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = GrayoutTheme.colors
+    val typography = GrayoutTheme.typography
+    val dimens = GrayoutTheme.dimens
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val label = scheduleName.ifBlank { "this schedule" }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = colors.surface,
+        contentColor = colors.text,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp)
+                    .size(width = 32.dp, height = 4.dp)
+                    .background(colors.borderActive, RoundedCornerShape(2.dp)),
+            )
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = dimens.cardPadLarge)
+                .padding(bottom = dimens.sectionGap),
+        ) {
+            Text(
+                text = "Delete schedule?",
+                style = typography.headingSmall,
+                color = colors.text,
+            )
+
+            Spacer(modifier = Modifier.height(dimens.tightGap))
+
+            Text(
+                text = "“$label” will be removed. This can't be undone.",
+                style = typography.bodyMedium,
+                color = colors.textMuted,
+            )
+
+            Spacer(modifier = Modifier.height(dimens.sectionGap))
+
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .sizeIn(minHeight = 48.dp)
+                    .background(colors.danger, RoundedCornerShape(dimens.radius))
+                    .clip(RoundedCornerShape(dimens.radius))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { onConfirm() }
+                    .semantics { role = Role.Button }
+                    .padding(vertical = 16.dp),
+            ) {
+                Text(
+                    text = "Delete",
+                    style = typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
+                    color = colors.bg,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(dimens.cardGap))
+
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .sizeIn(minHeight = 48.dp)
+                    .border(1.dp, colors.border, RoundedCornerShape(dimens.radius))
+                    .clip(RoundedCornerShape(dimens.radius))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { onDismiss() }
+                    .semantics { role = Role.Button }
+                    .padding(vertical = 16.dp),
+            ) {
+                Text(
+                    text = "Cancel",
+                    style = typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
+                    color = colors.text,
+                )
+            }
+        }
     }
 }

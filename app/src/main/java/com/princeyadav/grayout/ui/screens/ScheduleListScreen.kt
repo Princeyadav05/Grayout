@@ -32,6 +32,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -44,6 +46,8 @@ import com.princeyadav.grayout.ui.components.performHaptic
 import com.princeyadav.grayout.ui.theme.BrandAccent
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 import java.time.DayOfWeek
+import java.time.format.TextStyle
+import java.util.Locale
 
 @Composable
 fun ScheduleListScreen(
@@ -132,7 +136,7 @@ fun ScheduleListScreen(
                         Text(
                             text = "Tap + Add to create your first schedule",
                             style = typography.bodyMedium,
-                            color = colors.textDim,
+                            color = colors.textMuted,
                             textAlign = TextAlign.Center,
                         )
 
@@ -300,9 +304,15 @@ private fun DayDotsRow(
         DayOfWeek.SUNDAY to "S",
     )
 
+    val selectedNames = dayLabels
+        .filter { (day, _) -> day.name.take(3) in selectedDays }
+        .map { (day, _) -> day.getDisplayName(TextStyle.SHORT, Locale.getDefault()) }
+    val daysDescription =
+        if (selectedNames.isEmpty()) "No days" else selectedNames.joinToString(", ")
+
     Row(
         horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
-        modifier = modifier,
+        modifier = modifier.clearAndSetSemantics { contentDescription = daysDescription },
     ) {
         dayLabels.forEach { (day, label) ->
             val dayKey = day.name.take(3)
@@ -327,7 +337,7 @@ private fun DayDotsRow(
                     style = typography.labelXSmall.copy(
                         fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
                     ),
-                    color = if (isSelected) colors.bg else colors.textDim,
+                    color = if (isSelected) colors.bg else colors.textMuted,
                 )
             }
         }

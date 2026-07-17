@@ -36,6 +36,11 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.R
@@ -181,6 +186,7 @@ private fun NeedsAttentionStrip(
                 text = "›",
                 style = typography.headingMedium,
                 color = colors.textMuted,
+                modifier = Modifier.clearAndSetSemantics {},
             )
         }
     }
@@ -413,6 +419,10 @@ private fun EnforcementChip(
                 view.performHaptic(HapticAction.Toggle)
                 onClick()
             }
+            .semantics {
+                role = Role.RadioButton
+                selected = isActive
+            }
             .padding(horizontal = 2.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -508,6 +518,7 @@ private fun ExcludedAppsCard(
                 text = "›",
                 style = typography.headingMedium,
                 color = colors.textDim,
+                modifier = Modifier.clearAndSetSemantics {},
             )
         }
     }
