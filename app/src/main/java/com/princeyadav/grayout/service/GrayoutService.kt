@@ -21,6 +21,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.princeyadav.grayout.MainActivity
 import com.princeyadav.grayout.R
+import com.princeyadav.grayout.ui.theme.BrandAccentArgb
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -281,7 +282,7 @@ class GrayoutService : Service() {
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_tile)
             .setContentTitle("Grayscale enforcement")
-            .setColor(0xFFB5A0D8.toInt())
+            .setColor(BrandAccentArgb)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
 
