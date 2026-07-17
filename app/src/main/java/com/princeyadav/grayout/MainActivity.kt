@@ -95,6 +95,7 @@ class MainActivity : ComponentActivity() {
             },
             ioDispatcher = Dispatchers.IO,
             usageAccessProbe = { UsageAccess.isGranted(applicationContext) },
+            serviceRunning = GrayoutService.isRunning,
         )
     }
 
