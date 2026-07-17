@@ -53,12 +53,11 @@ android {
 
     buildTypes {
         release {
+            // R8 intentionally off: no reflection/serialization surfaces that need keep rules,
+            // and releases are smoke-tested on-device manually (RELEASING.md), not from a signed
+            // local build. Re-add proguardFiles + flip this if APK size ever justifies owning R8.
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("release")
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
         }
     }
     compileOptions {
