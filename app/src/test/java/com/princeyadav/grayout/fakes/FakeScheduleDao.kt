@@ -27,6 +27,8 @@ class FakeScheduleDao : ScheduleDao {
     override suspend fun getEnabledSchedules(): List<Schedule> =
         store.value.filter { it.isEnabled }
 
+    override suspend fun getAll(): List<Schedule> = store.value
+
     override suspend fun getById(id: Long): Schedule? =
         store.value.firstOrNull { it.id == id }
 

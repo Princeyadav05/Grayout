@@ -112,6 +112,31 @@ class ScheduleRepositoryTest {
     }
 
     @Test
+    fun `findOverlap detects adjacent-day overnight spillover across disjoint day sets`() = runTest {
+        // MON 22:00 -> 02:00 spills into Tuesday; a new TUE 01:00 -> 03:00 clashes.
+        dao.insert(
+            schedule(name = "Night", daysOfWeek = "MON", startHour = 22, endHour = 2),
+        )
+
+        val result = repository.findOverlap("TUE", 1, 0, 3, 0)
+
+        assertNotNull("MON overnight tail overlaps TUE morning window", result)
+        assertEquals("Night", result!!.name)
+    }
+
+    @Test
+    fun `findOverlap detects conflict with a disabled schedule`() = runTest {
+        dao.insert(
+            schedule(name = "Disabled", daysOfWeek = "MON", startHour = 9, endHour = 12, isEnabled = false),
+        )
+
+        val result = repository.findOverlap("MON", 10, 0, 13, 0)
+
+        assertNotNull("overlap must be checked against disabled schedules too", result)
+        assertEquals("Disabled", result!!.name)
+    }
+
+    @Test
     fun `findOverlap handles midnight-crossing window overlap correctly`() = runTest {
         dao.insert(
             schedule(

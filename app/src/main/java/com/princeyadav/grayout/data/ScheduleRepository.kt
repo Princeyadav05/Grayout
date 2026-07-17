@@ -1,5 +1,6 @@
 package com.princeyadav.grayout.data
 
+import com.princeyadav.grayout.logic.schedulesOverlap
 import com.princeyadav.grayout.model.Schedule
 import kotlinx.coroutines.flow.Flow
 
@@ -24,6 +25,13 @@ class ScheduleRepository(private val dao: ScheduleDao) {
 
     suspend fun setEnabled(id: Long, enabled: Boolean) = dao.setEnabled(id, enabled)
 
+    /**
+     * The first stored schedule whose window overlaps the candidate window in
+     * real time, or null. Checks *all* schedules (enabled or not): the editor is
+     * the only creation path, so refusing any geometric overlap here keeps the DB
+     * free of overlapping pairs, which in turn makes re-enabling a schedule safe
+     * without a separate toggle-time check.
+     */
     suspend fun findOverlap(
         daysOfWeek: String,
         startHour: Int,
@@ -32,37 +40,16 @@ class ScheduleRepository(private val dao: ScheduleDao) {
         endMinute: Int,
         excludeId: Long = 0L,
     ): Schedule? {
-        val newDays = daysOfWeek.split(",").toSet()
-        val newStart = startHour * 60 + startMinute
-        val newEnd = endHour * 60 + endMinute
-
-        val existing = dao.getEnabledSchedules()
-        return existing.firstOrNull { schedule ->
-            if (schedule.id == excludeId) return@firstOrNull false
-
-            val existDays = schedule.daysOfWeek.split(",").toSet()
-            if (newDays.intersect(existDays).isEmpty()) return@firstOrNull false
-
-            val existStart = schedule.startTimeHour * 60 + schedule.startTimeMinute
-            val existEnd = schedule.endTimeHour * 60 + schedule.endTimeMinute
-
-            timeRangesOverlap(newStart, newEnd, existStart, existEnd)
-        }
-    }
-
-    private fun timeRangesOverlap(
-        aStart: Int, aEnd: Int,
-        bStart: Int, bEnd: Int,
-    ): Boolean {
-        val aRanges = if (aStart < aEnd) listOf(aStart to aEnd)
-                      else listOf(aStart to 1440, 0 to aEnd)
-        val bRanges = if (bStart < bEnd) listOf(bStart to bEnd)
-                      else listOf(bStart to 1440, 0 to bEnd)
-
-        return aRanges.any { (as1, ae1) ->
-            bRanges.any { (bs1, be1) ->
-                as1 < be1 && bs1 < ae1
-            }
+        val candidate = Schedule(
+            name = "",
+            daysOfWeek = daysOfWeek,
+            startTimeHour = startHour,
+            startTimeMinute = startMinute,
+            endTimeHour = endHour,
+            endTimeMinute = endMinute,
+        )
+        return dao.getAll().firstOrNull { existing ->
+            existing.id != excludeId && schedulesOverlap(candidate, existing)
         }
     }
 }

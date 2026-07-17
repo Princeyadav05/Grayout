@@ -76,6 +76,48 @@ class ScheduleEditorViewModelTest {
     }
 
     @Test
+    fun `save with equal start and end sets overlapError and does not persist`() = runTest {
+        vm.setName("bad")
+        vm.toggleDay(DayOfWeek.MONDAY)
+        vm.setStartTime(9, 0)
+        vm.setEndTime(9, 0)
+
+        vm.save()
+        advanceUntilIdle()
+
+        assertEquals("Start and end time can't be the same", vm.overlapError.value)
+        assertFalse(vm.isSaved.value)
+        assertTrue("nothing should be persisted", dao.getAll().isEmpty())
+    }
+
+    @Test
+    fun `editing a disabled schedule preserves its disabled state`() = runTest {
+        val id = dao.insert(
+            Schedule(
+                id = 0L,
+                name = "Off",
+                daysOfWeek = "MON",
+                startTimeHour = 9,
+                startTimeMinute = 0,
+                endTimeHour = 17,
+                endTimeMinute = 0,
+                isEnabled = false,
+            )
+        )
+
+        vm.loadSchedule(id)
+        advanceUntilIdle()
+        vm.setName("Off renamed")
+        vm.save()
+        advanceUntilIdle()
+
+        assertTrue(vm.isSaved.value)
+        val saved = checkNotNull(dao.getById(id))
+        assertFalse("editing must not silently re-enable a disabled schedule", saved.isEnabled)
+        assertEquals("Off renamed", saved.name)
+    }
+
+    @Test
     fun `save with overlap sets overlapError with conflicting schedule name`() = runTest {
         dao.insert(
             Schedule(

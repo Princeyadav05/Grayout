@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.princeyadav.grayout.data.ScheduleRepository
-import com.princeyadav.grayout.model.daysOfWeekList
+import com.princeyadav.grayout.logic.nextScheduleStart
 import com.princeyadav.grayout.model.formatTime12Hour
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
-import java.time.LocalTime
 
 class HomeViewModel(
     private val grayscaleManager: GrayscaleController,
@@ -121,27 +120,7 @@ class HomeViewModel(
                 return@launch
             }
 
-            val now = LocalDateTime.now()
-            val today = now.toLocalDate()
-            var nextStartTime: LocalDateTime? = null
-
-            for (schedule in enabledSchedules) {
-                val days = schedule.daysOfWeekList
-                val schedStart = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
-
-                for (dayOffset in 0L..7L) {
-                    val checkDate = today.plusDays(dayOffset)
-                    if (checkDate.dayOfWeek !in days) continue
-
-                    val startDt = LocalDateTime.of(checkDate, schedStart)
-                    if (startDt.isAfter(now)) {
-                        if (nextStartTime == null || startDt.isBefore(nextStartTime)) {
-                            nextStartTime = startDt
-                        }
-                        break
-                    }
-                }
-            }
+            val nextStartTime = nextScheduleStart(enabledSchedules, LocalDateTime.now())
 
             _nextScheduleText.value = if (nextStartTime != null) {
                 formatTime12Hour(nextStartTime.hour, nextStartTime.minute)
