@@ -53,7 +53,7 @@ parameters, so tests drive them with fakes and no emulator is needed:
 
 - `daltonizerPlan`: pure; what to write and whether to capture a baseline.
 - `nextExclusionTransition`: pure exclusion state-machine step; `applyExclusionTransition` runs its side effects through injected collaborators.
-- `applyEnforcementTick`: applier; whether an enforcement alarm re-enables grayscale, and does it.
+- `applyEnforcementTick`: applier; re-enables grayscale on a tick and reports `Applied` / `Skipped` / `WriteFailed`.
 - `preGrayOnScreenOff`: applier for the screen-off pre-gray; `shouldReEnableOnExclusionEnd` is the pure predicate behind the exclusion-end re-assert.
 - `isCurrentlyFiring` / `nextScheduleEvent`: schedule window math and the next alarm time (pure over the `Schedule` model).
 - `shouldServiceRun`: pure; whether the foreground service should be alive at all.
@@ -81,10 +81,11 @@ loop (the only loop it hosts is the exclusion detector's foreground-app poll). I
 and picks one of three modes: stop fully when there is nothing to do, stay alive only
 to watch exclusions (interval 0 with excluded apps), or run interval enforcement.
 `shouldServiceRun` decides stop versus run; the interval value then splits the two
-running modes. The service also reconciles stranded exclusion state so a suppressed
-grayscale session is restored rather than left in color; the exact branch rules and a
-known cold-start gap (`GrayoutApp` clears the flag before a sticky restart runs) live
-in the code comments.
+running modes. Stranded exclusion state is reconciled on restart so a suppressed
+grayscale session is restored rather than left in color: `GrayoutService` heals it on a
+warm revival, and on a cold start `GrayoutApp` restores gray when the screen is off (the
+wake-gray contract) but only clears the flag when the screen is on, where a set flag may
+be a live session. The exact rules live in the code comments.
 
 ### Enforcement path
 
@@ -92,7 +93,10 @@ Interval ticks are `AlarmManager` alarms, not a coroutine loop. The alarm target
 `EnforcementAlarmReceiver`, which writes grayscale directly through
 `GrayscaleManager` and never starts the service. It targets a receiver on purpose:
 starting a foreground service from a background-fired alarm is restricted on API 31+,
-while a broadcast receiver may run and write `Settings.Secure` freely.
+while a broadcast receiver may run and write `Settings.Secure` freely. If the tick's
+write fails (the daltonizer permission was revoked), the receiver reschedules a retry
+one interval out and posts a "permission lost" notification; the retry auto-recovers
+once the permission is restored, without reopening the app.
 
 ### Exclusions
 
@@ -126,7 +130,7 @@ the service and reschedules after a reboot.
 ## Key design decisions
 
 - **Alarms, not loops.** Interval ticks and schedule events use `AlarmManager` with the allow-while-idle variants, so they survive Doze without a wakelock-hungry timer.
-- **Receivers, not the service, are the alarm targets.** `EnforcementAlarmReceiver` writes grayscale itself and never starts the service, because starting a foreground service from a background alarm is restricted on API 31+. `ScheduleReceiver` also writes grayscale directly, and separately (re)starts the service to resync enforcement.
+- **Receivers, not the service, are the alarm targets.** `EnforcementAlarmReceiver` writes grayscale itself and never starts the service, because starting a foreground service from a background alarm is restricted on API 31+. `ScheduleReceiver` also writes grayscale directly, and starts the service to resync enforcement through a guard that swallows the background-start rejection when an inexact alarm fires.
 - **Pure logic, thin shell.** The calendar math, the exclusion FSM, and the write plan are Android-free and unit-tested; the services and receivers just wire them to the framework.
 - **One Settings.Secure owner.** All daltonizer reads and writes go through `GrayscaleManager`, which is the only place that verifies writes and preserves the shared baseline.
 
