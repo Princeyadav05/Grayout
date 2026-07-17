@@ -76,7 +76,7 @@ fun SettingsScreen(
         Text(
             text = "Reduce screen addiction, one shade at a time",
             style = typography.labelSmall,
-            color = colors.textDim,
+            color = colors.textMuted,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )

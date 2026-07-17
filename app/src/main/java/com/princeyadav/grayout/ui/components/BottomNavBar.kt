@@ -33,6 +33,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.ui.navigation.Routes
@@ -123,7 +127,11 @@ private fun NavTabItem(
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-            ) { onClick() },
+            ) { onClick() }
+            .semantics {
+                role = Role.Tab
+                selected = isActive
+            },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -136,7 +144,7 @@ private fun NavTabItem(
         ) {
             Icon(
                 imageVector = if (isActive) tab.iconFilled else tab.iconOutlined,
-                contentDescription = tab.label,
+                contentDescription = null,
                 tint = iconTint,
                 modifier = Modifier.size(22.dp),
             )
