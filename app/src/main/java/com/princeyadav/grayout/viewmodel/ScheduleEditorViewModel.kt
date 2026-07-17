@@ -102,15 +102,22 @@ class ScheduleEditorViewModel(
     }
 
     fun save() {
+        // Snapshot the edited fields up front so validation and persistence act on
+        // the same values — findOverlap suspends, and a mid-suspend UI edit must not
+        // slip unvalidated times into the saved schedule.
+        val name = _name.value.ifBlank { "Schedule" }
+        val days = _selectedDays.value
+        val startHour = _startHour.value
+        val startMinute = _startMinute.value
+        val endHour = _endHour.value
+        val endMinute = _endMinute.value
         viewModelScope.launch {
-            val name = _name.value.ifBlank { "Schedule" }
-            val days = _selectedDays.value
             if (days.isEmpty()) {
                 _overlapError.value = "Select at least one day"
                 return@launch
             }
 
-            if (_startHour.value == _endHour.value && _startMinute.value == _endMinute.value) {
+            if (startHour == endHour && startMinute == endMinute) {
                 _overlapError.value = "Start and end time can't be the same"
                 return@launch
             }
@@ -121,8 +128,8 @@ class ScheduleEditorViewModel(
 
             val overlap = repository.findOverlap(
                 daysOfWeek,
-                _startHour.value, _startMinute.value,
-                _endHour.value, _endMinute.value,
+                startHour, startMinute,
+                endHour, endMinute,
                 excludeId = editingScheduleId,
             )
             if (overlap != null) {
@@ -134,10 +141,10 @@ class ScheduleEditorViewModel(
                 id = editingScheduleId,
                 name = name,
                 daysOfWeek = daysOfWeek,
-                startTimeHour = _startHour.value,
-                startTimeMinute = _startMinute.value,
-                endTimeHour = _endHour.value,
-                endTimeMinute = _endMinute.value,
+                startTimeHour = startHour,
+                startTimeMinute = startMinute,
+                endTimeHour = endHour,
+                endTimeMinute = endMinute,
                 isEnabled = editingIsEnabled,
             )
             repository.save(schedule)

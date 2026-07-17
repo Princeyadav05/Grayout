@@ -7,6 +7,7 @@ import com.princeyadav.grayout.model.Schedule
 import com.princeyadav.grayout.testutil.MainDispatcherRule
 import com.princeyadav.grayout.testutil.fixedDateTime
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -169,6 +170,28 @@ class ScheduleViewModelTest {
             "Expected at least one reschedule after toggleEnabled, had ${alarm.rescheduleCallCount} total",
             alarm.rescheduleCallCount > baselineRescheduleCalls,
         )
+    }
+
+    @Test
+    fun `toggleEnabled refuses to enable a schedule overlapping an enabled one`() = runTest {
+        dao.insert(makeSchedule(name = "Live", daysOfWeek = "MON", startHour = 9, endHour = 17))
+        val id = dao.insert(
+            makeSchedule(name = "Dupe", daysOfWeek = "MON", startHour = 10, endHour = 12, isEnabled = false),
+        )
+
+        val viewModel = vm()
+        advanceUntilIdle()
+        val conflicts = mutableListOf<String>()
+        val job = launch { viewModel.enableConflict.collect { conflicts.add(it) } }
+        val baselineRescheduleCalls = alarm.rescheduleCallCount
+
+        viewModel.toggleEnabled(dao.getById(id)!!)
+        advanceUntilIdle()
+
+        assertFalse("must not enable into an overlap", dao.getById(id)!!.isEnabled)
+        assertEquals("no reschedule when the enable is refused", baselineRescheduleCalls, alarm.rescheduleCallCount)
+        assertEquals(listOf("Conflicts with \"Live\""), conflicts)
+        job.cancel()
     }
 
     @Test

@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings as AndroidSettings
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -174,6 +175,12 @@ fun GrayoutNavGraph(
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                     viewModel.refreshFiringState()
+                }
+            }
+
+            LaunchedEffect(viewModel) {
+                viewModel.enableConflict.collect { message ->
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 }
             }
 
