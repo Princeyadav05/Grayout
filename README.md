@@ -83,6 +83,19 @@ You need to enable an extra toggle first:
 
 The toggle may also be called **"USB debugging (Security settings)"** depending on your OxygenOS/ColorOS version. The reboot after enabling it is required.
 
+## Permissions
+
+Grayout runs entirely on-device. It has no network access and sends nothing off your phone. Here is what each permission is for:
+
+- **WRITE_SECURE_SETTINGS**: the core one. Lets the app switch the system grayscale (daltonizer) on and off. Granted once via ADB (see Setup).
+- **QUERY_ALL_PACKAGES**: to show your installed apps in the per-app exclusion picker, so you can pick which apps stay in color. The list is read locally and never sent anywhere.
+- **PACKAGE_USAGE_STATS**: to detect which app is in the foreground, so grayscale can pause while you are in an excluded app and resume when you leave it. Only the latest foreground app is retained, on-device.
+- **FOREGROUND_SERVICE** and **FOREGROUND_SERVICE_SPECIAL_USE**: to run the background service that enforces grayscale and watches for excluded apps.
+- **POST_NOTIFICATIONS**: for the ongoing notification the foreground service requires.
+- **SCHEDULE_EXACT_ALARM** (Android 12 only) and **USE_EXACT_ALARM**: to fire schedule and enforcement events at the right time, even in Doze.
+- **RECEIVE_BOOT_COMPLETED**: to restore your enforcement and schedules after a reboot.
+- **REQUEST_IGNORE_BATTERY_OPTIMIZATIONS**: optional, so the service is not killed under battery optimization.
+
 ## Tech
 
 - Kotlin
