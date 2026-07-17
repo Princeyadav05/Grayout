@@ -16,7 +16,15 @@ val OffText = Color(0xFF666666)
 val Danger = Color(0xFFFF6B6B)
 val Success = Color(0xFF6BE8A0)
 
-val BrandAccent = Color(0xFFB5A0D8)
+/**
+ * Brand accent as a raw ARGB int. Single source of truth shared by the Compose
+ * [BrandAccent] and the GrayoutService notification tint, which needs a plain int
+ * rather than a Compose [Color]. Not `const` because `.toInt()` is not a
+ * compile-time constant.
+ */
+val BrandAccentArgb: Int = 0xFFB5A0D8.toInt()
+
+val BrandAccent = Color(BrandAccentArgb)
 
 @Immutable
 data class GrayoutColors(
