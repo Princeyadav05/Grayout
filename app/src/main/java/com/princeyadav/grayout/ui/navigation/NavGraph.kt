@@ -295,7 +295,7 @@ fun GrayoutNavGraph(
                             .filter { info ->
                                 applicationContext.packageManager
                                     .getLaunchIntentForPackage(info.packageName) != null &&
-                                    info.packageName != "com.princeyadav.grayout"
+                                    info.packageName != applicationContext.packageName
                             }
                             .map { info ->
                                 AppInfo(
