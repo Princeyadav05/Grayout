@@ -3,6 +3,7 @@ package com.princeyadav.grayout.data
 import com.princeyadav.grayout.logic.schedulesOverlap
 import com.princeyadav.grayout.model.Schedule
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.withLock
 
 class ScheduleRepository(private val dao: ScheduleDao) {
 
@@ -12,8 +13,8 @@ class ScheduleRepository(private val dao: ScheduleDao) {
 
     suspend fun getById(id: Long): Schedule? = dao.getById(id)
 
-    suspend fun save(schedule: Schedule): Long {
-        return if (schedule.id == 0L) {
+    suspend fun save(schedule: Schedule): Long = scheduleOperationMutex.withLock {
+        if (schedule.id == 0L) {
             dao.insert(schedule)
         } else {
             dao.update(schedule)
@@ -21,9 +22,11 @@ class ScheduleRepository(private val dao: ScheduleDao) {
         }
     }
 
-    suspend fun delete(schedule: Schedule) = dao.delete(schedule)
+    suspend fun delete(schedule: Schedule) = scheduleOperationMutex.withLock { dao.delete(schedule) }
 
-    suspend fun setEnabled(id: Long, enabled: Boolean) = dao.setEnabled(id, enabled)
+    suspend fun setEnabled(id: Long, enabled: Boolean) = scheduleOperationMutex.withLock {
+        dao.setEnabled(id, enabled)
+    }
 
     /**
      * The first stored schedule whose window overlaps the candidate window in

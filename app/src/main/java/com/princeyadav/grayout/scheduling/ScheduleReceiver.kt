@@ -5,43 +5,16 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.PowerManager
 import android.util.Log
 import com.princeyadav.grayout.data.GrayoutDatabase
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.service.EnforcementPrefs
-import com.princeyadav.grayout.service.ExclusionPrefs
-import com.princeyadav.grayout.service.GrayscaleManager
 import com.princeyadav.grayout.service.GrayoutService
-import com.princeyadav.grayout.service.applyScheduleGrayscale
 import kotlinx.coroutines.launch
 
 class ScheduleReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ScheduleAlarmManager.ACTION_SCHEDULE_FIRE) return
-
-        val grayscaleManager = GrayscaleManager(context)
-        val prefs = context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
-        val enforcementPrefs = EnforcementPrefs(prefs)
-        val isStart = intent.getBooleanExtra(ScheduleAlarmManager.EXTRA_IS_START, false)
-        applyScheduleGrayscale(isStart, ExclusionPrefs(prefs), grayscaleManager) {
-            context.getSystemService(PowerManager::class.java).isInteractive
-        }
-        val intervalExtra = serviceIntervalExtraForScheduleEvent(
-            isStart = isStart,
-            persistedInterval = enforcementPrefs.getInterval(),
-        )
-        if (isStart) {
-            if (intervalExtra != null) {
-                val serviceIntent = Intent(context, GrayoutService::class.java)
-                    .putExtra(GrayoutService.EXTRA_INTERVAL, intervalExtra)
-                context.startForegroundServiceSafely(serviceIntent)
-            }
-        } else {
-            val stopIntent = Intent(context, GrayoutService::class.java)
-                .putExtra(GrayoutService.EXTRA_INTERVAL, checkNotNull(intervalExtra))
-            context.startForegroundServiceSafely(stopIntent)
-        }
 
         val db = GrayoutDatabase.getInstance(context)
         val repository = ScheduleRepository(db.scheduleDao())
@@ -50,7 +23,21 @@ class ScheduleReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         receiverScope.launch {
             try {
-                alarmManager.reschedule(repository)
+                val generation = intent.getStringExtra(ScheduleAlarmManager.EXTRA_GENERATION)
+                val legacyIsStart = if (intent.hasExtra(ScheduleAlarmManager.EXTRA_IS_START)) {
+                    intent.getBooleanExtra(ScheduleAlarmManager.EXTRA_IS_START, false)
+                } else null
+                val handledStart = alarmManager.handleAlarm(repository, generation, legacyIsStart)
+                if (handledStart != null) {
+                    val prefs = context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
+                    val interval = serviceIntervalExtraForScheduleEvent(handledStart, EnforcementPrefs(prefs).getInterval())
+                    if (interval != null) {
+                        context.startForegroundServiceSafely(
+                            Intent(context, GrayoutService::class.java)
+                                .putExtra(GrayoutService.EXTRA_INTERVAL, interval)
+                        )
+                    }
+                }
             } finally {
                 pendingResult.finish()
             }

@@ -18,6 +18,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.princeyadav.grayout.data.GrayoutDatabase
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.model.Schedule
+import com.princeyadav.grayout.logic.ScheduleEvent
 import com.princeyadav.grayout.service.EnforcementAlarmReceiver
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
@@ -36,6 +37,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalTime
 import java.time.LocalDateTime
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -213,9 +217,13 @@ class ScheduleExclusionIntegrationTest {
         ))
         enterExclusion(wasOn = false)
         var reads = 0
-        ScheduleAlarmManager(context) {
-            if (reads++ == 0) beforeEnd else end.plusMinutes(1)
-        }.reschedule(ScheduleRepository(dao))
+        val clock = object : Clock() {
+            override fun getZone(): ZoneId = ZoneId.systemDefault()
+            override fun withZone(zone: ZoneId): Clock = Clock.fixed(instant(), zone)
+            override fun instant(): Instant =
+                (if (reads++ == 0) beforeEnd else end.plusMinutes(1)).atZone(zone).toInstant()
+        }
+        ScheduleAlarmManager(context, clock).reschedule(ScheduleRepository(dao))
 
         assertFalse(exclusions.wasGrayscaleOnBeforeExclusion())
         exitExclusion()
@@ -237,10 +245,23 @@ class ScheduleExclusionIntegrationTest {
     }
 
     private fun fireSchedule(isStart: Boolean) {
+        // A real configured occurrence and its current registration are required;
+        // stale/metadata-free broadcasts must not accidentally satisfy these tests.
+        val now = LocalDateTime.now().withSecond(0).withNano(0)
+        val start = now.minusMinutes(if (isStart) 1 else 16)
+        val end = if (isStart) now.plusMinutes(15) else now.minusMinutes(1)
+        val id = runBlocking {
+            dao.insert(Schedule(name = "Boundary test", daysOfWeek = "MON,TUE,WED,THU,FRI,SAT,SUN",
+                startTimeHour = start.hour, startTimeMinute = start.minute,
+                endTimeHour = end.hour, endTimeMinute = end.minute))
+        }
+        val armed = ArmedScheduleAlarm.create(ScheduleEvent(if (isStart) start else end, isStart, id, start, end))
+        ScheduleAlarmState(prefs).save(armed)
         val completed = CountDownLatch(1)
         val intent = Intent(context, ScheduleReceiver::class.java)
             .setAction(ScheduleAlarmManager.ACTION_SCHEDULE_FIRE)
             .putExtra(ScheduleAlarmManager.EXTRA_IS_START, isStart)
+            .putExtra(ScheduleAlarmManager.EXTRA_GENERATION, armed.generation)
         context.sendOrderedBroadcast(intent, null, object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) { completed.countDown() }
         }, Handler(Looper.getMainLooper()), Activity.RESULT_OK, null, null)

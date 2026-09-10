@@ -144,12 +144,32 @@ the lock so an ended window cannot restore a stale request.
 ### Schedules
 
 Schedules are stored in Room (`data/`): the `Schedule` entity (`model/`), a DAO, and
-`ScheduleRepository`. `ScheduleAlarmManager` cancels existing alarms, computes the
-single next event with `nextScheduleEvent`, and sets one `AlarmManager` alarm for it
-(exact when the permission allows, otherwise the inexact allow-while-idle fallback).
-`ScheduleReceiver` handles the fire: it writes grayscale on or off, keeps the
-enforcement service in sync, then reschedules the next event. `BootReceiver` restarts
-the service and reschedules after a reboot.
+`ScheduleRepository`. Schedule mutations, alarm replacement, and receiver handling
+share a coroutine mutex. `ScheduleAlarmManager` persists the next registration's
+generation, originating schedule, civil window, zone, and resolved instants before
+registering one system alarm (exact when permitted, otherwise inexact).
+
+`ScheduleReceiver` validates the current generation and still-enabled occurrence
+before changing grayscale. Expired starts cannot use another active window to
+justify enabling grayscale. Superseded and duplicate deliveries never apply their
+display state; they can repair the saved registration with its unchanged deadline.
+Accepted or invalid-current deliveries rearm alarms separately from display sync.
+Explicit editor/boot rescheduling retains its existing active-window synchronization.
+
+Alarm expiry and ordering use absolute instants while configuration validation uses
+the original civil window, including DST gaps and repeated hours. The same decision
+instant selects the next event so a closing boundary crossed during a write is not
+skipped. During an active period, the next closing event remains armed instead of
+an interior overlapping start; touching boundaries also prefer the end. A valid end
+resolves directly to current aggregate coverage, keeping gray on if another window
+is active and turning it off if all have ended. Due ends still close after a zone
+change; starts must be current in both the armed interval and current civil window.
+
+Pre-upgrade kind-only alarms get guarded current-window compatibility before the
+first new registration. They cannot validate an unavailable original occurrence.
+After initialization, a persistent marker prevents old-format events becoming
+trusted again, including after the last alarm is removed. `BootReceiver` restarts
+the service and reschedules after reboot.
 
 ### Storage
 
