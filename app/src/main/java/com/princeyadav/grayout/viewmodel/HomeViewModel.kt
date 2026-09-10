@@ -11,6 +11,12 @@ import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
 import com.princeyadav.grayout.service.GrayscaleController
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -18,7 +24,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
+import java.time.Clock
+import java.time.Duration
 
 class HomeViewModel(
     private val grayscaleManager: GrayscaleController,
@@ -30,6 +37,7 @@ class HomeViewModel(
     private val usageAccessProbe: () -> Boolean,
     serviceRunning: StateFlow<Boolean>,
     private val onEnforcementIntervalChanged: (Int) -> Unit = {},
+    private val clock: () -> Clock = { Clock.systemDefaultZone() },
 ) : ViewModel() {
 
     private val _isGrayscaleOn = MutableStateFlow(false)
@@ -112,23 +120,32 @@ class HomeViewModel(
         }
     }
 
-    fun refreshNextSchedule(repository: ScheduleRepository) {
-        viewModelScope.launch {
-            val enabledSchedules = repository.getEnabledSchedules()
-            if (enabledSchedules.isEmpty()) {
-                _nextScheduleText.value = "No active schedule"
-                return@launch
-            }
-
-            val nextStartTime = nextScheduleStart(enabledSchedules, LocalDateTime.now())
-
-            _nextScheduleText.value = if (nextStartTime != null) {
-                formatTime12Hour(nextStartTime.hour, nextStartTime.minute)
-            } else {
-                "No active schedule"
+    /** Collect while Home is resumed; cancellation releases the query and boundary timer. */
+    suspend fun observeNextSchedule(
+        repository: ScheduleRepository,
+        timeChanges: Flow<Unit> = emptyFlow(),
+    ) {
+        combine(
+            repository.getAllSchedules(),
+            timeChanges.onStart { emit(Unit) },
+        ) { schedules, _ -> schedules }.collectLatest { schedules ->
+            while (true) {
+                val reading = clock()
+                val now = reading.instant()
+                val zone = reading.zone
+                val next = nextScheduleStart(schedules, now, zone)
+                _nextScheduleText.value = if (next == null) {
+                    "No active schedule"
+                } else {
+                    formatTime12Hour(next.hour, next.minute)
+                }
+                if (next == null) break
+                val nextInstant = next.atZone(zone).toInstant()
+                delay(Duration.between(now, nextInstant).toMillis().coerceAtLeast(1L))
             }
         }
     }
+
 }
 
 class HomeViewModelFactory(

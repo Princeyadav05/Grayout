@@ -24,4 +24,4 @@ internal fun enforcementIntervalChanged(
     previousInterval: Int?,
     interval: Int,
     explicitlyRequested: Boolean,
-): Boolean = previousInterval?.let { it != interval } ?: explicitlyRequested
+): Boolean = explicitlyRequested || previousInterval?.let { it != interval } == true

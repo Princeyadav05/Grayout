@@ -160,7 +160,7 @@ class ExclusionRecoveryTest {
     fun `restored service interval does not reset an existing countdown`() {
         assertFalse(enforcementIntervalChanged(null, 5, false))
         assertFalse(enforcementIntervalChanged(5, 5, false))
-        assertFalse(enforcementIntervalChanged(5, 5, true))
+        assertTrue(enforcementIntervalChanged(5, 5, true))
         assertTrue(enforcementIntervalChanged(null, 5, true))
         assertTrue(enforcementIntervalChanged(5, 10, true))
     }

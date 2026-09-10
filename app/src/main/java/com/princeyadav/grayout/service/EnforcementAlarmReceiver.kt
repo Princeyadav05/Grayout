@@ -1,11 +1,11 @@
 package com.princeyadav.grayout.service
 
-import android.app.AlarmManager
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import com.princeyadav.grayout.MainActivity
 import com.princeyadav.grayout.R
@@ -20,33 +20,44 @@ import com.princeyadav.grayout.R
  */
 class EnforcementAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val prefs = context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
-        val enforcementPrefs = EnforcementPrefs(prefs)
-        val grayscale = GrayscaleManager(context)
-        val result = applyEnforcementTick(enforcementPrefs, ExclusionPrefs(prefs), grayscale)
-        // The alarm that fired is spent, but its non-one-shot PendingIntent token
-        // survives, and hasPendingEnforcementAlarm() (used by the service's re-arm
-        // branch and the exclusion-exit re-enable) would keep reporting a live alarm.
-        // On WriteFailed we replace it with a real retry; on any other outcome
-        // (Applied, or Skipped because an excluded app is active / grayscale is
-        // already on) we cancel the spent token so that check stays honest.
-        when (result) {
-            EnforcementTickResult.WriteFailed ->
-                onWriteFailed(context, enforcementPrefs.getInterval(), grayscale)
-            else -> cancelEnforcementAlarm(context)
+        if (intent.action != GrayoutService.ACTION_ENFORCEMENT_TICK) return
+        synchronized(GrayscaleStateLock) {
+            val prefs = context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
+            val enforcementPrefs = EnforcementPrefs(prefs)
+            val alarmState = context.enforcementAlarmState()
+            val boot = context.bootCount()
+            val interval = enforcementPrefs.getInterval()
+            if (!alarmState.acceptsDelivery(
+                    intent.getStringExtra(EXTRA_GENERATION), boot, interval, SystemClock.elapsedRealtime(),
+                )) {
+                // Repair a crash between durable publication and OS registration.
+                // The current identity/deadline is retained; cleared, old-boot, or
+                // changed-interval records cannot be revived by a stale delivery.
+                if (interval > 0 && alarmState.generation() != null) alarmState.deadline(boot, interval)?.let {
+                    scheduleEnforcementAlarmAtElapsed(context, it, interval)
+                }
+                return
+            }
+            val grayscale = GrayscaleManager(context)
+            val result = applyEnforcementTick(enforcementPrefs, ExclusionPrefs(prefs), grayscale)
+            // The alarm that fired is spent, but its non-one-shot PendingIntent token
+            // survives, and hasPendingEnforcementAlarm() (used by the service's re-arm
+            // branch and the exclusion-exit re-enable) would keep reporting a live alarm.
+            // On WriteFailed we replace it with a real retry; on any other outcome
+            // (Applied, or Skipped because an excluded app is active / grayscale is
+            // already on) we cancel the spent token so that check stays honest.
+            when (result) {
+                EnforcementTickResult.WriteFailed ->
+                    onWriteFailed(context, enforcementPrefs.getInterval(), grayscale)
+                else -> cancelEnforcementAlarm(context)
+            }
         }
     }
 
-    private fun cancelEnforcementAlarm(context: Context) {
-        val intent = Intent(context, EnforcementAlarmReceiver::class.java)
-            .setAction(GrayoutService.ACTION_ENFORCEMENT_TICK)
-        PendingIntent.getBroadcast(
-            context, GrayoutService.ENFORCEMENT_ALARM_REQUEST_CODE, intent,
-            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
-        )?.let {
-            context.getSystemService(AlarmManager::class.java).cancel(it)
-            it.cancel()
-        }
+    private fun cancelEnforcementAlarm(context: Context) = cancelEnforcementCountdown(context)
+
+    companion object {
+        internal const val EXTRA_GENERATION = "enforcement_generation"
     }
 
     /**
@@ -66,7 +77,7 @@ class EnforcementAlarmReceiver : BroadcastReceiver() {
      */
     private fun onWriteFailed(context: Context, intervalMinutes: Int, grayscale: GrayscaleController) {
         if (intervalMinutes > 0) {
-            scheduleEnforcementAlarm(context, System.currentTimeMillis() + intervalMinutes * 60_000L)
+            scheduleEnforcementAlarm(context, System.currentTimeMillis() + intervalMinutes * 60_000L, intervalMinutes)
         }
         if (!grayscale.canWriteSecureSettings()) postPermissionLost(context)
     }

@@ -6,17 +6,21 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.PowerManager
+import android.os.SystemClock
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.data.scheduleOperationMutex
 import com.princeyadav.grayout.logic.isCurrentlyFiring
 import com.princeyadav.grayout.logic.legacyScheduleDeliveryTarget
 import com.princeyadav.grayout.logic.nextScheduleEvent
 import com.princeyadav.grayout.logic.scheduleDeliveryTarget
+import com.princeyadav.grayout.logic.scheduleConfiguration
+import com.princeyadav.grayout.logic.scheduleReconciliationTarget
 import com.princeyadav.grayout.model.Schedule
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
 import com.princeyadav.grayout.service.GrayoutService
 import com.princeyadav.grayout.service.GrayscaleManager
+import com.princeyadav.grayout.service.GrayscaleController
 import com.princeyadav.grayout.service.GrayscaleStateLock
 import com.princeyadav.grayout.service.applyScheduleGrayscale
 import kotlinx.coroutines.Dispatchers
@@ -29,18 +33,60 @@ import java.time.ZoneId
 class ScheduleAlarmManager(
     private val context: Context,
     private val clock: Clock? = null,
+    private val grayscale: GrayscaleController = GrayscaleManager(context),
 ) : AlarmScheduler {
 
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
     private val prefs = context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
     private val state = ScheduleAlarmState(prefs)
+    private val reconciliationState = ScheduleReconciliationState(prefs)
 
     override suspend fun reschedule(repository: ScheduleRepository): Unit = withContext(Dispatchers.IO) {
         scheduleOperationMutex.withLock {
             val enabledSchedules = repository.getEnabledSchedules()
+            if (reconciliationState.read()?.configuration?.let {
+                    it != scheduleConfiguration(enabledSchedules)
+                } == true) clearReconciliation()
             val reading = currentClock()
             replaceNextAlarm(enabledSchedules, reading.instant(), reading.zone)
             synchronizeActiveWindow(enabledSchedules)
+        }
+    }
+
+    /** Rebuild OS registrations while preserving manual choices within unchanged coverage. */
+    internal suspend fun reconcileSystemChange(
+        repository: ScheduleRepository,
+        retryOnly: Boolean = false,
+    ): Unit = withContext(Dispatchers.IO) {
+        scheduleOperationMutex.withLock {
+            val schedules = repository.getEnabledSchedules()
+            val pending = reconciliationState.read()
+            if (retryOnly && pending == null) return@withLock
+            val armed = state.read()
+            val decision = synchronized(GrayscaleStateLock) {
+                val reading = currentClock()
+                val now = reading.instant()
+                val zone = reading.zone
+                val configuration = scheduleConfiguration(schedules)
+                val excluded = ExclusionPrefs(prefs).isExcludedAppActive()
+                val mayRetry = pending != null && pending.configuration == configuration &&
+                    (excluded || grayscale.isGrayscaleEnabled() == pending.observedGray)
+                val boundaryTarget = if (retryOnly) {
+                    // A retry can race a normal boundary. Consume its current
+                    // decision before replacing the alarm, even when the older
+                    // failed write was superseded by a manual display choice.
+                    armed?.let { scheduleDeliveryTarget(it.event(), schedules, now, zone,
+                        Instant.ofEpochMilli(it.startMillis), Instant.ofEpochMilli(it.endMillis)) }
+                } else scheduleReconciliationTarget(armed, schedules, now, zone)
+                val target = boundaryTarget ?: if (mayRetry) {
+                    schedules.any { isCurrentlyFiring(it, now, zone) }
+                } else null
+                if (target != null) applyWithRecovery(target, schedules)
+                else if (pending != null) clearReconciliation()
+                DeliveryDecision(now, zone, null)
+            }
+            replaceNextAlarm(schedules, decision.at, decision.zone)
+            if (reconciliationState.read() != null) scheduleReconciliationRetry()
         }
     }
 
@@ -78,9 +124,7 @@ class ScheduleAlarmManager(
                     legacyScheduleDeliveryTarget(legacyIsStart, enabledSchedules, now, zone)
                 } else null
                 val handledStart = if (target != null) {
-                    applyScheduleGrayscale(target, ExclusionPrefs(prefs), GrayscaleManager(context)) {
-                        context.getSystemService(PowerManager::class.java).isInteractive
-                    }
+                    applyWithRecovery(target, enabledSchedules)
                     armed?.isStart ?: legacyIsStart
                 } else null
                 DeliveryDecision(now, zone, handledStart)
@@ -90,6 +134,7 @@ class ScheduleAlarmManager(
             // Keep the decision time: an end crossed during the display write
             // must still be armed, even if Android now needs to deliver it immediately.
             replaceNextAlarm(enabledSchedules, decision.at, decision.zone)
+            if (reconciliationState.read() != null) scheduleReconciliationRetry()
             decision.handledStart
         }
     }
@@ -110,12 +155,20 @@ class ScheduleAlarmManager(
             val applyTime = reading.instant()
             val active = enabledSchedules.any { isCurrentlyFiring(it, applyTime, reading.zone) }
             if (active) {
-                applyScheduleGrayscale(true, ExclusionPrefs(prefs), GrayscaleManager(context)) {
-                    context.getSystemService(PowerManager::class.java).isInteractive
+                applyWithRecovery(true, enabledSchedules)
+            } else {
+                val pending = reconciliationState.read()
+                if (pending != null) {
+                    if (ExclusionPrefs(prefs).isExcludedAppActive() ||
+                        grayscale.isGrayscaleEnabled() == pending.observedGray) {
+                        applyWithRecovery(false, enabledSchedules)
+                    } else clearReconciliation()
                 }
             }
             active
         }
+
+        if (reconciliationState.read() != null) scheduleReconciliationRetry()
 
         if (isCurrentlyInSchedule) {
             val enforcementPrefs = EnforcementPrefs(prefs)
@@ -126,6 +179,40 @@ class ScheduleAlarmManager(
                 context.startForegroundServiceSafely(serviceIntent)
             }
         }
+    }
+
+    private fun applyWithRecovery(target: Boolean, schedules: List<Schedule>) {
+        reconciliationState.save(PendingScheduleReconciliation(
+            scheduleConfiguration(schedules), grayscale.isGrayscaleEnabled(),
+        ))
+        val success = applyScheduleGrayscale(target, ExclusionPrefs(prefs), grayscale) {
+            context.getSystemService(PowerManager::class.java).isInteractive
+        }
+        if (success) clearReconciliation()
+        else reconciliationState.save(PendingScheduleReconciliation(
+            scheduleConfiguration(schedules), grayscale.isGrayscaleEnabled(),
+        ))
+    }
+
+    private fun clearReconciliation() {
+        if (reconciliationState.read() != null) reconciliationState.save(null)
+        val intent = Intent(context, SystemScheduleReceiver::class.java)
+            .setAction(SystemScheduleReceiver.ACTION_RETRY)
+        PendingIntent.getBroadcast(context, RETRY_REQUEST_CODE, intent,
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)?.let {
+            alarmManager.cancel(it)
+            it.cancel()
+        }
+    }
+
+    private fun scheduleReconciliationRetry() {
+        val intent = Intent(context, SystemScheduleReceiver::class.java)
+            .setAction(SystemScheduleReceiver.ACTION_RETRY)
+        val pendingIntent = PendingIntent.getBroadcast(context, RETRY_REQUEST_CODE, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        // Recovery is not a user-visible precise boundary and can be batched by Android.
+        alarmManager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            SystemClock.elapsedRealtime() + 60_000L, pendingIntent)
     }
 
     private fun setExactAlarm(alarm: ArmedScheduleAlarm) {
@@ -183,5 +270,6 @@ class ScheduleAlarmManager(
         const val EXTRA_IS_START = "is_start"
         const val EXTRA_GENERATION = "schedule_generation"
         private const val REQUEST_CODE = 1001
+        internal const val RETRY_REQUEST_CODE = 1002
     }
 }

@@ -164,6 +164,43 @@ internal fun nextScheduleStart(
     return soonest
 }
 
+/**
+ * Future starts compared as resolved instants, matching alarm gap/overlap rules.
+ * Return the configured local time for display; callers resolve that same value
+ * in [zone] for the timer. A repeated local start only fires on its first offset.
+ */
+internal fun nextScheduleStart(
+    schedules: List<Schedule>,
+    now: Instant,
+    zone: ZoneId,
+): LocalDateTime? {
+    val today = now.atZone(zone).toLocalDate()
+    var soonest: LocalDateTime? = null
+    var soonestInstant: Instant? = null
+    for (schedule in schedules) {
+        if (!schedule.isEnabled) continue
+        val days = schedule.daysOfWeekList
+        val start = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
+        val end = LocalTime.of(schedule.endTimeHour, schedule.endTimeMinute)
+        for (offset in 0L..7L) {
+            val date = today.plusDays(offset)
+            if (date.dayOfWeek !in days) continue
+            val from = date.atTime(start)
+            val until = (if (start.isBefore(end)) date else date.plusDays(1)).atTime(end)
+            val fromInstant = from.atZone(zone).toInstant()
+            val untilInstant = until.atZone(zone).toInstant()
+            // A DST gap can reverse/collapse an otherwise valid local window.
+            if (!fromInstant.isBefore(untilInstant) || !fromInstant.isAfter(now)) continue
+            if (soonestInstant == null || fromInstant.isBefore(soonestInstant)) {
+                soonest = from
+                soonestInstant = fromInstant
+            }
+            break
+        }
+    }
+    return soonest
+}
+
 private fun nextSoonerEvent(
     currentNext: ScheduleEvent?,
     candidate: ScheduleEvent,

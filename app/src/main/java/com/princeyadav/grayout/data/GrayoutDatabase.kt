@@ -16,7 +16,7 @@ abstract class GrayoutDatabase : RoomDatabase() {
 
         fun getInstance(context: Context): GrayoutDatabase {
             return INSTANCE ?: synchronized(this) {
-                Room.databaseBuilder(
+                INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     GrayoutDatabase::class.java,
                     "grayout_db"

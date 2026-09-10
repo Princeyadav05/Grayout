@@ -40,7 +40,7 @@ class GrayoutService : Service() {
     private val detectorScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var currentInterval = 0
     private var hasReceivedStartCommand = false
-    private var countdownTargetMs = 0L
+    private var countdownTargetElapsedMs = 0L
 
     // Read by the detector's background poll thread (isScreenOn), written on the main
     // thread from screenReceiver, so it must be @Volatile for cross-thread visibility.
@@ -49,29 +49,31 @@ class GrayoutService : Service() {
 
     private val grayscaleObserver = object : ContentObserver(handler) {
         override fun onChange(selfChange: Boolean) {
-            // Intentional no-op at interval 0: enforcement must never schedule
-            // then, and the detector (not the observer) drives all exclusion
-            // side-effects in that mode, so there is no observer<->detector
-            // write-feedback loop. Consequence: the static "Watching excluded apps"
-            // notification is not refreshed on grayscale changes at interval 0,
-            // which is acceptable (the copy is static).
-            if (currentInterval <= 0) return
+            synchronized(GrayscaleStateLock) {
+                // Intentional no-op at interval 0: enforcement must never schedule
+                // then, and the detector (not the observer) drives all exclusion
+                // side-effects in that mode, so there is no observer<->detector
+                // write-feedback loop. Consequence: the static "Watching excluded apps"
+                // notification is not refreshed on grayscale changes at interval 0,
+                // which is acceptable (the copy is static).
+                if (currentInterval <= 0) return
 
-            cancelEnforcementAlarm()
-            countdownTargetMs = 0L
+                cancelEnforcementAlarm()
+                countdownTargetElapsedMs = 0L
 
-            if (exclusionPrefs.isExcludedAppActive()) {
-                updateNotification(countdownTarget = null)
-                return
-            }
+                if (exclusionPrefs.isExcludedAppActive()) {
+                    updateNotification(countdownTarget = null)
+                    return
+                }
 
-            if (!grayscaleManager.isGrayscaleEnabled()) {
-                val delayMs = currentInterval * 60_000L
-                countdownTargetMs = System.currentTimeMillis() + delayMs
-                scheduleEnforcementAlarm(this@GrayoutService, countdownTargetMs)
-                updateNotification(countdownTarget = countdownTargetMs)
-            } else {
-                updateNotification(countdownTarget = null)
+                if (!grayscaleManager.isGrayscaleEnabled()) {
+                    val delayMs = currentInterval * 60_000L
+                    countdownTargetElapsedMs = SystemClock.elapsedRealtime() + delayMs
+                    scheduleEnforcementAlarmAtElapsed(this@GrayoutService, countdownTargetElapsedMs, currentInterval)
+                    updateNotification(countdownTarget = countdownTargetElapsedMs)
+                } else {
+                    updateNotification(countdownTarget = null)
+                }
             }
         }
     }
@@ -138,69 +140,86 @@ class GrayoutService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val interval = intent?.getIntExtra(EXTRA_INTERVAL, -1)
-            ?.takeIf { it >= 0 }
-            ?: enforcementPrefs.getInterval()
+        synchronized(GrayscaleStateLock) {
+            val explicitChange = intent?.getBooleanExtra(EXTRA_USER_INTERVAL_CHANGE, false) == true
+            val interval = if (explicitChange) {
+                intent?.getIntExtra(EXTRA_INTERVAL, -1)?.takeIf { it >= 0 }
+                    ?: enforcementPrefs.getInterval()
+            } else enforcementPrefs.getInterval()
 
-        val intervalChanged = enforcementIntervalChanged(
-            previousInterval = currentInterval.takeIf { hasReceivedStartCommand },
-            interval = interval,
-            explicitlyRequested = intent?.getBooleanExtra(EXTRA_USER_INTERVAL_CHANGE, false) == true,
-        )
-        hasReceivedStartCommand = true
-        currentInterval = interval
+            val intervalChanged = enforcementIntervalChanged(
+                previousInterval = currentInterval.takeIf { hasReceivedStartCommand },
+                interval = interval,
+                explicitlyRequested = explicitChange,
+            )
+            hasReceivedStartCommand = true
+            currentInterval = interval
 
-        val excludedCount = exclusionPrefs.getExcludedCount()
-        reconcileExclusionOnStart(exclusionPrefs, grayscaleManager, isScreenInteractive)
+            val excludedCount = exclusionPrefs.getExcludedCount()
+            reconcileExclusionOnStart(exclusionPrefs, grayscaleManager, isScreenInteractive)
 
-        // (A) Nothing to do: enforcement off and no excluded apps -> stop fully.
-        if (!shouldServiceRun(interval, excludedCount)) {
-            cancelEnforcementAlarm()
-            countdownTargetMs = 0L
-            detector.stop()
-            startForeground(NOTIFICATION_ID, buildNotification(interval))
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-            return START_NOT_STICKY
-        }
+            // (A) Nothing to do: enforcement off and no excluded apps -> stop fully.
+            if (!shouldServiceRun(interval, excludedCount)) {
+                cancelEnforcementAlarm()
+                countdownTargetElapsedMs = 0L
+                detector.stop()
+                startForeground(NOTIFICATION_ID, buildNotification(interval))
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return START_NOT_STICKY
+            }
 
-        // (B) Alive only for exclusions (interval == 0, excludedCount > 0).
-        // No enforcement alarm; neutral notification; detector gated on screen.
-        if (interval == 0) {
-            cancelEnforcementAlarm()
-            countdownTargetMs = 0L
-            startForeground(NOTIFICATION_ID, buildNotification(0, exclusionOnly = true))
-            if (isScreenInteractive) detector.start() else detector.stop()
+            // (B) Alive only for exclusions (interval == 0, excludedCount > 0).
+            // No enforcement alarm; neutral notification; detector gated on screen.
+            if (interval == 0) {
+                cancelEnforcementAlarm()
+                countdownTargetElapsedMs = 0L
+                startForeground(NOTIFICATION_ID, buildNotification(0, exclusionOnly = true))
+                if (isScreenInteractive) detector.start() else detector.stop()
+                return START_STICKY
+            }
+
+            // (C) interval > 0.
+            // Startup reconciliation above also handles removal of the last excluded
+            // app before this block decides whether an enforcement alarm is needed.
+
+            if (!intervalChanged) {
+                val alarmState = enforcementAlarmState()
+                val saved = alarmState.deadline(bootCount(), interval)
+                if (saved != null) {
+                    countdownTargetElapsedMs = saved
+                    // Permission revocation can remove the OS alarm independently
+                    // of its PendingIntent. Re-register the same deadline/token.
+                    scheduleEnforcementAlarmAtElapsed(this, saved, interval)
+                } else if (alarmState.hasRecord() || (alarmState.isInitialized() && hasPendingEnforcementAlarm())) {
+                    cancelEnforcementAlarm()
+                    countdownTargetElapsedMs = 0L
+                }
+            }
+            val now = SystemClock.elapsedRealtime()
+            val hasActiveCountdown = countdownTargetElapsedMs > now
+
+            if (hasActiveCountdown && !intervalChanged) {
+                startForeground(NOTIFICATION_ID, buildNotification(interval, countdownTargetElapsedMs))
+            } else if (!intervalChanged && hasPendingEnforcementAlarm()) {
+                startForeground(NOTIFICATION_ID, buildNotification(interval))
+            } else {
+                cancelEnforcementAlarm()
+                countdownTargetElapsedMs = 0L
+
+                if (!exclusionPrefs.isExcludedAppActive() && !grayscaleManager.isGrayscaleEnabled()) {
+                    val delayMs = currentInterval * 60_000L
+                    countdownTargetElapsedMs = now + delayMs
+                    scheduleEnforcementAlarmAtElapsed(this, countdownTargetElapsedMs, currentInterval)
+                    startForeground(NOTIFICATION_ID, buildNotification(interval, countdownTargetElapsedMs))
+                } else {
+                    startForeground(NOTIFICATION_ID, buildNotification(interval))
+                }
+            }
+
+            if (excludedCount > 0 && isScreenInteractive) detector.start() else detector.stop()
             return START_STICKY
         }
-
-        // (C) interval > 0.
-        // Startup reconciliation above also handles removal of the last excluded
-        // app before this block decides whether an enforcement alarm is needed.
-
-        val now = System.currentTimeMillis()
-        val hasActiveCountdown = countdownTargetMs > now
-
-        if (hasActiveCountdown && !intervalChanged) {
-            startForeground(NOTIFICATION_ID, buildNotification(interval, countdownTargetMs))
-        } else if (!intervalChanged && hasPendingEnforcementAlarm()) {
-            startForeground(NOTIFICATION_ID, buildNotification(interval))
-        } else {
-            cancelEnforcementAlarm()
-            countdownTargetMs = 0L
-
-            if (!exclusionPrefs.isExcludedAppActive() && !grayscaleManager.isGrayscaleEnabled()) {
-                val delayMs = currentInterval * 60_000L
-                countdownTargetMs = now + delayMs
-                scheduleEnforcementAlarm(this, countdownTargetMs)
-                startForeground(NOTIFICATION_ID, buildNotification(interval, countdownTargetMs))
-            } else {
-                startForeground(NOTIFICATION_ID, buildNotification(interval))
-            }
-        }
-
-        if (excludedCount > 0 && isScreenInteractive) detector.start() else detector.stop()
-        return START_STICKY
     }
 
     /**
@@ -212,8 +231,8 @@ class GrayoutService : Service() {
         // A new exclusion may have started since the worker posted this callback.
         if (exclusionPrefs.isExcludedAppActive()) return@synchronized
         if (currentInterval <= 0) currentInterval = enforcementPrefs.getInterval()
-        val now = System.currentTimeMillis()
-        val hasActiveCountdown = countdownTargetMs > now
+        val now = SystemClock.elapsedRealtime()
+        val hasActiveCountdown = countdownTargetElapsedMs > now
         val reEnablePending = hasActiveCountdown || hasPendingEnforcementAlarm()
 
         if (shouldReEnableOnExclusionEnd(
@@ -231,7 +250,7 @@ class GrayoutService : Service() {
         }
 
         if (hasActiveCountdown) {
-            startForeground(NOTIFICATION_ID, buildNotification(currentInterval, countdownTargetMs))
+            startForeground(NOTIFICATION_ID, buildNotification(currentInterval, countdownTargetElapsedMs))
         } else {
             startForeground(NOTIFICATION_ID, buildNotification(currentInterval))
         }
@@ -243,7 +262,7 @@ class GrayoutService : Service() {
         detector.stop()
         detectorScope.cancel()
         unregisterReceiver(screenReceiver)
-        countdownTargetMs = 0L
+        countdownTargetElapsedMs = 0L
         super.onDestroy()
     }
 
@@ -280,9 +299,9 @@ class GrayoutService : Service() {
             .setContentIntent(pendingIntent)
             .setOngoing(true)
 
-        if (countdownTarget != null && countdownTarget > System.currentTimeMillis()) {
+        if (countdownTarget != null && countdownTarget > SystemClock.elapsedRealtime()) {
             val targetTime = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
-                .format(java.util.Date(countdownTarget))
+                .format(java.util.Date(System.currentTimeMillis() + countdownTarget - SystemClock.elapsedRealtime()))
             builder.setContentText("Re-enabling around $targetTime")
                 .setShowWhen(false)
         } else if (exclusionOnly) {
@@ -304,18 +323,7 @@ class GrayoutService : Service() {
         manager.notify(NOTIFICATION_ID, buildNotification(currentInterval, countdownTarget))
     }
 
-    private fun cancelEnforcementAlarm() {
-        val intent = Intent(this, EnforcementAlarmReceiver::class.java)
-            .setAction(ACTION_ENFORCEMENT_TICK)
-        val pi = PendingIntent.getBroadcast(
-            this, ENFORCEMENT_ALARM_REQUEST_CODE, intent,
-            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
-        )
-        pi?.let {
-            getSystemService(AlarmManager::class.java).cancel(it)
-            it.cancel()
-        }
-    }
+    private fun cancelEnforcementAlarm() = cancelEnforcementCountdown(this)
 
     private fun hasPendingEnforcementAlarm(): Boolean {
         val intent = Intent(this, EnforcementAlarmReceiver::class.java)
@@ -373,25 +381,34 @@ fun shouldReEnableOnExclusionEnd(
  * auto-recovers). Falls back to an inexact alarm when exact alarms are unavailable
  * or revoked, mirroring the countdown-alarm contract.
  */
-internal fun scheduleEnforcementAlarm(context: Context, triggerAtMillis: Long) {
-    val intent = Intent(context, EnforcementAlarmReceiver::class.java)
-        .setAction(GrayoutService.ACTION_ENFORCEMENT_TICK)
-    val pi = PendingIntent.getBroadcast(
-        context, GrayoutService.ENFORCEMENT_ALARM_REQUEST_CODE, intent,
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-    )
-    val am = context.getSystemService(AlarmManager::class.java)
-    val elapsedTarget = SystemClock.elapsedRealtime() +
-        (triggerAtMillis - System.currentTimeMillis())
-    val canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()
-    try {
-        if (canExact) {
-            am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, elapsedTarget, pi)
-        } else {
+internal fun scheduleEnforcementAlarm(context: Context, triggerAtMillis: Long, intervalMinutes: Int? = null) {
+    scheduleEnforcementAlarmAtElapsed(context, SystemClock.elapsedRealtime() +
+        (triggerAtMillis - System.currentTimeMillis()), intervalMinutes)
+}
+
+internal fun scheduleEnforcementAlarmAtElapsed(context: Context, elapsedTarget: Long, intervalMinutes: Int? = null) {
+    synchronized(GrayscaleStateLock) {
+        val interval = intervalMinutes ?: EnforcementPrefs(context.getSharedPreferences(
+            EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)).getInterval()
+        val generation = context.enforcementAlarmState().save(elapsedTarget, context.bootCount(), interval)
+        val intent = Intent(context, EnforcementAlarmReceiver::class.java)
+            .setAction(GrayoutService.ACTION_ENFORCEMENT_TICK)
+            .putExtra(EnforcementAlarmReceiver.EXTRA_GENERATION, generation)
+        val pi = PendingIntent.getBroadcast(
+            context, GrayoutService.ENFORCEMENT_ALARM_REQUEST_CODE, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val am = context.getSystemService(AlarmManager::class.java)
+        val canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()
+        try {
+            if (canExact) {
+                am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, elapsedTarget, pi)
+            } else {
+                am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, elapsedTarget, pi)
+            }
+        } catch (_: SecurityException) {
             am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, elapsedTarget, pi)
         }
-    } catch (_: SecurityException) {
-        am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, elapsedTarget, pi)
     }
 }
 

@@ -51,6 +51,21 @@ resume effect owns icon/diagnostic loading, and the exclusion screen's resume
 observer owns its app-list load. Concurrent app-list refreshes share the running
 load and publish with current exclusion preferences so loading cannot undo a toggle.
 
+The schedule list shares its Room subscription with a lifecycle-bound badge observer.
+While resumed, it recalculates at each row's next start or end using the same resolved
+instants and timezone rules as the alarms. It does not poll the database, and leaving
+the screen cancels the timer. Data changes replace the pending timer immediately.
+The editor guards loading, saving, and deletion before launching asynchronous work;
+reloading a retained schedule ID preserves unsaved edits after activity recreation.
+Failed alarm updates remain retryable without duplicating an insert or allowing a
+deleted schedule to report a successful save.
+
+Home observes Room while resumed and refreshes its next-start text at the next
+resolved start instant. Both Home and schedule badges listen for clock/timezone
+changes in a lifecycle-owned receiver, invalidating their timers without restarting
+the database query. Custom bottom navigation consumes system navigation insets;
+system bars explicitly use light icons to match the app's dark theme.
+
 ### Decision logic (`logic/` and top-level functions in `service/`)
 
 The tricky decisions are extracted so they run under JVM unit tests, with the
@@ -172,6 +187,25 @@ trusted again, including after the last alarm is removed. `BootReceiver` restart
 the service and reschedules after reboot.
 
 ### Storage
+
+`SystemScheduleReceiver` handles clock/timezone changes and restored exact-alarm
+permission. It compares the saved occurrence with current coverage, preserving
+manual choices within an unchanged occurrence and applying newly crossed boundaries
+through the shared exclusion-aware writer. Failed display writes retain durable
+configuration/state evidence and a separate retry alarm. Retries recheck current
+coverage and any due normal boundary before replacing registrations. Valid pending
+closure recovery survives boot rescheduling; changed configuration or an observed
+manual display change can supersede it.
+
+Enforcement countdowns retain an elapsed-realtime deadline with boot, interval, and
+generation provenance. Queued old, duplicate, or premature deliveries cannot act
+on a newer timer; rejected deliveries can repair a valid current registration.
+Recovery preserves the original deadline, including already-due alarms,
+and falls back to inexact registration when exact access is absent. Restoration,
+service starts, setting observers, and alarm consumption share the grayscale state
+lock so an older recovery cannot replace a newer user choice. Deadline writes reach
+disk before alarm registration. These infrequent transitions use synchronous
+preference commits for durability; foreground-app polling performs none of them.
 
 - **SharedPreferences** (`grayout_prefs`): enforcement interval, exclusion set and FSM flags, daltonizer baseline.
 - **Room** (`grayout_db`): schedules.

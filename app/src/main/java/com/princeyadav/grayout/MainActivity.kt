@@ -13,6 +13,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.graphics.drawable.toBitmap
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -35,6 +37,7 @@ import com.princeyadav.grayout.service.UsageAccess
 import com.princeyadav.grayout.ui.components.BottomNavBar
 import com.princeyadav.grayout.ui.navigation.GrayoutNavGraph
 import com.princeyadav.grayout.ui.navigation.Routes
+import com.princeyadav.grayout.ui.theme.Bg
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 import com.princeyadav.grayout.viewmodel.HomeViewModel
 import com.princeyadav.grayout.viewmodel.HomeViewModelFactory
@@ -120,7 +123,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Bg.toArgb()),
+            navigationBarStyle = SystemBarStyle.dark(Bg.toArgb()),
+        )
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
