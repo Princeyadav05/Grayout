@@ -67,6 +67,28 @@ class ApplyExclusionTransitionTest {
     }
 
     @Test
+    fun `Exit preserves restoration state when grayscale write fails`() {
+        exclusionPrefs.setExcludedAppActive(true)
+        exclusionPrefs.setWasGrayscaleOnBeforeExclusion(true)
+        grayscale.grayscaleEnabled = false
+        grayscale.canWrite = false
+
+        applyExclusionTransition(
+            transition = ExclusionTransition.Exit(wasGrayscaleOn = true),
+            exclusionPrefs = exclusionPrefs,
+            grayscale = grayscale,
+            enforcementInterval = 5,
+            onExclusionEnded = { endedCount++ },
+        )
+
+        assertTrue(exclusionPrefs.isExcludedAppActive())
+        assertTrue(exclusionPrefs.wasGrayscaleOnBeforeExclusion())
+        assertFalse(grayscale.grayscaleEnabled)
+        assertEquals(1, grayscale.setGrayscaleCallCount)
+        assertEquals(0, endedCount)
+    }
+
+    @Test
     fun `Exit with wasOn false and interval positive calls onExclusionEnded`() {
         exclusionPrefs.setExcludedAppActive(true)
         grayscale.grayscaleEnabled = false

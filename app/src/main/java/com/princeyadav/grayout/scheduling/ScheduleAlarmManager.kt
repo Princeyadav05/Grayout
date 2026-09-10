@@ -5,16 +5,23 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.PowerManager
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.logic.isCurrentlyFiring
 import com.princeyadav.grayout.logic.nextScheduleEvent
 import com.princeyadav.grayout.service.EnforcementPrefs
+import com.princeyadav.grayout.service.ExclusionPrefs
 import com.princeyadav.grayout.service.GrayoutService
 import com.princeyadav.grayout.service.GrayscaleManager
+import com.princeyadav.grayout.service.GrayscaleStateLock
+import com.princeyadav.grayout.service.applyScheduleGrayscale
 import java.time.LocalDateTime
 import java.time.ZoneId
 
-class ScheduleAlarmManager(private val context: Context) : AlarmScheduler {
+class ScheduleAlarmManager(
+    private val context: Context,
+    private val clock: () -> LocalDateTime = LocalDateTime::now,
+) : AlarmScheduler {
 
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
@@ -24,7 +31,7 @@ class ScheduleAlarmManager(private val context: Context) : AlarmScheduler {
         val enabledSchedules = repository.getEnabledSchedules()
         if (enabledSchedules.isEmpty()) return
 
-        val now = LocalDateTime.now()
+        val now = clock()
         val nextEvent = nextScheduleEvent(enabledSchedules, now)
 
         if (nextEvent != null) {
@@ -42,15 +49,23 @@ class ScheduleAlarmManager(private val context: Context) : AlarmScheduler {
         //
         // Applied inline (no broadcast) to avoid the receiver-reschedule loop that the
         // previous state-sync broadcast caused.
-        val isCurrentlyInSchedule = enabledSchedules.any { isCurrentlyFiring(it, now) }
+        val isCurrentlyInSchedule = synchronized(GrayscaleStateLock) {
+            // Recheck after acquiring the transition lock. A boundary may have
+            // passed while an in-flight detector write held it.
+            val applyTime = clock()
+            val active = enabledSchedules.any { isCurrentlyFiring(it, applyTime) }
+            if (active) {
+                val prefs = context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
+                applyScheduleGrayscale(true, ExclusionPrefs(prefs), GrayscaleManager(context)) {
+                    context.getSystemService(PowerManager::class.java).isInteractive
+                }
+            }
+            active
+        }
 
         if (isCurrentlyInSchedule) {
-            val grayscaleManager = GrayscaleManager(context)
-            grayscaleManager.setGrayscale(true)
-
-            val enforcementPrefs = EnforcementPrefs(
-                context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
-            )
+            val prefs = context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
+            val enforcementPrefs = EnforcementPrefs(prefs)
             val interval = enforcementPrefs.getInterval()
             if (interval > 0) {
                 val serviceIntent = Intent(context, GrayoutService::class.java)

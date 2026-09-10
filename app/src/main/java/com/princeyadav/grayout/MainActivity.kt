@@ -20,16 +20,11 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.princeyadav.grayout.service.EnforcementPrefs
@@ -93,6 +88,12 @@ class MainActivity : ComponentActivity() {
             ioDispatcher = Dispatchers.IO,
             usageAccessProbe = { UsageAccess.isGranted(applicationContext) },
             serviceRunning = GrayoutService.isRunning,
+            onEnforcementIntervalChanged = { interval ->
+                applicationContext.startForegroundService(
+                    Intent(applicationContext, GrayoutService::class.java)
+                        .putExtra(GrayoutService.EXTRA_INTERVAL, interval)
+                )
+            },
         )
     }
 
@@ -106,15 +107,13 @@ class MainActivity : ComponentActivity() {
     private var isBatteryUnrestricted by mutableStateOf(false)
 
     private fun refreshSystemChecks() {
+        homeViewModel.refreshSystemState()
         lifecycleScope.launch {
             val canWrite = withContext(Dispatchers.IO) { grayscaleManager.canWriteSecureSettings() }
             isAdbPermissionGranted = canWrite
 
             val powerManager = getSystemService(PowerManager::class.java)
             isBatteryUnrestricted = powerManager.isIgnoringBatteryOptimizations(packageName)
-
-            homeViewModel.refreshAttentionCount()
-            homeViewModel.refreshExcludedAppIcons()
         }
     }
 
@@ -132,43 +131,11 @@ class MainActivity : ComponentActivity() {
 
         startForegroundService(Intent(this, GrayoutService::class.java))
 
-        // Push interval changes to the service, but only while at least STARTED: a
-        // background startForegroundService throws ForegroundServiceStartNotAllowedException
-        // on API 31+. repeatOnLifecycle re-collects on each STARTED and cancels below
-        // it, so no emission is processed while backgrounded. The lastSent guard skips
-        // the StateFlow replay on resume while still delivering a change that landed
-        // while stopped (its value differs), so no genuine update is dropped.
-        var lastSentInterval: Int? = null
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                homeViewModel.enforcementInterval.collect { interval ->
-                    if (interval == lastSentInterval) return@collect
-                    lastSentInterval = interval
-                    val intent = Intent(this@MainActivity, GrayoutService::class.java)
-                        .putExtra(GrayoutService.EXTRA_INTERVAL, interval)
-                    startForegroundService(intent)
-                }
-            }
-        }
-
-        refreshSystemChecks()
-
         setContent {
             GrayoutTheme {
                 val navController = rememberNavController()
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
-
-                val lifecycleOwner = LocalLifecycleOwner.current
-                DisposableEffect(lifecycleOwner) {
-                    val observer = LifecycleEventObserver { _, event ->
-                        if (event == Lifecycle.Event.ON_RESUME) {
-                            refreshSystemChecks()
-                        }
-                    }
-                    lifecycleOwner.lifecycle.addObserver(observer)
-                    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-                }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -213,6 +180,16 @@ class MainActivity : ComponentActivity() {
             false,
             grayscaleObserver,
         )
+        contentResolver.registerContentObserver(
+            GrayscaleManager.DALTONIZER_MODE_URI,
+            false,
+            grayscaleObserver,
+        )
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshSystemChecks()
     }
 
     override fun onStop() {

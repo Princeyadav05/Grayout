@@ -72,6 +72,7 @@ fun ExclusionListScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                // Also performs the initial load, keeping one refresh per resume.
                 currentOnRefresh()
             }
         }

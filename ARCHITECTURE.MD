@@ -44,6 +44,13 @@ ViewModels (`viewmodel/`): `HomeViewModel`, `ScheduleViewModel`,
 plus small local UI state like a sheet's open flag. Reusable pieces live in
 `ui/components/` and design tokens in `ui/theme/`.
 
+Home reconciles grayscale and enforcement settings on activity resume, including
+changes made through Quick Settings while stopped. Only explicit interval choices
+command the service; replaying UI state never writes an old interval back. Home's
+resume effect owns icon/diagnostic loading, and the exclusion screen's resume
+observer owns its app-list load. Concurrent app-list refreshes share the running
+load and publish with current exclusion preferences so loading cannot undo a toggle.
+
 ### Decision logic (`logic/` and top-level functions in `service/`)
 
 The tricky decisions are extracted so they run under JVM unit tests, with the
@@ -65,6 +72,8 @@ it. It verifies writes (writes, reads back, retries once) because a single `putI
 can be silently dropped by a competing display feature, and it handles the baseline
 capture and restore described above. It returns `false` when the write did not
 stick or the permission is missing, so callers can react.
+Permission checks only read the grant status; they do not write secure settings.
+The activity and service observe both daltonizer keys so mode-only changes are seen.
 
 ### GrayoutService (`service/GrayoutService.kt`)
 
@@ -105,6 +114,24 @@ the screen is on and at least one app is excluded) using `UsageStatsManager` thr
 `UsageStatsForegroundProvider`. Each poll feeds the pure exclusion state machine.
 `ExclusionPrefs` (SharedPreferences) holds the FSM state: the excluded set, whether an
 excluded app is currently active, and the grayscale state to restore when it closes.
+The detector reads the current grayscale state only when entering an exclusion.
+If restoring grayscale on exit fails, it keeps the saved state and retries on the
+next poll before clearing the session. Failed color writes also retain a pending
+flag, so a stable excluded app or a later exit can retry without losing the state
+to restore. Failed grayscale restoration is retained too. A screen-on cold start
+preserves either kind of recovery evidence.
+
+Schedule boundaries and active-window resynchronization use
+`applyScheduleGrayscale`: during an exclusion they keep the display colored and
+replace the state to restore on exit. Thus a schedule start is deferred until exit,
+and a schedule end supersedes a saved grayscale-on state. A process-wide lock
+covers the screen-state check too: while the screen is off, the new target is
+applied immediately and a suspended exclusion is cleared only after success. The
+next screen-on entry captures that target for restoration on exit. The lock also
+covers each exclusion read/decide/apply operation, schedule writes, enforcement,
+screen-off recovery, and physical display writes. UsageStats queries and suspending
+database work stay outside it. Resynchronization rechecks the time after taking
+the lock so an ended window cannot restore a stale request.
 
 ### Schedules
 

@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.service.ExclusionPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,26 +46,30 @@ class ExclusionViewModel(
         .map { apps -> apps.filterNot { it.isExcluded } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    init {
-        viewModelScope.launch(ioDispatcher) { reloadApps() }
-    }
+    private var refreshJob: Job? = null
 
     fun refreshApps() {
-        viewModelScope.launch(ioDispatcher) { reloadApps() }
-    }
-
-    private fun reloadApps() {
-        _apps.value = loadApps()
+        if (refreshJob?.isActive == true) return
+        refreshJob = viewModelScope.launch {
+            val apps = withContext(ioDispatcher) { loadApps() }
+            // Loading icons can outlive a toggle. Publish on Main using the
+            // current preferences so an old snapshot cannot undo the UI change.
+            val excludedPackages = exclusionPrefs.getExcludedPackages()
+            _apps.value = apps.map { app ->
+                app.copy(isExcluded = app.packageName in excludedPackages)
+            }
+        }
     }
 
     fun toggleExclusion(packageName: String) {
-        if (exclusionPrefs.isExcluded(packageName)) {
-            exclusionPrefs.removeExcludedPackage(packageName)
-        } else {
+        val isExcluded = !exclusionPrefs.isExcluded(packageName)
+        if (isExcluded) {
             exclusionPrefs.addExcludedPackage(packageName)
+        } else {
+            exclusionPrefs.removeExcludedPackage(packageName)
         }
         _apps.value = _apps.value.map { app ->
-            if (app.packageName == packageName) app.copy(isExcluded = !app.isExcluded)
+            if (app.packageName == packageName) app.copy(isExcluded = isExcluded)
             else app
         }
         onExclusionListChanged()

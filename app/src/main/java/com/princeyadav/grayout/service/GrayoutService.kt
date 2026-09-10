@@ -104,6 +104,9 @@ class GrayoutService : Service() {
         contentResolver.registerContentObserver(
             GrayscaleManager.DALTONIZER_ENABLED_URI, false, grayscaleObserver
         )
+        contentResolver.registerContentObserver(
+            GrayscaleManager.DALTONIZER_MODE_URI, false, grayscaleObserver
+        )
 
         detector = ForegroundAppDetector(
             provider = UsageStatsForegroundProvider(this),
@@ -216,7 +219,9 @@ class GrayoutService : Service() {
      * Invoked by the detector (via a [handler] post onto the main thread) when an
      * Exit transition has no saved wasOn but enforcement is active.
      */
-    private fun handleExclusionEnded() {
+    private fun handleExclusionEnded() = synchronized(GrayscaleStateLock) {
+        // A new exclusion may have started since the worker posted this callback.
+        if (exclusionPrefs.isExcludedAppActive()) return@synchronized
         if (currentInterval <= 0) currentInterval = enforcementPrefs.getInterval()
         val now = System.currentTimeMillis()
         val hasActiveCountdown = countdownTargetMs > now
@@ -232,7 +237,7 @@ class GrayoutService : Service() {
                 startForeground(NOTIFICATION_ID, buildNotification(currentInterval))
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
-                return
+                return@synchronized
             }
         }
 
@@ -412,12 +417,15 @@ internal fun scheduleEnforcementAlarm(context: Context, triggerAtMillis: Long) {
 fun reconcileStrandedExclusion(
     exclusionPrefs: ExclusionPrefs,
     grayscale: GrayscaleController,
-): Boolean {
-    if (!exclusionPrefs.isExcludedAppActive()) return false
+): Boolean = synchronized(GrayscaleStateLock) {
+    if (!exclusionPrefs.isExcludedAppActive()) return@synchronized false
     val wasOn = exclusionPrefs.wasGrayscaleOnBeforeExclusion()
-    if (wasOn && !grayscale.setGrayscale(true)) return false
+    if (wasOn && !restoreExclusionGrayscale(exclusionPrefs, grayscale)) return@synchronized false
+    if (!wasOn && exclusionPrefs.isColorRestorePending() &&
+        !restoreExclusionColor(exclusionPrefs, grayscale)
+    ) return@synchronized false
     exclusionPrefs.clearExclusionState()
-    return wasOn
+    wasOn
 }
 
 /**
@@ -444,15 +452,15 @@ fun shouldPreGrayOnScreenOff(
 fun preGrayOnScreenOff(
     exclusionPrefs: ExclusionPrefs,
     grayscale: GrayscaleController,
-): Boolean {
+): Boolean = synchronized(GrayscaleStateLock) {
     if (!shouldPreGrayOnScreenOff(
             exclusionPrefs.isExcludedAppActive(),
             exclusionPrefs.wasGrayscaleOnBeforeExclusion(),
         )
     ) {
-        return false
+        return@synchronized false
     }
-    if (!grayscale.setGrayscale(true)) return false
+    if (!restoreExclusionGrayscale(exclusionPrefs, grayscale)) return@synchronized false
     exclusionPrefs.clearExclusionState()
-    return true
+    true
 }

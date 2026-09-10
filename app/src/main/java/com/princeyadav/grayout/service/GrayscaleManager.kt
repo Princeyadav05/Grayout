@@ -1,6 +1,8 @@
 package com.princeyadav.grayout.service
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
 
@@ -21,31 +23,30 @@ import android.provider.Settings
  */
 class GrayscaleManager(context: Context) : GrayscaleController {
 
-    private val contentResolver = context.contentResolver
+    private val applicationContext = context.applicationContext
+    private val contentResolver = applicationContext.contentResolver
     private val prefs = context.applicationContext
         .getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
 
     override fun isGrayscaleEnabled(): Boolean = isGrayscaleOn(readState())
 
-    override fun setGrayscale(enabled: Boolean): Boolean {
+    override fun setGrayscale(enabled: Boolean): Boolean = synchronized(GrayscaleStateLock) {
         val current = readState()
         val plan = daltonizerPlan(enable = enabled, current = current, baseline = readBaseline())
         plan.captureBaseline?.let { writeBaseline(it) }
-        if (current == plan.write) return true
-        return try {
+        if (current == plan.write) return@synchronized true
+        try {
             applyAndVerify(plan.write)
         } catch (_: SecurityException) {
             false
         }
     }
 
-    override fun canWriteSecureSettings(): Boolean = try {
-        val current = Settings.Secure.getInt(contentResolver, DALTONIZER_ENABLED, 0)
-        Settings.Secure.putInt(contentResolver, DALTONIZER_ENABLED, current)
-        true
-    } catch (_: SecurityException) {
-        false
-    }
+    // Permission checks must not rewrite a value that can change between the read
+    // and write. Actual grayscale writes are still verified by setGrayscale().
+    override fun canWriteSecureSettings(): Boolean =
+        applicationContext.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) ==
+            PackageManager.PERMISSION_GRANTED
 
     private fun readState(): DaltonizerState = DaltonizerState(
         enabled = Settings.Secure.getInt(contentResolver, DALTONIZER_ENABLED, 0),
@@ -92,5 +93,6 @@ class GrayscaleManager(context: Context) : GrayscaleController {
         private const val KEY_BASELINE_ENABLED = "daltonizer_baseline_enabled"
         private const val KEY_BASELINE_MODE = "daltonizer_baseline_mode"
         val DALTONIZER_ENABLED_URI: Uri = Settings.Secure.getUriFor(DALTONIZER_ENABLED)
+        val DALTONIZER_MODE_URI: Uri = Settings.Secure.getUriFor(DALTONIZER_MODE)
     }
 }

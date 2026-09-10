@@ -39,13 +39,31 @@ class ExclusionPrefs(private val prefs: SharedPreferences) {
         prefs.getBoolean(KEY_WAS_GRAYSCALE_ON, false)
 
     fun setWasGrayscaleOnBeforeExclusion(wasOn: Boolean) {
-        prefs.edit().putBoolean(KEY_WAS_GRAYSCALE_ON, wasOn).apply()
+        prefs.edit()
+            .putBoolean(KEY_WAS_GRAYSCALE_ON, wasOn)
+            .putBoolean(KEY_GRAYSCALE_RESTORE_PENDING, false)
+            .apply()
+    }
+
+    fun isColorRestorePending(): Boolean = prefs.getBoolean(KEY_COLOR_RESTORE_PENDING, false)
+
+    fun setColorRestorePending(pending: Boolean) {
+        prefs.edit().putBoolean(KEY_COLOR_RESTORE_PENDING, pending).apply()
+    }
+
+    fun hasPendingDisplayWrite(): Boolean = isColorRestorePending() ||
+        prefs.getBoolean(KEY_GRAYSCALE_RESTORE_PENDING, false)
+
+    fun setGrayscaleRestorePending(pending: Boolean) {
+        prefs.edit().putBoolean(KEY_GRAYSCALE_RESTORE_PENDING, pending).apply()
     }
 
     fun clearExclusionState() {
         prefs.edit()
             .putBoolean(KEY_EXCLUDED_APP_ACTIVE, false)
             .putBoolean(KEY_WAS_GRAYSCALE_ON, false)
+            .putBoolean(KEY_COLOR_RESTORE_PENDING, false)
+            .putBoolean(KEY_GRAYSCALE_RESTORE_PENDING, false)
             .apply()
     }
 
@@ -53,5 +71,7 @@ class ExclusionPrefs(private val prefs: SharedPreferences) {
         private const val KEY_EXCLUDED_PACKAGES = "excluded_packages"
         private const val KEY_EXCLUDED_APP_ACTIVE = "excluded_app_active"
         private const val KEY_WAS_GRAYSCALE_ON = "was_grayscale_on_before_exclusion"
+        private const val KEY_COLOR_RESTORE_PENDING = "exclusion_color_restore_pending"
+        private const val KEY_GRAYSCALE_RESTORE_PENDING = "exclusion_grayscale_restore_pending"
     }
 }

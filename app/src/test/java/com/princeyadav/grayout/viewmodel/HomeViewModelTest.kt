@@ -29,6 +29,8 @@ class HomeViewModelTest {
     private lateinit var exclusionPrefs: ExclusionPrefs
     private var batteryOptimized = true // true = exempt/granted
     private val serviceRunning = MutableStateFlow(false)
+    private val intervalCommands = mutableListOf<Int>()
+    private var iconLoads = 0
 
     private fun vm(
         canWrite: Boolean = true,
@@ -44,10 +46,14 @@ class HomeViewModelTest {
             enforcementPrefs = enforcementPrefs,
             exclusionPrefs = exclusionPrefs,
             isBatteryOptimized = { batteryOptimized },
-            loadExcludedIcons = { _ -> emptyList<android.graphics.Bitmap>() to 0 },
+            loadExcludedIcons = { _ ->
+                iconLoads++
+                emptyList<android.graphics.Bitmap>() to 0
+            },
             ioDispatcher = dispatcherRule.dispatcher,
             usageAccessProbe = { usageAccessGranted },
             serviceRunning = this.serviceRunning,
+            onEnforcementIntervalChanged = intervalCommands::add,
         )
     }
 
@@ -95,6 +101,7 @@ class HomeViewModelTest {
 
         assertEquals(0, enforcementPrefs.getInterval())
         assertEquals(0, homeViewModel.enforcementInterval.value)
+        assertEquals(listOf(0), intervalCommands)
     }
 
     @Test
@@ -107,6 +114,7 @@ class HomeViewModelTest {
 
         assertEquals(5, enforcementPrefs.getInterval())
         assertEquals(5, homeViewModel.enforcementInterval.value)
+        assertEquals(listOf(5), intervalCommands)
     }
 
     @Test
@@ -121,6 +129,46 @@ class HomeViewModelTest {
         }
         assertEquals(0, enforcementPrefs.getInterval())
         assertEquals(0, homeViewModel.enforcementInterval.value)
+        assertTrue(intervalCommands.isEmpty())
+    }
+
+    @Test
+    fun `refreshSystemState picks up external changes without commanding the service`() = runTest {
+        val homeViewModel = vm()
+        enforcementPrefs.setInterval(15)
+        grayscale.grayscaleEnabled = true
+
+        homeViewModel.refreshSystemState()
+
+        assertEquals(15, homeViewModel.enforcementInterval.value)
+        assertTrue(homeViewModel.isGrayscaleOn.value)
+        assertEquals(15, enforcementPrefs.getInterval())
+        assertTrue(intervalCommands.isEmpty())
+    }
+
+    @Test
+    fun `rapid interval choices are applied in user order`() = runTest {
+        val homeViewModel = vm()
+
+        homeViewModel.setEnforcementInterval(5)
+        homeViewModel.setEnforcementInterval(0)
+        advanceUntilIdle()
+
+        assertEquals(0, enforcementPrefs.getInterval())
+        assertEquals(0, homeViewModel.enforcementInterval.value)
+        assertEquals(listOf(5, 0), intervalCommands)
+    }
+
+    @Test
+    fun `home resume owns icon loading without an eager duplicate`() = runTest {
+        val homeViewModel = vm()
+        advanceUntilIdle()
+        assertEquals(0, iconLoads)
+
+        homeViewModel.refreshExcludedAppIcons()
+        advanceUntilIdle()
+
+        assertEquals(1, iconLoads)
     }
 
     @Test

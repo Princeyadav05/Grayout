@@ -29,6 +29,7 @@ class HomeViewModel(
     private val ioDispatcher: CoroutineDispatcher,
     private val usageAccessProbe: () -> Boolean,
     serviceRunning: StateFlow<Boolean>,
+    private val onEnforcementIntervalChanged: (Int) -> Unit = {},
 ) : ViewModel() {
 
     private val _isGrayscaleOn = MutableStateFlow(false)
@@ -56,10 +57,13 @@ class HomeViewModel(
     val navigateToSetup: SharedFlow<Unit> = _navigateToSetup.asSharedFlow()
 
     init {
-        _isGrayscaleOn.value = grayscaleManager.isGrayscaleEnabled()
+        refreshSystemState()
+    }
+
+    /** Reconcile changes made through Quick Settings while the activity was stopped. */
+    fun refreshSystemState() {
+        refreshGrayscaleStateFromSystem()
         _enforcementInterval.value = enforcementPrefs.getInterval()
-        refreshExcludedAppIcons()
-        refreshAttentionCount()
     }
 
     fun refreshGrayscaleStateFromSystem() {
@@ -79,19 +83,15 @@ class HomeViewModel(
     }
 
     fun setEnforcementInterval(minutes: Int) {
-        if (minutes == 0) {
-            enforcementPrefs.setInterval(0)
-            _enforcementInterval.value = 0
+        if (minutes != 0 && !grayscaleManager.canWriteSecureSettings()) {
+            _navigateToSetup.tryEmit(Unit)
             return
         }
-        viewModelScope.launch(ioDispatcher) {
-            if (!grayscaleManager.canWriteSecureSettings()) {
-                _navigateToSetup.tryEmit(Unit)
-                return@launch
-            }
-            enforcementPrefs.setInterval(minutes)
-            _enforcementInterval.value = minutes
-        }
+        enforcementPrefs.setInterval(minutes)
+        _enforcementInterval.value = minutes
+        // Only explicit user changes command the service. Replaying UI state on
+        // resume must not overwrite a newer interval set by the Quick Settings tile.
+        onEnforcementIntervalChanged(minutes)
     }
 
     fun refreshExcludedAppIcons() {
@@ -140,6 +140,7 @@ class HomeViewModelFactory(
     private val ioDispatcher: CoroutineDispatcher,
     private val usageAccessProbe: () -> Boolean,
     private val serviceRunning: StateFlow<Boolean>,
+    private val onEnforcementIntervalChanged: (Int) -> Unit,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -152,6 +153,7 @@ class HomeViewModelFactory(
             ioDispatcher,
             usageAccessProbe,
             serviceRunning,
+            onEnforcementIntervalChanged,
         ) as T
     }
 }
