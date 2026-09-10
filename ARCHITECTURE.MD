@@ -197,8 +197,10 @@ coverage and any due normal boundary before replacing registrations. Valid pendi
 closure recovery survives boot rescheduling; changed configuration or an observed
 manual display change can supersede it.
 
-Enforcement countdowns retain an elapsed-realtime deadline with boot and interval
-provenance. Recovery preserves the original deadline, including already-due alarms,
+Enforcement countdowns retain an elapsed-realtime deadline with boot, interval, and
+generation provenance. Queued old, duplicate, or premature deliveries cannot act
+on a newer timer; rejected deliveries can repair a valid current registration.
+Recovery preserves the original deadline, including already-due alarms,
 and falls back to inexact registration when exact access is absent. Restoration,
 service starts, setting observers, and alarm consumption share the grayscale state
 lock so an older recovery cannot replace a newer user choice. Deadline writes reach
