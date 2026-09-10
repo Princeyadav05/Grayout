@@ -19,7 +19,9 @@ A personal Android app that enforces grayscale mode to reduce phone addiction.
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/03-exclusions.png" width="250" alt="Searching for Maps and excluding it from grayscale" />
 </p>
 
-[Watch the app walkthrough (MP4)](https://github.com/Princeyadav05/Grayout/releases/download/v1.2.0/grayout-demo-v1.2.0.mp4)
+https://github.com/user-attachments/assets/5f85c34d-405d-41eb-a71b-f4bc7a790485
+
+[Download the walkthrough (MP4)](https://github.com/Princeyadav05/Grayout/releases/download/v1.2.0/grayout-demo-v1.2.0.mp4)
 
 Captured from v1.2.0 on a OnePlus 9 Pro running Android 16, using sample settings. These captures show the app interface; the phone's display-level grayscale effect is not reproduced in the screenshots or recording.
 
