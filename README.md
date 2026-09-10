@@ -11,6 +11,18 @@ A personal Android app that enforces grayscale mode to reduce phone addiction.
 - Quick Settings tiles for fast access
 - Runs as a foreground service using `WRITE_SECURE_SETTINGS` to control display settings
 
+## Screenshots and demo
+
+<p>
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/01-home.png" width="250" alt="Grayout home screen with grayscale enabled, five-minute enforcement, and three app exceptions" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/02-schedule.png" width="250" alt="Creating a weekday grayscale schedule from 9 AM to 5 PM" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/03-exclusions.png" width="250" alt="Searching for Maps and excluding it from grayscale" />
+</p>
+
+[Watch the app walkthrough (MP4)](https://github.com/Princeyadav05/Grayout/releases/download/v1.2.0/grayout-demo-v1.2.0.mp4)
+
+Captured from v1.2.0 on a OnePlus 9 Pro running Android 16, using sample settings. These captures show the app interface; the phone's display-level grayscale effect is not reproduced in the screenshots or recording.
+
 ## Requirements
 
 - Android 8.0+ (API 26)
