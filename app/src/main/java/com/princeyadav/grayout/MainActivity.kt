@@ -92,6 +92,7 @@ class MainActivity : ComponentActivity() {
                 applicationContext.startForegroundService(
                     Intent(applicationContext, GrayoutService::class.java)
                         .putExtra(GrayoutService.EXTRA_INTERVAL, interval)
+                        .putExtra(GrayoutService.EXTRA_USER_INTERVAL_CHANGE, true)
                 )
             },
         )

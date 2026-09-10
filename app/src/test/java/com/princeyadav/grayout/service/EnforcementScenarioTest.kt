@@ -586,10 +586,9 @@ class EnforcementScenarioTest {
 
     @Test
     fun `recovery - stranded exclusion exit clears flags and restores grayscale when wasOn`() {
-        // Detector/pure-fn level recovery, deliberately bypassing GrayoutApp (an
-        // Application subclass not exercised in JVM unit tests). GrayoutApp
-        // .clearExclusionState() is the PRIMARY cold-start healer; this exercises
-        // the secondary warm-restart path via the real Exit transition.
+        // Detector-level recovery after startup has retained the restoration
+        // target. Application/service startup policy is covered separately by
+        // ExclusionRecoveryTest and the real process-death host regression.
         enforcementPrefs.setInterval(0)
         exclusionPrefs.setExcludedAppActive(true)
         exclusionPrefs.setWasGrayscaleOnBeforeExclusion(true)

@@ -90,11 +90,14 @@ loop (the only loop it hosts is the exclusion detector's foreground-app poll). I
 and picks one of three modes: stop fully when there is nothing to do, stay alive only
 to watch exclusions (interval 0 with excluded apps), or run interval enforcement.
 `shouldServiceRun` decides stop versus run; the interval value then splits the two
-running modes. Stranded exclusion state is reconciled on restart so a suppressed
-grayscale session is restored rather than left in color: `GrayoutService` heals it on a
-warm revival, and on a cold start `GrayoutApp` restores gray when the screen is off (the
-wake-gray contract) but only clears the flag when the screen is on, where a set flag may
-be a live session. The exact rules live in the code comments.
+running modes. Application and service startup share `reconcileExclusionOnStart`.
+With the screen on and exclusions configured, a saved session and its restoration
+target survive until foreground detection proves whether it is still live. A sticky
+restart never blindly restores gray over an excluded app. With the screen off, or
+no exclusions remaining, startup reconciles immediately and retains failed writes.
+A fresh service also preserves a surviving enforcement countdown. Only an explicit
+UI/tile interval choice marks the first command as a requested countdown reset;
+boot and schedule resynchronization may carry the interval without resetting it.
 
 ### Enforcement path
 
@@ -112,6 +115,11 @@ once the permission is restored, without reopening the app.
 `ForegroundAppDetector` polls the current foreground app once a second (only while
 the screen is on and at least one app is excluded) using `UsageStatsManager` through
 `UsageStatsForegroundProvider`. Each poll feeds the pure exclusion state machine.
+The normal query looks back ten seconds. On the first poll only, an empty recent
+query gets one bounded 24-hour fallback to resolve an app left open across process
+death. The fallback rejects activity departures, lock/screen-off, and reboot events
+that contradict an old resume. Own-package events pass through unchanged; genuinely
+unknown foreground keeps the restoration target until fresh evidence arrives.
 `ExclusionPrefs` (SharedPreferences) holds the FSM state: the excluded set, whether an
 excluded app is currently active, and the grayscale state to restore when it closes.
 The detector reads the current grayscale state only when entering an exclusion.
@@ -119,7 +127,7 @@ If restoring grayscale on exit fails, it keeps the saved state and retries on th
 next poll before clearing the session. Failed color writes also retain a pending
 flag, so a stable excluded app or a later exit can retry without losing the state
 to restore. Failed grayscale restoration is retained too. A screen-on cold start
-preserves either kind of recovery evidence.
+preserves both successful suppression targets and failed-write recovery evidence.
 
 Schedule boundaries and active-window resynchronization use
 `applyScheduleGrayscale`: during an exclusion they keep the display colored and

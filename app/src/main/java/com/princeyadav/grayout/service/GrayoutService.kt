@@ -39,6 +39,7 @@ class GrayoutService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private val detectorScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var currentInterval = 0
+    private var hasReceivedStartCommand = false
     private var countdownTargetMs = 0L
 
     // Read by the detector's background poll thread (isScreenOn), written on the main
@@ -141,14 +142,19 @@ class GrayoutService : Service() {
             ?.takeIf { it >= 0 }
             ?: enforcementPrefs.getInterval()
 
-        val intervalChanged = interval != currentInterval
+        val intervalChanged = enforcementIntervalChanged(
+            previousInterval = currentInterval.takeIf { hasReceivedStartCommand },
+            interval = interval,
+            explicitlyRequested = intent?.getBooleanExtra(EXTRA_USER_INTERVAL_CHANGE, false) == true,
+        )
+        hasReceivedStartCommand = true
         currentInterval = interval
 
         val excludedCount = exclusionPrefs.getExcludedCount()
+        reconcileExclusionOnStart(exclusionPrefs, grayscaleManager, isScreenInteractive)
 
         // (A) Nothing to do: enforcement off and no excluded apps -> stop fully.
         if (!shouldServiceRun(interval, excludedCount)) {
-            reconcileStrandedExclusion(exclusionPrefs, grayscaleManager)
             cancelEnforcementAlarm()
             countdownTargetMs = 0L
             detector.stop()
@@ -161,14 +167,6 @@ class GrayoutService : Service() {
         // (B) Alive only for exclusions (interval == 0, excludedCount > 0).
         // No enforcement alarm; neutral notification; detector gated on screen.
         if (interval == 0) {
-            // Heal a stranded flag ONLY on a sticky/warm process revival (null
-            // intent). On an explicit (re)start carrying an intent — app open, an
-            // exclusion-list toggle, boot, schedule, tile — a true excludedAppActive
-            // is a LIVE session, not stranded; reconciling would clear it and
-            // re-gray mid-session (a visible flicker when the user returns to the
-            // excluded app). The detector self-heals via a proper Exit on its next
-            // non-own, non-excluded tick, and GrayoutApp heals cold starts.
-            if (intent == null) reconcileStrandedExclusion(exclusionPrefs, grayscaleManager)
             cancelEnforcementAlarm()
             countdownTargetMs = 0L
             startForeground(NOTIFICATION_ID, buildNotification(0, exclusionOnly = true))
@@ -177,17 +175,8 @@ class GrayoutService : Service() {
         }
 
         // (C) interval > 0.
-        // Heal a stranded flag when the last excluded app was just removed
-        // (excludedCount == 0) while a session was active — branches (A)/(B) cover
-        // interval 0; this covers interval > 0. Without it, removing the app you
-        // are inside leaves excludedAppActive stuck true: grayscale stays off, the
-        // detector can no longer Exit (tickOnce no-ops at 0 exclusions), and
-        // applyEnforcementTick short-circuits on the flag, blocking all future
-        // enforcement until a cold start. Guarded on excludedCount == 0 so a live
-        // multi-exclusion session is never cleared, and reconcile self-guards on
-        // isExcludedAppActive() (no-op in the normal no-exclusions case). Placed
-        // before the scheduling block so a wasOn=false heal re-arms the alarm.
-        if (excludedCount == 0) reconcileStrandedExclusion(exclusionPrefs, grayscaleManager)
+        // Startup reconciliation above also handles removal of the last excluded
+        // app before this block decides whether an enforcement alarm is needed.
 
         val now = System.currentTimeMillis()
         val hasActiveCountdown = countdownTargetMs > now
@@ -352,6 +341,9 @@ class GrayoutService : Service() {
         const val CHANNEL_ID = "grayout_service"
         const val NOTIFICATION_ID = 1
         const val EXTRA_INTERVAL = "enforcement_interval_minutes"
+        // Schedule/boot intents also carry an interval; only UI/tile choices
+        // should reset a surviving countdown on the first service command.
+        const val EXTRA_USER_INTERVAL_CHANGE = "user_interval_change"
         const val ACTION_ENFORCEMENT_TICK = "com.princeyadav.grayout.ENFORCEMENT_TICK"
         // internal so EnforcementAlarmReceiver (via scheduleEnforcementAlarm) can
         // reschedule a retry on the same PendingIntent after a failed tick.

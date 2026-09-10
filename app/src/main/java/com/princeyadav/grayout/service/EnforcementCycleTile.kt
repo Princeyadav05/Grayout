@@ -28,6 +28,7 @@ class EnforcementCycleTile : TileService() {
 
         val intent = Intent(this, GrayoutService::class.java)
             .putExtra(GrayoutService.EXTRA_INTERVAL, newInterval)
+            .putExtra(GrayoutService.EXTRA_USER_INTERVAL_CHANGE, true)
         startForegroundService(intent)
 
         updateTile()

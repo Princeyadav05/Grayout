@@ -90,6 +90,49 @@ class GrayoutServiceInstrumentationTest {
         }
     }
 
+    @Test
+    fun startupInsideAnExclusionPreservesTheSurvivingEnforcementAlarm() {
+        assertStartupPreservesCountdown(serviceIntent)
+    }
+
+    @Test
+    fun scheduleResynchronizationExtraDoesNotResetTheSurvivingCountdown() {
+        assertStartupPreservesCountdown(Intent(serviceIntent).putExtra(GrayoutService.EXTRA_INTERVAL, 5))
+    }
+
+    @Test
+    fun userIntervalChoiceOnFreshServiceResetsThePriorCountdown() {
+        assertStartupPreservesCountdown(
+            Intent(serviceIntent).putExtra(GrayoutService.EXTRA_INTERVAL, 5)
+                .putExtra(GrayoutService.EXTRA_USER_INTERVAL_CHANGE, true),
+            preserve = false,
+        )
+    }
+
+    private fun assertStartupPreservesCountdown(startIntent: Intent, preserve: Boolean = true) {
+        val exclusions = ExclusionPrefs(prefs)
+        exclusions.setExcludedPackages(context.packageManager.getInstalledApplications(0)
+            .map { it.packageName }.toSet())
+        exclusions.setWasGrayscaleOnBeforeExclusion(false)
+        exclusions.setExcludedAppActive(true)
+        Settings.Secure.putInt(context.contentResolver, ENABLED, 0)
+        Settings.Secure.putInt(context.contentResolver, MODE, -1)
+        scheduleEnforcementAlarm(context, System.currentTimeMillis() + 5 * 60_000)
+        val originalAlarm = checkNotNull(enforcementAlarm())
+
+        // A fresh service with no explicit user interval choice must retain the token,
+        // just as it does on null-intent sticky revival after process death.
+        context.startForegroundService(startIntent)
+        awaitCondition("Service should start") { GrayoutService.isRunning.value }
+        instrumentation.waitForIdleSync()
+
+        if (preserve) assertEquals(originalAlarm, enforcementAlarm())
+        else assertNull(enforcementAlarm())
+        assertTrue(exclusions.isExcludedAppActive())
+        assertEquals(5, EnforcementPrefs(prefs).getInterval())
+        assertEquals(0, Settings.Secure.getInt(context.contentResolver, ENABLED))
+    }
+
     private fun stopService() {
         context.stopService(serviceIntent)
         awaitCondition("The service should stop before restoring test state") {

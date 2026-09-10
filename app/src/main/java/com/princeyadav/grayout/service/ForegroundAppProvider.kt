@@ -45,33 +45,54 @@ interface ForegroundAppProvider {
  * Production [ForegroundAppProvider] backed by [UsageStatsManager.queryEvents].
  *
  * Selects the package of the latest `MOVE_TO_FOREGROUND` event within a
- * [LOOKBACK_MS] window. `MOVE_TO_FOREGROUND` (value 1) is used rather than
+ * [LOOKBACK_MS] window. The first background poll can make one conservative
+ * [RECOVERY_LOOKBACK_MS] fallback query, resolving an app left open across process
+ * death without repeatedly scanning history. `MOVE_TO_FOREGROUND` (value 1) is used rather than
  * `ACTIVITY_RESUMED` because the latter is API 29+ and would break the
  * minSdk-26 build; `MOVE_TO_FOREGROUND` is available since API 21 and still
  * delivered on newer releases.
  */
 class UsageStatsForegroundProvider(
     context: Context,
-    private val nowMs: () -> Long = System::currentTimeMillis,
+    nowMs: () -> Long = System::currentTimeMillis,
 ) : ForegroundAppProvider {
 
     private val usageStatsManager: UsageStatsManager? =
         context.getSystemService(UsageStatsManager::class.java)
 
+    private val lookup = ForegroundRecoveryLookup(::queryForegroundPackage, nowMs)
+
+    override fun currentForegroundPackage(): String? = lookup.currentForegroundPackage()
+
     // MOVE_TO_FOREGROUND is @Deprecated since API 29 in favour of ACTIVITY_RESUMED,
     // but ACTIVITY_RESUMED is API 29+ and this app's minSdk is 26. MOVE_TO_FOREGROUND
     // is still delivered on every supported release, so it is the correct choice.
     @Suppress("DEPRECATION")
-    override fun currentForegroundPackage(): String? {
-        val usm = usageStatsManager ?: return null
-        val end = nowMs()
-        val begin = end - LOOKBACK_MS
-        val events = usm.queryEvents(begin, end)
+    private fun queryForegroundPackage(begin: Long, end: Long, validateHistory: Boolean): String? {
+        val events = try {
+            usageStatsManager?.queryEvents(begin, end)
+        } catch (_: SecurityException) {
+            null
+        } ?: return null
         val event = UsageEvents.Event()
+        val history = if (validateHistory) ForegroundHistory() else null
         var latestPackage: String? = null
         var latestTime = Long.MIN_VALUE
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
+            if (history != null) {
+                val type = when (event.eventType) {
+                    UsageEvents.Event.MOVE_TO_FOREGROUND -> ForegroundHistoryEvent.Resumed
+                    UsageEvents.Event.MOVE_TO_BACKGROUND,
+                    UsageEvents.Event.ACTIVITY_STOPPED -> ForegroundHistoryEvent.Backgrounded
+                    UsageEvents.Event.SCREEN_NON_INTERACTIVE,
+                    UsageEvents.Event.KEYGUARD_SHOWN,
+                    UsageEvents.Event.DEVICE_SHUTDOWN,
+                    UsageEvents.Event.DEVICE_STARTUP -> ForegroundHistoryEvent.Reset
+                    else -> ForegroundHistoryEvent.Other
+                }
+                history.record(type, event.packageName, event.className)
+            }
             if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND &&
                 event.timeStamp >= latestTime
             ) {
@@ -79,6 +100,6 @@ class UsageStatsForegroundProvider(
                 latestPackage = event.packageName
             }
         }
-        return latestPackage
+        return if (validateHistory) history?.packageName else latestPackage
     }
 }
