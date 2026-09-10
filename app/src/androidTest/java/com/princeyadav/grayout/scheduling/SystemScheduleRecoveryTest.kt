@@ -2,6 +2,8 @@ package com.princeyadav.grayout.scheduling
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.Notification
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.BroadcastReceiver
@@ -287,14 +289,16 @@ class SystemScheduleRecoveryTest {
         restoring.join(5_000)
         assertFalse(restoring.isAlive)
         failure.get()?.let { throw AssertionError("Concurrent restore failed", it) }
+        await { enforcementToken() != null &&
+            (context.enforcementAlarmState().deadline(context.bootCount(), 15) ?: 0L) >
+                SystemClock.elapsedRealtime() + 14 * 60_000 }
         instrumentation.waitForIdleSync()
         val deadline = checkNotNull(context.enforcementAlarmState().deadline(context.bootCount()))
         assertTrue(deadline > SystemClock.elapsedRealtime() + 14 * 60_000)
         assertEquals(15, EnforcementPrefs(prefs).getInterval())
         // A delayed schedule/regrant intent carries an old snapshot, not a new user choice.
-        context.startForegroundService(Intent(context, GrayoutService::class.java)
+        awaitServiceStartCompletion(Intent(context, GrayoutService::class.java)
             .putExtra(GrayoutService.EXTRA_INTERVAL, 5))
-        instrumentation.waitForIdleSync()
         assertEquals(deadline, context.enforcementAlarmState().deadline(context.bootCount()))
     }
 
@@ -312,9 +316,14 @@ class SystemScheduleRecoveryTest {
         instrumentation.waitForIdleSync()
         assertNotEquals(oldToken, enforcementToken())
         val implicitToken = checkNotNull(enforcementToken())
+        val implicitGeneration = context.enforcementAlarmState().generation()
         context.startForegroundService(Intent(context, GrayoutService::class.java)
             .putExtra(GrayoutService.EXTRA_INTERVAL, 15)
             .putExtra(GrayoutService.EXTRA_USER_INTERVAL_CHANGE, true))
+        await { enforcementToken()?.let { it != implicitToken } == true &&
+            context.enforcementAlarmState().generation()?.let { it != implicitGeneration } == true &&
+            (context.enforcementAlarmState().deadline(context.bootCount(), 15) ?: 0L) >
+                SystemClock.elapsedRealtime() + 14 * 60_000 }
         instrumentation.waitForIdleSync()
         assertNotEquals(implicitToken, enforcementToken())
         assertTrue(checkNotNull(context.enforcementAlarmState().deadline(context.bootCount(), 15)) >
@@ -411,6 +420,26 @@ class SystemScheduleRecoveryTest {
     private fun enforcementToken() = PendingIntent.getBroadcast(context, 2001,
         Intent(context, EnforcementAlarmReceiver::class.java).setAction(GrayoutService.ACTION_ENFORCEMENT_TICK),
         PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
+
+    private fun awaitServiceStartCompletion(intent: Intent) {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        val marker = "Waiting for the implicit service command"
+        val existing = checkNotNull(manager.activeNotifications.firstOrNull {
+            it.id == GrayoutService.NOTIFICATION_ID
+        }).notification
+        manager.notify(GrayoutService.NOTIFICATION_ID,
+            Notification.Builder.recoverBuilder(context, existing).setContentTitle(marker).build())
+        fun currentTitle() = manager.activeNotifications.firstOrNull {
+            it.id == GrayoutService.NOTIFICATION_ID
+        }?.notification?.extras?.getString(Notification.EXTRA_TITLE)
+        await { currentTitle() == marker }
+        context.startForegroundService(intent)
+        // This implicit start should leave deadline and generation unchanged.
+        // Its real foreground-notification replacement confirms onStartCommand
+        // reached its final branch after the asynchronous service IPC arrived.
+        await { currentTitle() == "Grayscale enforcement" }
+        instrumentation.waitForIdleSync()
+    }
 
     private suspend fun changeEmptyFixtureZoneAndDrain(zone: String) {
         if (TimeZone.getDefault().id == zone) return
