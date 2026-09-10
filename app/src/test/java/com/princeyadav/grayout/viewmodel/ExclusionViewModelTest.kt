@@ -9,8 +9,10 @@ import com.princeyadav.grayout.fakes.FakeSharedPreferences
 import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.service.ExclusionPrefs
 import com.princeyadav.grayout.testutil.MainDispatcherRule
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -18,6 +20,21 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import kotlin.coroutines.CoroutineContext
+
+/** Separates background completion from Main publication without real threads. */
+private class QueuedAppLoaderDispatcher : CoroutineDispatcher() {
+    private val tasks = ArrayDeque<Runnable>()
+
+    override fun dispatch(context: CoroutineContext, block: Runnable) {
+        tasks.addLast(block)
+    }
+
+    fun completeLoad() {
+        check(tasks.isNotEmpty()) { "No app load was queued" }
+        tasks.removeFirst().run()
+    }
+}
 
 /**
  * JVM-safe stub of [ImageBitmap]. Compose's real `ImageBitmap(w, h)` factory
@@ -81,7 +98,7 @@ class ExclusionViewModelTest {
             onExclusionListChanged = { changedCount++ },
             loadApps = { fakeApps },
             ioDispatcher = dispatcherRule.dispatcher,
-        )
+        ).also { it.refreshApps() }
     }
 
     @Before
@@ -146,6 +163,88 @@ class ExclusionViewModelTest {
         viewModel.toggleExclusion("com.example.test") // remove
 
         assertEquals(2, changedCount)
+    }
+
+    @Test
+    fun `screen resume triggers initial load and overlapping refreshes are coalesced`() = runTest {
+        var loadCount = 0
+        val loaderDispatcher = QueuedAppLoaderDispatcher()
+        val viewModel = ExclusionViewModel(
+            exclusionPrefs = exclusionPrefs,
+            usageAccessProbe = { true },
+            onExclusionListChanged = {},
+            loadApps = { loadCount++; emptyList() },
+            ioDispatcher = loaderDispatcher,
+        )
+        runCurrent()
+        assertEquals("Construction must not duplicate the screen's resume load", 0, loadCount)
+
+        viewModel.refreshApps()
+        runCurrent()
+        viewModel.refreshApps()
+        viewModel.refreshApps()
+        loaderDispatcher.completeLoad()
+        runCurrent()
+        assertEquals(1, loadCount)
+
+        // A later resume must reload packages to detect installs and removals.
+        viewModel.refreshApps()
+        runCurrent()
+        loaderDispatcher.completeLoad()
+        runCurrent()
+        assertEquals(2, loadCount)
+    }
+
+    @Test
+    fun `completed background load preserves exclusion toggled before publication`() = runTest {
+        val loaderDispatcher = QueuedAppLoaderDispatcher()
+        val app = fakeAppInfo("com.example.test", "Test")
+        val viewModel = ExclusionViewModel(
+            exclusionPrefs = exclusionPrefs,
+            usageAccessProbe = { true },
+            onExclusionListChanged = {},
+            loadApps = { listOf(app) },
+            ioDispatcher = loaderDispatcher,
+        )
+
+        viewModel.filteredApps.test {
+            assertTrue(awaitItem().isEmpty())
+            viewModel.refreshApps()
+            runCurrent()
+            loaderDispatcher.completeLoad()
+
+            // IO has captured isExcluded=false, but its result is still queued
+            // for Main. The user changes the preference before it is published.
+            viewModel.toggleExclusion(app.packageName)
+            runCurrent()
+
+            assertTrue(awaitItem().single().isExcluded)
+            assertTrue(exclusionPrefs.isExcluded(app.packageName))
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `refresh reapplies exclusions after a package is installed or removed`() = runTest {
+        val first = fakeAppInfo("first.pkg", "First")
+        val installed = fakeAppInfo("new.pkg", "New")
+        val viewModel = vm(apps = listOf(first))
+
+        viewModel.filteredApps.test {
+            assertTrue(awaitItem().isEmpty())
+            advanceUntilIdle()
+            assertEquals(listOf(first.packageName), awaitItem().map { it.packageName })
+
+            fakeApps = listOf(installed)
+            exclusionPrefs.addExcludedPackage(installed.packageName)
+            viewModel.refreshApps()
+            advanceUntilIdle()
+
+            val refreshed = awaitItem().single()
+            assertEquals(installed.packageName, refreshed.packageName)
+            assertTrue(refreshed.isExcluded)
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test

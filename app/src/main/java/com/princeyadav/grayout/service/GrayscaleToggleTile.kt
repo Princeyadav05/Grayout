@@ -34,9 +34,7 @@ class GrayscaleToggleTile : TileService() {
         updateTile()
     }
 
-    // Read-only grant check, not GrayscaleManager.canWriteSecureSettings(): this runs
-    // on every onStartListening (QS panel open), and the write-probe would touch
-    // Settings.Secure on that hot path. The grant status is enough to pick the state.
+    // Opening Quick Settings only needs the grant status to pick the tile state.
     private fun hasWritePermission(): Boolean =
         checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) ==
             PackageManager.PERMISSION_GRANTED

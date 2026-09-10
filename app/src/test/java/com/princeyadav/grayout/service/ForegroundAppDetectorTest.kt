@@ -15,7 +15,7 @@ import org.junit.Test
  * Direct [ForegroundAppDetector.tickOnce] coverage — the glue the pure-function
  * tests structurally cannot reach: [ForegroundAppDetector.lastKnownPkg]
  * carry-forward across empty reads, own-package handling, the no-op-when-zero-
- * exclusions guard, and read-grayscale-once threading. No Robolectric; the scope
+ * exclusions guard, and grayscale reads only on entry. No Robolectric; the scope
  * is unused because we call [ForegroundAppDetector.tickOnce] synchronously.
  */
 class ForegroundAppDetectorTest {
@@ -28,13 +28,19 @@ class ForegroundAppDetectorTest {
     private lateinit var grayscale: FakeGrayscaleController
     private lateinit var provider: FakeForegroundAppProvider
     private var endedCount = 0
+    private var grayscaleReadCount = 0
 
     private fun detector(isScreenOn: () -> Boolean = { true }): ForegroundAppDetector =
         ForegroundAppDetector(
             provider = provider,
             exclusionPrefs = exclusionPrefs,
             enforcementPrefs = enforcementPrefs,
-            grayscale = grayscale,
+            grayscale = object : GrayscaleController by grayscale {
+                override fun isGrayscaleEnabled(): Boolean {
+                    grayscaleReadCount++
+                    return grayscale.isGrayscaleEnabled()
+                }
+            },
             ownPackage = own,
             onExclusionEnded = { endedCount++ },
             scope = CoroutineScope(Dispatchers.Unconfined),
@@ -49,6 +55,7 @@ class ForegroundAppDetectorTest {
         grayscale = FakeGrayscaleController()
         provider = FakeForegroundAppProvider()
         endedCount = 0
+        grayscaleReadCount = 0
     }
 
     @Test
@@ -90,6 +97,7 @@ class ForegroundAppDetectorTest {
         assertTrue(exclusionPrefs.isExcludedAppActive())
         assertFalse(grayscale.isGrayscaleEnabled())
         assertEquals(0, endedCount)
+        assertEquals(0, grayscaleReadCount)
     }
 
     @Test
@@ -104,6 +112,7 @@ class ForegroundAppDetectorTest {
         assertFalse(exclusionPrefs.isExcludedAppActive())
         assertEquals(0, grayscale.setGrayscaleCallCount)
         assertEquals(0, endedCount)
+        assertEquals(0, grayscaleReadCount)
         assertTrue(grayscale.isGrayscaleEnabled()) // untouched
     }
 
@@ -135,5 +144,68 @@ class ForegroundAppDetectorTest {
         assertTrue(exclusionPrefs.wasGrayscaleOnBeforeExclusion())
         assertTrue(exclusionPrefs.isExcludedAppActive())
         assertFalse(grayscale.isGrayscaleEnabled())
+        assertEquals(1, grayscaleReadCount)
+    }
+
+    @Test
+    fun `stable foreground polls and exit do not read grayscale again`() {
+        exclusionPrefs.addExcludedPackage("com.excluded")
+        grayscale.grayscaleEnabled = true
+        val detector = detector()
+
+        provider.foregroundPackage = "com.other"
+        repeat(3) { detector.tickOnce() }
+        assertEquals(0, grayscaleReadCount)
+
+        provider.foregroundPackage = "com.excluded"
+        detector.tickOnce()
+        assertEquals(1, grayscaleReadCount)
+        assertFalse(grayscale.grayscaleEnabled)
+
+        repeat(3) { detector.tickOnce() }
+        provider.foregroundPackage = null
+        repeat(3) { detector.tickOnce() }
+        assertEquals(1, grayscaleReadCount)
+        assertTrue(exclusionPrefs.isExcludedAppActive())
+
+        provider.foregroundPackage = "com.other"
+        detector.tickOnce()
+        assertEquals(1, grayscaleReadCount)
+        assertFalse(exclusionPrefs.isExcludedAppActive())
+        assertTrue(grayscale.grayscaleEnabled)
+
+        // Every new entry captures the latest state, even when it changed outside
+        // the detector while the user was in a non-excluded app.
+        grayscale.grayscaleEnabled = false
+        provider.foregroundPackage = "com.excluded"
+        detector.tickOnce()
+        assertEquals(2, grayscaleReadCount)
+        assertFalse(exclusionPrefs.wasGrayscaleOnBeforeExclusion())
+    }
+
+    @Test
+    fun `failed exit restoration is retried on the next poll`() {
+        exclusionPrefs.addExcludedPackage("com.excluded")
+        grayscale.grayscaleEnabled = true
+        val detector = detector()
+
+        provider.foregroundPackage = "com.excluded"
+        detector.tickOnce()
+
+        grayscale.canWrite = false
+        provider.foregroundPackage = "com.other"
+        detector.tickOnce()
+        assertTrue(exclusionPrefs.isExcludedAppActive())
+        assertTrue(exclusionPrefs.wasGrayscaleOnBeforeExclusion())
+        assertFalse(grayscale.grayscaleEnabled)
+
+        grayscale.canWrite = true
+        detector.tickOnce()
+        assertFalse(exclusionPrefs.isExcludedAppActive())
+        assertFalse(exclusionPrefs.wasGrayscaleOnBeforeExclusion())
+        assertTrue(grayscale.grayscaleEnabled)
+        assertEquals(3, grayscale.setGrayscaleCallCount)
+        assertEquals(1, grayscaleReadCount)
+        assertEquals(0, endedCount)
     }
 }

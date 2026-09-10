@@ -104,6 +104,9 @@ class GrayoutService : Service() {
         contentResolver.registerContentObserver(
             GrayscaleManager.DALTONIZER_ENABLED_URI, false, grayscaleObserver
         )
+        contentResolver.registerContentObserver(
+            GrayscaleManager.DALTONIZER_MODE_URI, false, grayscaleObserver
+        )
 
         detector = ForegroundAppDetector(
             provider = UsageStatsForegroundProvider(this),

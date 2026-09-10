@@ -46,7 +46,7 @@ sealed interface ExclusionTransition {
  * @param ownPackage this app's package; never ENTER/EXIT on our own UI (literal parity with the old `if (pkg == ownPkg) return`)
  * @param isExcluded whether [foregroundPackage] is in the user's exclusion set
  * @param excludedAppActive persisted FSM state ([ExclusionPrefs.isExcludedAppActive])
- * @param grayscaleEnabled current grayscale state, read once by the caller before this call
+ * @param grayscaleEnabled current grayscale state, needed only when entering an exclusion
  * @param wasGrayscaleOnBeforeExclusion saved entry state, echoed back on Exit
  */
 fun nextExclusionTransition(
@@ -73,8 +73,8 @@ fun nextExclusionTransition(
  * fakes (mirrors [applyEnforcementTick]).
  *
  * - Enter: setWasGrayscaleOnBeforeExclusion -> setExcludedAppActive(true) -> setGrayscale(false)
- * - Exit : setExcludedAppActive(false) -> setWasGrayscaleOnBeforeExclusion(false) ->
- *          if (wasOn) setGrayscale(true) else if (enforcementInterval > 0) onExclusionEnded()
+ * - Exit : if (wasOn) restore grayscale first; retain flags on failure for the next poll.
+ *          Clear flags after success, then signal enforcement if there was no saved wasOn.
  * - None : nothing
  */
 fun applyExclusionTransition(
@@ -97,11 +97,12 @@ fun applyExclusionTransition(
         }
 
         is ExclusionTransition.Exit -> {
-            exclusionPrefs.setExcludedAppActive(false)
-            exclusionPrefs.setWasGrayscaleOnBeforeExclusion(false)
-            if (transition.wasGrayscaleOn) {
-                grayscale.setGrayscale(true)
-            } else if (enforcementInterval > 0) {
+            // Preserve the saved state until restoration succeeds. Otherwise a
+            // rejected write loses the only evidence that grayscale needs restoring,
+            // and every later non-excluded poll becomes None instead of retrying Exit.
+            if (transition.wasGrayscaleOn && !grayscale.setGrayscale(true)) return
+            exclusionPrefs.clearExclusionState()
+            if (!transition.wasGrayscaleOn && enforcementInterval > 0) {
                 onExclusionEnded()
             }
         }
@@ -127,8 +128,8 @@ fun shouldServiceRun(interval: Int, excludedCount: Int): Boolean =
  * [applyEnforcementTick], the countdown/alarm machinery) are untouched.
  *
  * [tickOnce] is the single non-pure glue point: it holds (a) [lastKnownPkg]
- * carry-forward across empty reads and (b) the read-`isGrayscaleEnabled()`-once
- * threading, and is therefore directly unit-tested. The lock-screen-after-
+ * carry-forward across empty reads and (b) sampling grayscale only on entry,
+ * and is therefore directly unit-tested. The lock-screen-after-
  * SCREEN_ON caveat (see [ForegroundAppProvider]) is neutralized here by the
  * [lastKnownPkg] + own/None handling, so a poll that lands on the keyguard does
  * not produce a spurious `Exit`.
@@ -181,13 +182,22 @@ class ForegroundAppDetector(
         val read = provider.currentForegroundPackage()
         if (read != null) lastKnownPkg = read
         val pkg = read ?: lastKnownPkg ?: return
+        if (pkg == ownPackage) return
 
-        val grayscaleEnabled = grayscale.isGrayscaleEnabled()
+        val isExcluded = exclusionPrefs.isExcluded(pkg)
+        val excludedAppActive = exclusionPrefs.isExcludedAppActive()
+        // Stable polls and exits do not depend on the current system setting.
+        // Only an entry needs a fresh value to save for restoration on exit.
+        val grayscaleEnabled = if (isExcluded && !excludedAppActive) {
+            grayscale.isGrayscaleEnabled()
+        } else {
+            false
+        }
         val transition = nextExclusionTransition(
             foregroundPackage = pkg,
             ownPackage = ownPackage,
-            isExcluded = exclusionPrefs.isExcluded(pkg),
-            excludedAppActive = exclusionPrefs.isExcludedAppActive(),
+            isExcluded = isExcluded,
+            excludedAppActive = excludedAppActive,
             grayscaleEnabled = grayscaleEnabled,
             wasGrayscaleOnBeforeExclusion = exclusionPrefs.wasGrayscaleOnBeforeExclusion(),
         )
