@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.PowerManager
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.logic.isCurrentlyFiring
 import com.princeyadav.grayout.logic.nextScheduleEvent
@@ -55,7 +56,9 @@ class ScheduleAlarmManager(
             val active = enabledSchedules.any { isCurrentlyFiring(it, applyTime) }
             if (active) {
                 val prefs = context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
-                applyScheduleGrayscale(true, ExclusionPrefs(prefs), GrayscaleManager(context))
+                applyScheduleGrayscale(true, ExclusionPrefs(prefs), GrayscaleManager(context)) {
+                    context.getSystemService(PowerManager::class.java).isInteractive
+                }
             }
             active
         }

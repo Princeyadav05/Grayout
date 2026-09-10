@@ -24,9 +24,9 @@ class GrayoutApp : Application() {
         // only clear and let the detector re-establish state rather than flashing
         // gray over an app in use.
         if (getSystemService(PowerManager::class.java).isInteractive) {
-            // A failed color write is recovery evidence, not just a volatile
+            // A failed display write is recovery evidence, not just a volatile
             // foreground hint. Keep it for the detector's next retry/exit.
-            if (!exclusionPrefs.isColorRestorePending()) exclusionPrefs.clearExclusionState()
+            if (!exclusionPrefs.hasPendingDisplayWrite()) exclusionPrefs.clearExclusionState()
         } else {
             reconcileStrandedExclusion(exclusionPrefs, GrayscaleManager(this))
         }

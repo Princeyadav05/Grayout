@@ -9,6 +9,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.os.ParcelFileDescriptor
+import android.os.PowerManager
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -58,6 +61,7 @@ class ScheduleExclusionIntegrationTest {
             "android.permission.START_FOREGROUND_SERVICES_FROM_BACKGROUND",
         )
         stopService()
+        setScreenInteractive(true)
         savedPreferences = prefs.all
         savedEnabled = Settings.Secure.getString(context.contentResolver, ENABLED)
         savedMode = Settings.Secure.getString(context.contentResolver, MODE)
@@ -76,6 +80,7 @@ class ScheduleExclusionIntegrationTest {
     fun tearDown(): Unit = runBlocking {
         try {
             stopService()
+            setScreenInteractive(true)
             cancelAlarm(ScheduleReceiver::class.java, 1001, ScheduleAlarmManager.ACTION_SCHEDULE_FIRE)
             cancelAlarm(EnforcementAlarmReceiver::class.java, 2001, GrayoutService.ACTION_ENFORCEMENT_TICK)
             dao.getAll().forEach { dao.delete(it) }
@@ -164,6 +169,21 @@ class ScheduleExclusionIntegrationTest {
     }
 
     @Test
+    fun startBroadcastWhileScreenOffPreparesGrayBeforeScreenOnReentry() {
+        enterExclusion(wasOn = false)
+        setScreenInteractive(false)
+        fireSchedule(isStart = true)
+
+        assertTrue("A screen-off schedule start must prepare grayscale before wake", grayscale.isGrayscaleEnabled())
+        assertFalse(exclusions.isExcludedAppActive())
+        setScreenInteractive(true)
+        enterExclusion(wasOn = grayscale.isGrayscaleEnabled())
+        assertFalse(grayscale.isGrayscaleEnabled())
+        exitExclusion()
+        assertTrue(grayscale.isGrayscaleEnabled())
+    }
+
+    @Test
     fun activeWindowRescheduleDefersGrayscaleUntilExclusionExit() = runBlocking {
         val start = LocalTime.now().minusHours(1)
         val end = start.plusHours(2)
@@ -231,6 +251,20 @@ class ScheduleExclusionIntegrationTest {
     private fun stopService() {
         context.stopService(Intent(context, GrayoutService::class.java))
         instrumentation.waitForIdleSync()
+    }
+
+    private fun setScreenInteractive(interactive: Boolean) {
+        val power = context.getSystemService(PowerManager::class.java)
+        if (power.isInteractive == interactive) return
+        val key = if (interactive) "KEYCODE_WAKEUP" else "KEYCODE_SLEEP"
+        ParcelFileDescriptor.AutoCloseInputStream(
+            instrumentation.uiAutomation.executeShellCommand("input keyevent $key")
+        ).use { it.readBytes() }
+        val deadline = SystemClock.uptimeMillis() + 5_000L
+        while (power.isInteractive != interactive && SystemClock.uptimeMillis() < deadline) {
+            SystemClock.sleep(20)
+        }
+        assertEquals("Screen interactivity did not change", interactive, power.isInteractive)
     }
 
     private fun cancelAlarm(receiver: Class<*>, code: Int, action: String) {

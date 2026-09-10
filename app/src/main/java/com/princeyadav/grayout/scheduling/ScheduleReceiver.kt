@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.PowerManager
 import android.util.Log
 import com.princeyadav.grayout.data.GrayoutDatabase
 import com.princeyadav.grayout.data.ScheduleRepository
@@ -23,7 +24,9 @@ class ScheduleReceiver : BroadcastReceiver() {
         val prefs = context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
         val enforcementPrefs = EnforcementPrefs(prefs)
         val isStart = intent.getBooleanExtra(ScheduleAlarmManager.EXTRA_IS_START, false)
-        applyScheduleGrayscale(isStart, ExclusionPrefs(prefs), grayscaleManager)
+        applyScheduleGrayscale(isStart, ExclusionPrefs(prefs), grayscaleManager) {
+            context.getSystemService(PowerManager::class.java).isInteractive
+        }
         val intervalExtra = serviceIntervalExtraForScheduleEvent(
             isStart = isStart,
             persistedInterval = enforcementPrefs.getInterval(),

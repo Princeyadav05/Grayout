@@ -247,6 +247,71 @@ class ScheduleExclusionTest {
     }
 
     @Test
+    fun `schedule start while screen off applies grayscale before waking into an exclusion`() {
+        val detector = detector()
+        enter(detector, wasOn = false)
+        assertFalse(preGrayOnScreenOff(exclusions, grayscale))
+        assertTrue(exclusions.isExcludedAppActive())
+
+        assertTrue(applyScheduleGrayscale(true, exclusions, grayscale) { false })
+        assertTrue(grayscale.grayscaleEnabled)
+        assertFalse(exclusions.isExcludedAppActive())
+
+        // Screen-on sees the same excluded app and captures the schedule's new target.
+        detector.tickOnce()
+        assertFalse(grayscale.grayscaleEnabled)
+        assertTrue(exclusions.wasGrayscaleOnBeforeExclusion())
+        exit(detector)
+        assertTrue(grayscale.grayscaleEnabled)
+    }
+
+    @Test
+    fun `schedule end while screen off clears a suspended exclusion after disabling grayscale`() {
+        enter(wasOn = false)
+        grayscale.setGrayscale(true)
+        assertTrue(applyScheduleGrayscale(false, exclusions, grayscale) { false })
+        assertFalse(grayscale.grayscaleEnabled)
+        assertFalse(exclusions.isExcludedAppActive())
+        detector().tickOnce()
+        exit()
+        assertFalse(grayscale.grayscaleEnabled)
+    }
+
+    @Test
+    fun `failed screen off start preserves its new target and recovery evidence until exit`() {
+        enter(wasOn = false)
+        grayscale.canWrite = false
+        assertFalse(applyScheduleGrayscale(true, exclusions, grayscale) { false })
+        assertTrue(exclusions.isExcludedAppActive())
+        assertTrue(exclusions.wasGrayscaleOnBeforeExclusion())
+        assertTrue(ExclusionPrefs(prefs).hasPendingDisplayWrite())
+
+        grayscale.canWrite = true
+        detector().tickOnce()
+        assertFalse(grayscale.grayscaleEnabled)
+        assertTrue(exclusions.wasGrayscaleOnBeforeExclusion())
+        exit()
+        assertTrue(grayscale.grayscaleEnabled)
+        assertFalse(exclusions.hasPendingDisplayWrite())
+    }
+
+    @Test
+    fun `failed screen off end preserves pending color until restart recovery`() {
+        enter(wasOn = false)
+        grayscale.setGrayscale(true)
+        grayscale.canWrite = false
+        assertFalse(applyScheduleGrayscale(false, exclusions, grayscale) { false })
+        assertTrue(exclusions.hasPendingDisplayWrite())
+        assertFalse(exclusions.wasGrayscaleOnBeforeExclusion())
+
+        grayscale.canWrite = true
+        reconcileStrandedExclusion(ExclusionPrefs(prefs), grayscale)
+        assertFalse(grayscale.grayscaleEnabled)
+        assertFalse(exclusions.isExcludedAppActive())
+        assertFalse(exclusions.hasPendingDisplayWrite())
+    }
+
+    @Test
     fun `schedule start cannot interleave between entry snapshot and application`() {
         val inRead = CountDownLatch(1)
         val finishRead = CountDownLatch(1)
