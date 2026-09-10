@@ -116,7 +116,18 @@ the screen is on and at least one app is excluded) using `UsageStatsManager` thr
 excluded app is currently active, and the grayscale state to restore when it closes.
 The detector reads the current grayscale state only when entering an exclusion.
 If restoring grayscale on exit fails, it keeps the saved state and retries on the
-next poll before clearing the session.
+next poll before clearing the session. Failed color writes also retain a pending
+flag, so a stable excluded app or a later exit can retry without losing the state
+to restore. A screen-on cold start preserves this recovery evidence.
+
+Schedule boundaries and active-window resynchronization use
+`applyScheduleGrayscale`: during an exclusion they keep the display colored and
+replace the state to restore on exit. Thus a schedule start is deferred until exit,
+and a schedule end supersedes a saved grayscale-on state. A process-wide lock
+covers each exclusion read/decide/apply operation, schedule writes, enforcement,
+screen-off recovery, and physical display writes. UsageStats queries and suspending
+database work stay outside it. Resynchronization rechecks the time after taking
+the lock so an ended window cannot restore a stale request.
 
 ### Schedules
 

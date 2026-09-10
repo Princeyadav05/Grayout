@@ -30,12 +30,12 @@ class GrayscaleManager(context: Context) : GrayscaleController {
 
     override fun isGrayscaleEnabled(): Boolean = isGrayscaleOn(readState())
 
-    override fun setGrayscale(enabled: Boolean): Boolean {
+    override fun setGrayscale(enabled: Boolean): Boolean = synchronized(GrayscaleStateLock) {
         val current = readState()
         val plan = daltonizerPlan(enable = enabled, current = current, baseline = readBaseline())
         plan.captureBaseline?.let { writeBaseline(it) }
-        if (current == plan.write) return true
-        return try {
+        if (current == plan.write) return@synchronized true
+        try {
             applyAndVerify(plan.write)
         } catch (_: SecurityException) {
             false

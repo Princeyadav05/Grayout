@@ -24,7 +24,7 @@ Source paths above are relative to `app/src/main/java/com/princeyadav/grayout/`.
 
 ## Recommended next work
 
-### 1. Make schedule changes respect active exclusions
+### 1. Schedule/exclusion coordination: fixed in the follow-up
 
 `scheduling/ScheduleReceiver.kt` and `scheduling/ScheduleAlarmManager.kt` currently
 enable grayscale directly during an active excluded-app session. The detector sees
@@ -37,7 +37,10 @@ when an exclusion is active. Verify start and end transitions both inside and
 outside an excluded app, including failed writes. Also reschedule local-time alarms
 after timezone or clock changes; `BootReceiver.kt` currently handles only boot.
 
-These are code-review findings, not fixes included in this change.
+The schedule/exclusion conflict is now fixed and verified on an emulator. See
+[the follow-up implementation and verification](schedule-exclusion-fix-2026-09-11.md).
+Timezone and clock-change rescheduling remain separate work. The paragraphs above
+record the original findings and recommended approach.
 
 ### 2. Protect schedule editing and time-based UI state
 

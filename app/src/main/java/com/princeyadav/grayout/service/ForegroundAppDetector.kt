@@ -29,7 +29,7 @@ sealed interface ExclusionTransition {
     /** Outside -> inside an excluded app. Save prior grayscale state, turn grayscale OFF. */
     data class Enter(val wasGrayscaleOn: Boolean) : ExclusionTransition
 
-    /** Inside -> outside. [wasGrayscaleOn] is the saved entry state. */
+    /** Inside -> outside. [wasGrayscaleOn] is the latest state to restore, including schedule changes. */
     data class Exit(val wasGrayscaleOn: Boolean) : ExclusionTransition
 
     /** No edge this tick (inside->inside, outside->outside, own package, or undetermined). */
@@ -47,7 +47,7 @@ sealed interface ExclusionTransition {
  * @param isExcluded whether [foregroundPackage] is in the user's exclusion set
  * @param excludedAppActive persisted FSM state ([ExclusionPrefs.isExcludedAppActive])
  * @param grayscaleEnabled current grayscale state, needed only when entering an exclusion
- * @param wasGrayscaleOnBeforeExclusion saved entry state, echoed back on Exit
+ * @param wasGrayscaleOnBeforeExclusion latest restoration state, echoed back on Exit
  */
 fun nextExclusionTransition(
     foregroundPackage: String?,
@@ -72,10 +72,10 @@ fun nextExclusionTransition(
  * grayscale controller + [onExclusionEnded] lambda, so it is unit-testable with
  * fakes (mirrors [applyEnforcementTick]).
  *
- * - Enter: setWasGrayscaleOnBeforeExclusion -> setExcludedAppActive(true) -> setGrayscale(false)
+ * - Enter: save restoration state -> mark active -> turn grayscale off, retaining failed writes.
  * - Exit : if (wasOn) restore grayscale first; retain flags on failure for the next poll.
  *          Clear flags after success, then signal enforcement if there was no saved wasOn.
- * - None : nothing
+ * - None : no transition; tickOnce retries a pending color write separately.
  */
 fun applyExclusionTransition(
     transition: ExclusionTransition,
@@ -83,7 +83,7 @@ fun applyExclusionTransition(
     grayscale: GrayscaleController,
     enforcementInterval: Int,
     onExclusionEnded: () -> Unit,
-) {
+): Unit = synchronized(GrayscaleStateLock) {
     when (transition) {
         is ExclusionTransition.Enter -> {
             // Order matters: setExcludedAppActive(true) MUST precede setGrayscale(false).
@@ -93,23 +93,24 @@ fun applyExclusionTransition(
             // map synchronously, so the observer's callback sees it.
             exclusionPrefs.setWasGrayscaleOnBeforeExclusion(transition.wasGrayscaleOn)
             exclusionPrefs.setExcludedAppActive(true)
-            grayscale.setGrayscale(false)
+            restoreExclusionColor(exclusionPrefs, grayscale)
         }
 
         is ExclusionTransition.Exit -> {
             // Preserve the saved state until restoration succeeds. Otherwise a
             // rejected write loses the only evidence that grayscale needs restoring,
             // and every later non-excluded poll becomes None instead of retrying Exit.
-            if (transition.wasGrayscaleOn && !grayscale.setGrayscale(true)) return
+            if (transition.wasGrayscaleOn && !grayscale.setGrayscale(true)) return@synchronized
+            if (!transition.wasGrayscaleOn && exclusionPrefs.isColorRestorePending() &&
+                !restoreExclusionColor(exclusionPrefs, grayscale)
+            ) return@synchronized
             exclusionPrefs.clearExclusionState()
             if (!transition.wasGrayscaleOn && enforcementInterval > 0) {
                 onExclusionEnded()
             }
         }
 
-        ExclusionTransition.None -> {
-            // No edge this tick.
-        }
+        ExclusionTransition.None -> Unit
     }
 }
 
@@ -184,36 +185,43 @@ class ForegroundAppDetector(
         val pkg = read ?: lastKnownPkg ?: return
         if (pkg == ownPackage) return
 
-        val isExcluded = exclusionPrefs.isExcluded(pkg)
-        val excludedAppActive = exclusionPrefs.isExcludedAppActive()
-        // Stable polls and exits do not depend on the current system setting.
-        // Only an entry needs a fresh value to save for restoration on exit.
-        val grayscaleEnabled = if (isExcluded && !excludedAppActive) {
-            grayscale.isGrayscaleEnabled()
-        } else {
-            false
+        synchronized(GrayscaleStateLock) {
+            val isExcluded = exclusionPrefs.isExcluded(pkg)
+            val excludedAppActive = exclusionPrefs.isExcludedAppActive()
+            // Stable polls and exits do not depend on the current system setting.
+            // Only an entry needs a fresh value to save for restoration on exit.
+            val grayscaleEnabled = if (isExcluded && !excludedAppActive) {
+                grayscale.isGrayscaleEnabled()
+            } else {
+                false
+            }
+            val transition = nextExclusionTransition(
+                foregroundPackage = pkg,
+                ownPackage = ownPackage,
+                isExcluded = isExcluded,
+                excludedAppActive = excludedAppActive,
+                grayscaleEnabled = grayscaleEnabled,
+                wasGrayscaleOnBeforeExclusion = exclusionPrefs.wasGrayscaleOnBeforeExclusion(),
+            )
+            // The detector must not mutate the FSM once the screen is off. This poll runs on
+            // a background thread, and stop()'s cooperative cancel cannot abort a tick already
+            // in progress, so a tick that began while the screen was on could otherwise land
+            // here after GrayoutService cleared the exclusion state on SCREEN_OFF, re-Enter,
+            // and undo the pre-gray (see preGrayOnScreenOff). Checked after the read so it
+            // reflects screen state at apply time; isScreenInteractive is @Volatile.
+            if (!isScreenOn()) return
+            if (transition == ExclusionTransition.None && isExcluded &&
+                exclusionPrefs.isColorRestorePending()
+            ) {
+                restoreExclusionColor(exclusionPrefs, grayscale)
+            }
+            applyExclusionTransition(
+                transition = transition,
+                exclusionPrefs = exclusionPrefs,
+                grayscale = grayscale,
+                enforcementInterval = enforcementPrefs.getInterval(),
+                onExclusionEnded = onExclusionEnded,
+            )
         }
-        val transition = nextExclusionTransition(
-            foregroundPackage = pkg,
-            ownPackage = ownPackage,
-            isExcluded = isExcluded,
-            excludedAppActive = excludedAppActive,
-            grayscaleEnabled = grayscaleEnabled,
-            wasGrayscaleOnBeforeExclusion = exclusionPrefs.wasGrayscaleOnBeforeExclusion(),
-        )
-        // The detector must not mutate the FSM once the screen is off. This poll runs on
-        // a background thread, and stop()'s cooperative cancel cannot abort a tick already
-        // in progress, so a tick that began while the screen was on could otherwise land
-        // here after GrayoutService cleared the exclusion state on SCREEN_OFF, re-Enter,
-        // and undo the pre-gray (see preGrayOnScreenOff). Checked after the read so it
-        // reflects screen state at apply time; isScreenInteractive is @Volatile.
-        if (!isScreenOn()) return
-        applyExclusionTransition(
-            transition = transition,
-            exclusionPrefs = exclusionPrefs,
-            grayscale = grayscale,
-            enforcementInterval = enforcementPrefs.getInterval(),
-            onExclusionEnded = onExclusionEnded,
-        )
     }
 }

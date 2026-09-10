@@ -120,11 +120,11 @@ fun applyEnforcementTick(
     enforcementPrefs: EnforcementPrefs,
     exclusionPrefs: ExclusionPrefs,
     grayscale: GrayscaleController,
-): EnforcementTickResult {
-    if (enforcementPrefs.getInterval() <= 0) return EnforcementTickResult.Skipped
-    if (exclusionPrefs.isExcludedAppActive()) return EnforcementTickResult.Skipped
-    if (grayscale.isGrayscaleEnabled()) return EnforcementTickResult.Skipped
-    return if (grayscale.setGrayscale(true)) {
+): EnforcementTickResult = synchronized(GrayscaleStateLock) {
+    if (enforcementPrefs.getInterval() <= 0) return@synchronized EnforcementTickResult.Skipped
+    if (exclusionPrefs.isExcludedAppActive()) return@synchronized EnforcementTickResult.Skipped
+    if (grayscale.isGrayscaleEnabled()) return@synchronized EnforcementTickResult.Skipped
+    if (grayscale.setGrayscale(true)) {
         EnforcementTickResult.Applied
     } else {
         EnforcementTickResult.WriteFailed
