@@ -174,7 +174,7 @@ fun GrayoutNavGraph(
             val lifecycleOwner = LocalLifecycleOwner.current
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                    viewModel.refreshFiringState()
+                    viewModel.observeFiringState()
                 }
             }
 
@@ -202,7 +202,7 @@ fun GrayoutNavGraph(
             val repository = remember { ScheduleRepository(db.scheduleDao()) }
             val scheduleAlarmManager = remember { ScheduleAlarmManager(context) }
             val viewModel: ScheduleEditorViewModel = viewModel(
-                factory = ScheduleEditorViewModelFactory(repository, scheduleAlarmManager)
+                factory = ScheduleEditorViewModelFactory(repository, scheduleAlarmManager, scheduleId)
             )
 
             if (scheduleId > 0L) {
@@ -217,6 +217,10 @@ fun GrayoutNavGraph(
             val endMinute by viewModel.endMinute.collectAsStateWithLifecycle()
             val overlapError by viewModel.overlapError.collectAsStateWithLifecycle()
             val isSaved by viewModel.isSaved.collectAsStateWithLifecycle()
+            val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+            val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
+            val isReady by viewModel.isReady.collectAsStateWithLifecycle()
+            val isDeleted by viewModel.isDeleted.collectAsStateWithLifecycle()
 
             LaunchedEffect(isSaved) {
                 if (isSaved) navController.popBackStack()
@@ -231,6 +235,10 @@ fun GrayoutNavGraph(
                 endMinute = endMinute,
                 overlapError = overlapError,
                 isEditMode = scheduleId > 0L,
+                isLoading = isLoading,
+                isSaving = isSaving,
+                isReady = isReady,
+                isDeleted = isDeleted,
                 onNameChange = viewModel::setName,
                 onToggleDay = viewModel::toggleDay,
                 onSetStartTime = viewModel::setStartTime,

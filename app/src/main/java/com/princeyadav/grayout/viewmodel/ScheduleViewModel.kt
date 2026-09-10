@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.logic.isCurrentlyFiring
+import com.princeyadav.grayout.logic.nextScheduleEvent
 import com.princeyadav.grayout.logic.schedulesOverlap
 import com.princeyadav.grayout.model.Schedule
 import com.princeyadav.grayout.scheduling.AlarmScheduler
@@ -15,14 +16,17 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
+import java.time.Clock
+import java.time.Duration
 
 class ScheduleViewModel(
     private val repository: ScheduleRepository,
     private val alarmManager: AlarmScheduler,
-    private val clock: () -> LocalDateTime = LocalDateTime::now,
+    private val clock: () -> Clock = { Clock.systemDefaultZone() },
 ) : ViewModel() {
 
     val schedules = repository.getAllSchedules()
@@ -34,18 +38,25 @@ class ScheduleViewModel(
     private val _enableConflict = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val enableConflict: SharedFlow<String> = _enableConflict.asSharedFlow()
 
-    init {
-        refreshFiringState()
-    }
+    /** Collect only while the screen is resumed; cancellation stops the boundary timer. */
+    suspend fun observeFiringState() {
+        schedules.collectLatest { currentSchedules ->
+            while (true) {
+                val reading = clock()
+                val now = reading.instant()
+                val zone = reading.zone
+                _firingScheduleIds.value = currentSchedules
+                    .filter { isCurrentlyFiring(it, now, zone) }
+                    .mapTo(mutableSetOf()) { it.id }
 
-    fun refreshFiringState() {
-        viewModelScope.launch {
-            val allEnabled = repository.getEnabledSchedules()
-            val now = clock()
-            _firingScheduleIds.value = allEnabled
-                .filter { isCurrentlyFiring(it, now) }
-                .map { it.id }
-                .toSet()
+                // Each row needs its own boundary: aggregate alarm scheduling can
+                // skip an interior start when another legacy window is already active.
+                val nextBoundary = currentSchedules.mapNotNull { schedule ->
+                    nextScheduleEvent(listOf(schedule), now, zone)
+                        ?.dateTime?.atZone(zone)?.toInstant()
+                }.minOrNull() ?: break
+                delay(Duration.between(now, nextBoundary).toMillis().coerceAtLeast(1L))
+            }
         }
     }
 
@@ -64,7 +75,6 @@ class ScheduleViewModel(
             }
             repository.setEnabled(schedule.id, !schedule.isEnabled)
             alarmManager.reschedule(repository)
-            refreshFiringState()
         }
     }
 
@@ -72,7 +82,6 @@ class ScheduleViewModel(
         viewModelScope.launch {
             repository.delete(schedule)
             alarmManager.reschedule(repository)
-            refreshFiringState()
         }
     }
 }
@@ -80,7 +89,7 @@ class ScheduleViewModel(
 class ScheduleViewModelFactory(
     private val repository: ScheduleRepository,
     private val alarmManager: AlarmScheduler,
-    private val clock: () -> LocalDateTime = LocalDateTime::now,
+    private val clock: () -> Clock = { Clock.systemDefaultZone() },
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {

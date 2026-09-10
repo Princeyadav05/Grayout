@@ -51,6 +51,15 @@ resume effect owns icon/diagnostic loading, and the exclusion screen's resume
 observer owns its app-list load. Concurrent app-list refreshes share the running
 load and publish with current exclusion preferences so loading cannot undo a toggle.
 
+The schedule list shares its Room subscription with a lifecycle-bound badge observer.
+While resumed, it recalculates at each row's next start or end using the same resolved
+instants and timezone rules as the alarms. It does not poll the database, and leaving
+the screen cancels the timer. Data changes replace the pending timer immediately.
+The editor guards loading, saving, and deletion before launching asynchronous work;
+reloading a retained schedule ID preserves unsaved edits after activity recreation.
+Failed alarm updates remain retryable without duplicating an insert or allowing a
+deleted schedule to report a successful save.
+
 ### Decision logic (`logic/` and top-level functions in `service/`)
 
 The tricky decisions are extracted so they run under JVM unit tests, with the

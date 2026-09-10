@@ -1,6 +1,7 @@
 package com.princeyadav.grayout.ui.screens
 
 import android.app.TimePickerDialog
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -84,12 +85,21 @@ fun ScheduleEditorScreen(
     onDelete: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    isLoading: Boolean = false,
+    isSaving: Boolean = false,
+    isReady: Boolean = true,
+    isDeleted: Boolean = false,
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
     val context = LocalContext.current
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    val canDelete = isReady && !isLoading && !isSaving
+    val isEditable = canDelete && !isDeleted
+
+    // Keep the editor alive until persistence and alarm reconciliation finish.
+    BackHandler(enabled = isSaving) {}
 
     Column(
         modifier = modifier
@@ -111,6 +121,7 @@ fun ScheduleEditorScreen(
                     .border(1.dp, colors.border, RoundedCornerShape(dimens.radiusFull))
                     .clip(RoundedCornerShape(dimens.radiusFull))
                     .clickable(
+                        enabled = !isSaving,
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                     ) { onBack() },
@@ -138,6 +149,7 @@ fun ScheduleEditorScreen(
         NameCard(
             name = name,
             onNameChange = onNameChange,
+            enabled = isEditable,
         )
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
@@ -148,6 +160,7 @@ fun ScheduleEditorScreen(
             startMinute = startMinute,
             endHour = endHour,
             endMinute = endMinute,
+            enabled = isEditable,
             onStartTimeClick = {
                 TimePickerDialog(
                     context,
@@ -177,6 +190,7 @@ fun ScheduleEditorScreen(
             selectedDays = selectedDays,
             onToggleDay = onToggleDay,
             onSelectPreset = onSelectPreset,
+            enabled = isEditable,
         )
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
@@ -199,9 +213,11 @@ fun ScheduleEditorScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .sizeIn(minHeight = 48.dp)
-                .background(colors.text, RoundedCornerShape(dimens.radius))
+                .background(if (isEditable) colors.text else colors.off, RoundedCornerShape(dimens.radius))
                 .clip(RoundedCornerShape(dimens.radius))
                 .clickable(
+                    enabled = isEditable,
+                    role = Role.Button,
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                 ) {
@@ -211,9 +227,13 @@ fun ScheduleEditorScreen(
                 .padding(vertical = 16.dp),
         ) {
             Text(
-                text = "Save",
+                text = when {
+                    isLoading -> "Loading..."
+                    isSaving -> "Please wait..."
+                    else -> "Save"
+                },
                 style = typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
-                color = colors.bg,
+                color = if (isEditable) colors.bg else colors.offText,
             )
         }
 
@@ -224,12 +244,14 @@ fun ScheduleEditorScreen(
             Text(
                 text = "Delete schedule",
                 style = typography.bodyMedium,
-                color = colors.danger,
+                color = if (canDelete) colors.danger else colors.offText,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
                     .sizeIn(minHeight = 48.dp)
                     .clickable(
+                        enabled = canDelete,
+                        role = Role.Button,
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                     ) {
@@ -243,7 +265,7 @@ fun ScheduleEditorScreen(
         Spacer(modifier = Modifier.height(dimens.sectionGap))
     }
 
-    if (showDeleteConfirm) {
+    if (showDeleteConfirm && canDelete) {
         DeleteConfirmSheet(
             scheduleName = name,
             onConfirm = {
@@ -259,6 +281,7 @@ fun ScheduleEditorScreen(
 private fun NameCard(
     name: String,
     onNameChange: (String) -> Unit,
+    enabled: Boolean,
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
@@ -282,6 +305,7 @@ private fun NameCard(
 
             BasicTextField(
                 value = name,
+                enabled = enabled,
                 onValueChange = onNameChange,
                 singleLine = true,
                 textStyle = typography.bodyLarge.copy(color = colors.text),
@@ -328,6 +352,7 @@ private fun TimeCard(
     endMinute: Int,
     onStartTimeClick: () -> Unit,
     onEndTimeClick: () -> Unit,
+    enabled: Boolean,
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
@@ -368,6 +393,8 @@ private fun TimeCard(
                         modifier = Modifier
                             .sizeIn(minHeight = 48.dp)
                             .clickable(
+                                enabled = enabled,
+                                role = Role.Button,
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                             ) { onStartTimeClick() }
@@ -398,6 +425,8 @@ private fun TimeCard(
                         modifier = Modifier
                             .sizeIn(minHeight = 48.dp)
                             .clickable(
+                                enabled = enabled,
+                                role = Role.Button,
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                             ) { onEndTimeClick() }
@@ -414,6 +443,7 @@ private fun DaysCard(
     selectedDays: Set<DayOfWeek>,
     onToggleDay: (DayOfWeek) -> Unit,
     onSelectPreset: (String) -> Unit,
+    enabled: Boolean,
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
@@ -466,6 +496,7 @@ private fun DaysCard(
                             .heightIn(min = 48.dp)
                             .toggleable(
                                 value = isSelected,
+                                enabled = enabled,
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                                 role = Role.Checkbox,
@@ -517,6 +548,7 @@ private fun DaysCard(
                         label = label,
                         isActive = selectedDays == preset,
                         onClick = { onSelectPreset(label) },
+                        enabled = enabled,
                     )
                 }
             }
@@ -529,6 +561,7 @@ private fun PresetChip(
     label: String,
     isActive: Boolean,
     onClick: () -> Unit,
+    enabled: Boolean,
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
@@ -567,6 +600,7 @@ private fun PresetChip(
             .border(1.dp, borderColor, RoundedCornerShape(dimens.radiusFull))
             .clip(RoundedCornerShape(dimens.radiusFull))
             .clickable(
+                enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
             ) {

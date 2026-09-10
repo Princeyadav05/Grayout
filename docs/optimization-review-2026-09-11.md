@@ -44,6 +44,10 @@ record the original findings and recommended approach.
 
 ### 2. Protect schedule editing and time-based UI state
 
+Implemented in the [follow-up review](optimization-follow-up-2026-09-11.md):
+guarded editor operations, retained unsaved edits, and lifecycle-bound schedule
+badge updates. The findings below record the original recommendation.
+
 `viewmodel/ScheduleEditorViewModel.kt` allows overlapping save operations across
 the suspending overlap check and insert. Add an in-flight guard and disable the
 actions while persistence is running. Repeated `loadSchedule(id)` calls also reload

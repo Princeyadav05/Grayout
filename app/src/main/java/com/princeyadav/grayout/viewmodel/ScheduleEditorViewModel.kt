@@ -7,6 +7,7 @@ import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.model.Schedule
 import com.princeyadav.grayout.model.daysOfWeekList
 import com.princeyadav.grayout.scheduling.AlarmScheduler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -15,6 +16,7 @@ import java.time.DayOfWeek
 class ScheduleEditorViewModel(
     private val repository: ScheduleRepository,
     private val alarmManager: AlarmScheduler,
+    scheduleId: Long = 0L,
 ) : ViewModel() {
 
     private val _name = MutableStateFlow("")
@@ -38,35 +40,66 @@ class ScheduleEditorViewModel(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
+    private val _isSaving = MutableStateFlow(false)
+    val isSaving: StateFlow<Boolean> = _isSaving
+
+    private val _isDeleted = MutableStateFlow(false)
+    val isDeleted: StateFlow<Boolean> = _isDeleted
+
+    private val _isReady = MutableStateFlow(scheduleId == 0L)
+    val isReady: StateFlow<Boolean> = _isReady
+
     private val _overlapError = MutableStateFlow<String?>(null)
     val overlapError: StateFlow<String?> = _overlapError
 
     private val _isSaved = MutableStateFlow(false)
     val isSaved: StateFlow<Boolean> = _isSaved
 
-    private var editingScheduleId: Long = 0L
+    private var editingScheduleId: Long = scheduleId
     private var editingIsEnabled: Boolean = true
 
+    private val isBusy: Boolean
+        get() = _isLoading.value || _isSaving.value || _isSaved.value
+
     fun loadSchedule(id: Long) {
+        if (id <= 0L || isBusy || _isDeleted.value || (editingScheduleId == id && _isReady.value)) return
+        editingScheduleId = id
+        _isReady.value = false
+        _isLoading.value = true
+        _overlapError.value = null
         viewModelScope.launch {
-            val schedule = repository.getById(id) ?: return@launch
-            editingScheduleId = id
-            editingIsEnabled = schedule.isEnabled
-            _name.value = schedule.name
-            _selectedDays.value = schedule.daysOfWeekList.toSet()
-            _startHour.value = schedule.startTimeHour
-            _startMinute.value = schedule.startTimeMinute
-            _endHour.value = schedule.endTimeHour
-            _endMinute.value = schedule.endTimeMinute
+            try {
+                val schedule = repository.getById(id)
+                if (schedule == null) {
+                    _overlapError.value = "This schedule is no longer available. Go back to schedules."
+                    return@launch
+                }
+                editingIsEnabled = schedule.isEnabled
+                _name.value = schedule.name
+                _selectedDays.value = schedule.daysOfWeekList.toSet()
+                _startHour.value = schedule.startTimeHour
+                _startMinute.value = schedule.startTimeMinute
+                _endHour.value = schedule.endTimeHour
+                _endMinute.value = schedule.endTimeMinute
+                _isReady.value = true
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                _overlapError.value = "Couldn't load this schedule. Go back and try again."
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
     fun setName(name: String) {
+        if (isBusy || !_isReady.value || _isDeleted.value) return
         _name.value = name
         _overlapError.value = null
     }
 
     fun toggleDay(day: DayOfWeek) {
+        if (isBusy || !_isReady.value || _isDeleted.value) return
         _selectedDays.value = _selectedDays.value.let {
             if (day in it) it - day else it + day
         }
@@ -74,18 +107,21 @@ class ScheduleEditorViewModel(
     }
 
     fun setStartTime(hour: Int, minute: Int) {
+        if (isBusy || !_isReady.value || _isDeleted.value) return
         _startHour.value = hour
         _startMinute.value = minute
         _overlapError.value = null
     }
 
     fun setEndTime(hour: Int, minute: Int) {
+        if (isBusy || !_isReady.value || _isDeleted.value) return
         _endHour.value = hour
         _endMinute.value = minute
         _overlapError.value = null
     }
 
     fun selectPreset(preset: String) {
+        if (isBusy || !_isReady.value || _isDeleted.value) return
         _selectedDays.value = when (preset) {
             "Weekdays" -> setOf(
                 DayOfWeek.MONDAY,
@@ -102,73 +138,108 @@ class ScheduleEditorViewModel(
     }
 
     fun save() {
-        // Snapshot the edited fields up front so validation and persistence act on
-        // the same values — findOverlap suspends, and a mid-suspend UI edit must not
-        // slip unvalidated times into the saved schedule.
+        if (isBusy || !_isReady.value || _isDeleted.value) return
+        // Snapshot the edited fields so validation and persistence use the same values.
         val name = _name.value.ifBlank { "Schedule" }
         val days = _selectedDays.value
         val startHour = _startHour.value
         val startMinute = _startMinute.value
         val endHour = _endHour.value
         val endMinute = _endMinute.value
+        if (days.isEmpty()) {
+            _overlapError.value = "Select at least one day"
+            return
+        }
+        if (startHour == endHour && startMinute == endMinute) {
+            _overlapError.value = "Start and end time can't be the same"
+            return
+        }
+
+        // Set before launching: a second tap can arrive before the coroutine starts.
+        _isSaving.value = true
+        _overlapError.value = null
         viewModelScope.launch {
-            if (days.isEmpty()) {
-                _overlapError.value = "Select at least one day"
-                return@launch
-            }
+            var didPersist = false
+            try {
+                val daysOfWeek = days.sorted().joinToString(",") { it.name.take(3) }
+                val overlap = repository.findOverlap(
+                    daysOfWeek,
+                    startHour, startMinute,
+                    endHour, endMinute,
+                    excludeId = editingScheduleId,
+                )
+                if (overlap != null) {
+                    _overlapError.value = "Conflicts with \"${overlap.name}\""
+                    return@launch
+                }
 
-            if (startHour == endHour && startMinute == endMinute) {
-                _overlapError.value = "Start and end time can't be the same"
-                return@launch
+                val schedule = Schedule(
+                    id = editingScheduleId,
+                    name = name,
+                    daysOfWeek = daysOfWeek,
+                    startTimeHour = startHour,
+                    startTimeMinute = startMinute,
+                    endTimeHour = endHour,
+                    endTimeMinute = endMinute,
+                    isEnabled = editingIsEnabled,
+                )
+                // Retain the inserted ID so retrying a failed alarm update cannot
+                // insert a second schedule.
+                editingScheduleId = repository.save(schedule)
+                didPersist = true
+                alarmManager.reschedule(repository)
+                _isSaved.value = true
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                _overlapError.value = if (didPersist) {
+                    "Schedule saved, but alarms couldn't be updated. Tap Save to retry."
+                } else {
+                    "Couldn't save this schedule. Try again."
+                }
+            } finally {
+                _isSaving.value = false
             }
-
-            val daysOfWeek = days.sorted().joinToString(",") {
-                it.name.take(3)
-            }
-
-            val overlap = repository.findOverlap(
-                daysOfWeek,
-                startHour, startMinute,
-                endHour, endMinute,
-                excludeId = editingScheduleId,
-            )
-            if (overlap != null) {
-                _overlapError.value = "Conflicts with \"${overlap.name}\""
-                return@launch
-            }
-
-            val schedule = Schedule(
-                id = editingScheduleId,
-                name = name,
-                daysOfWeek = daysOfWeek,
-                startTimeHour = startHour,
-                startTimeMinute = startMinute,
-                endTimeHour = endHour,
-                endTimeMinute = endMinute,
-                isEnabled = editingIsEnabled,
-            )
-            repository.save(schedule)
-            alarmManager.reschedule(repository)
-            _isSaved.value = true
         }
     }
 
     fun deleteSchedule() {
+        if (isBusy || !_isReady.value || editingScheduleId == 0L) return
+        _isSaving.value = true
+        _overlapError.value = null
         viewModelScope.launch {
-            val schedule = repository.getById(editingScheduleId) ?: return@launch
-            repository.delete(schedule)
-            alarmManager.reschedule(repository)
-            _isSaved.value = true
+            var didDelete = false
+            try {
+                if (!_isDeleted.value) {
+                    repository.getById(editingScheduleId)?.let { repository.delete(it) }
+                    _isDeleted.value = true
+                }
+                didDelete = true
+                alarmManager.reschedule(repository)
+                _isSaved.value = true
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                _overlapError.value = if (didDelete) {
+                    "Schedule deleted, but alarms couldn't be updated. Tap Delete schedule to retry."
+                } else {
+                    "Couldn't delete this schedule. Try again."
+                }
+            } finally {
+                _isSaving.value = false
+            }
         }
     }
+
 }
 
 class ScheduleEditorViewModelFactory(
     private val repository: ScheduleRepository,
     private val alarmManager: AlarmScheduler,
+    private val scheduleId: Long = 0L,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return ScheduleEditorViewModel(repository, alarmManager) as T
+        return ScheduleEditorViewModel(repository, alarmManager, scheduleId) as T
     }
 }
