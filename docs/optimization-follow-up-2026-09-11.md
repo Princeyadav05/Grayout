@@ -22,6 +22,10 @@ is needed for both start and end updates.
 
 ## Remaining opportunities
 
+The three items below are the original follow-up scope. Their implementation and
+final verification are recorded in
+[the completion review](final-optimization-verification-2026-09-11.md).
+
 1. **Reconcile timezone and exact-alarm permission changes.** The manifest's boot
    receiver only listens for boot. A future schedule alarm retains its original
    absolute timestamp after a timezone change. Rescheduling needs explicit handling

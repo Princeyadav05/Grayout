@@ -9,6 +9,10 @@ import com.princeyadav.grayout.logic.nextScheduleEvent
 import com.princeyadav.grayout.logic.schedulesOverlap
 import com.princeyadav.grayout.model.Schedule
 import com.princeyadav.grayout.scheduling.AlarmScheduler
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -39,8 +43,10 @@ class ScheduleViewModel(
     val enableConflict: SharedFlow<String> = _enableConflict.asSharedFlow()
 
     /** Collect only while the screen is resumed; cancellation stops the boundary timer. */
-    suspend fun observeFiringState() {
-        schedules.collectLatest { currentSchedules ->
+    suspend fun observeFiringState(timeChanges: Flow<Unit> = emptyFlow()) {
+        combine(schedules, timeChanges.onStart { emit(Unit) }) { currentSchedules, _ ->
+            currentSchedules
+        }.collectLatest { currentSchedules ->
             while (true) {
                 val reading = clock()
                 val now = reading.instant()

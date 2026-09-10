@@ -24,3 +24,6 @@ jobs:
 
       - name: Run tests and lint
         run: ./gradlew :app:testDebugUnitTest :app:lint
+
+      - name: Verify optimized release builds without production signing secrets
+        run: bash scripts/build_local_release.sh "$RUNNER_TEMP/grayout-local-release"

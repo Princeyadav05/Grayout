@@ -60,6 +60,12 @@ reloading a retained schedule ID preserves unsaved edits after activity recreati
 Failed alarm updates remain retryable without duplicating an insert or allowing a
 deleted schedule to report a successful save.
 
+Home observes Room while resumed and refreshes its next-start text at the next
+resolved start instant. Both Home and schedule badges listen for clock/timezone
+changes in a lifecycle-owned receiver, invalidating their timers without restarting
+the database query. Custom bottom navigation consumes system navigation insets;
+system bars explicitly use light icons to match the app's dark theme.
+
 ### Decision logic (`logic/` and top-level functions in `service/`)
 
 The tricky decisions are extracted so they run under JVM unit tests, with the
@@ -181,6 +187,23 @@ trusted again, including after the last alarm is removed. `BootReceiver` restart
 the service and reschedules after reboot.
 
 ### Storage
+
+`SystemScheduleReceiver` handles clock/timezone changes and restored exact-alarm
+permission. It compares the saved occurrence with current coverage, preserving
+manual choices within an unchanged occurrence and applying newly crossed boundaries
+through the shared exclusion-aware writer. Failed display writes retain durable
+configuration/state evidence and a separate retry alarm. Retries recheck current
+coverage and any due normal boundary before replacing registrations. Valid pending
+closure recovery survives boot rescheduling; changed configuration or an observed
+manual display change can supersede it.
+
+Enforcement countdowns retain an elapsed-realtime deadline with boot and interval
+provenance. Recovery preserves the original deadline, including already-due alarms,
+and falls back to inexact registration when exact access is absent. Restoration,
+service starts, setting observers, and alarm consumption share the grayscale state
+lock so an older recovery cannot replace a newer user choice. Deadline writes reach
+disk before alarm registration. These infrequent transitions use synchronous
+preference commits for durability; foreground-app polling performs none of them.
 
 - **SharedPreferences** (`grayout_prefs`): enforcement interval, exclusion set and FSM flags, daltonizer baseline.
 - **Room** (`grayout_db`): schedules.

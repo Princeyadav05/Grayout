@@ -58,10 +58,12 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           mkdir -p dist
           cp app/build/outputs/apk/release/app-release.apk "dist/grayout-v${VERSION}.apk"
+          cp app/build/outputs/mapping/release/mapping.txt "dist/grayout-v${VERSION}-mapping.txt"
           cd dist
           shasum -a 256 "grayout-v${VERSION}.apk" > "grayout-v${VERSION}.apk.sha256"
           echo "apk=dist/grayout-v${VERSION}.apk" >> "$GITHUB_OUTPUT"
           echo "sha=dist/grayout-v${VERSION}.apk.sha256" >> "$GITHUB_OUTPUT"
+          echo "mapping=dist/grayout-v${VERSION}-mapping.txt" >> "$GITHUB_OUTPUT"
 
       - name: Generate release notes
         run: |
@@ -90,5 +92,6 @@ jobs:
           gh release create "${{ steps.version.outputs.tag }}" \
             "${{ steps.artifacts.outputs.apk }}" \
             "${{ steps.artifacts.outputs.sha }}" \
+            "${{ steps.artifacts.outputs.mapping }}" \
             --title "Grayout ${{ steps.version.outputs.tag }}" \
             --notes-file release-notes.md

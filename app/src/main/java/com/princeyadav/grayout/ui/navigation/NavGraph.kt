@@ -36,6 +36,7 @@ import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
 import com.princeyadav.grayout.service.GrayoutService
 import com.princeyadav.grayout.service.UsageAccess
+import com.princeyadav.grayout.ui.systemTimeChanges
 import com.princeyadav.grayout.ui.screens.ExclusionListScreen
 import com.princeyadav.grayout.ui.screens.HomeScreen
 import com.princeyadav.grayout.ui.screens.ScheduleEditorScreen
@@ -116,9 +117,11 @@ fun GrayoutNavGraph(
                 lifecycleOwnerHome.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                     excludedAppCount = exclusionPrefsHome.getExcludedCount()
                     isUsageAccessGrantedHome = UsageAccess.isGranted(context)
-                    homeViewModel.refreshNextSchedule(scheduleRepository)
                     homeViewModel.refreshExcludedAppIcons()
                     homeViewModel.refreshAttentionCount()
+                    homeViewModel.observeNextSchedule(
+                        scheduleRepository, context.applicationContext.systemTimeChanges(),
+                    )
                 }
             }
 
@@ -174,7 +177,7 @@ fun GrayoutNavGraph(
             val lifecycleOwner = LocalLifecycleOwner.current
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                    viewModel.observeFiringState()
+                    viewModel.observeFiringState(context.applicationContext.systemTimeChanges())
                 }
             }
 

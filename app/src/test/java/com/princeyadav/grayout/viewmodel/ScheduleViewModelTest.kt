@@ -8,6 +8,7 @@ import com.princeyadav.grayout.testutil.MainDispatcherRule
 import com.princeyadav.grayout.testutil.fixedDateTime
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -373,4 +374,95 @@ class ScheduleViewModelTest {
         runCurrent()
         assertTrue(viewModel.firingScheduleIds.value.isEmpty())
     }
+
+    @Test
+    fun `clock change refreshes badges immediately and replaces their delayed boundary`() = runTest {
+        val id = dao.insert(makeSchedule(daysOfWeek = "MON", startHour = 9, endHour = 10))
+        var base = Instant.parse("2026-04-13T08:00:00Z")
+        val changes = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+        val viewModel = ScheduleViewModel(repository, alarm) {
+            Clock.fixed(base.plusMillis(testScheduler.currentTime), ZoneOffset.UTC)
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.observeFiringState(changes)
+        }
+        runCurrent()
+        assertTrue(viewModel.firingScheduleIds.value.isEmpty())
+
+        base = Instant.parse("2026-04-13T09:59:00Z")
+        changes.emit(Unit)
+        runCurrent()
+        assertEquals(setOf(id), viewModel.firingScheduleIds.value)
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertTrue(viewModel.firingScheduleIds.value.isEmpty())
+
+        base = Instant.parse("2026-04-13T08:58:00Z")
+        changes.emit(Unit)
+        runCurrent()
+        assertTrue(viewModel.firingScheduleIds.value.isEmpty())
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertEquals(setOf(id), viewModel.firingScheduleIds.value)
+    }
+
+    @Test
+    fun `zone change invalidates badge timer without another schedule query`() = runTest {
+        val id = dao.insert(makeSchedule(daysOfWeek = "MON", startHour = 9, endHour = 10))
+        val start = Instant.parse("2026-04-13T08:59:00Z")
+        var zone: ZoneId = ZoneOffset.UTC
+        var subscriptions = 0
+        val countingDao = object : com.princeyadav.grayout.data.ScheduleDao by dao {
+            override fun getAllSchedules() = kotlinx.coroutines.flow.flow {
+                subscriptions++
+                dao.getAllSchedules().collect { emit(it) }
+            }
+        }
+        val changes = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+        val viewModel = ScheduleViewModel(ScheduleRepository(countingDao), alarm) {
+            Clock.fixed(start.plusMillis(testScheduler.currentTime), zone)
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.observeFiringState(changes)
+        }
+        runCurrent()
+        zone = ZoneOffset.ofHours(1)
+        changes.emit(Unit)
+        runCurrent()
+        assertEquals(setOf(id), viewModel.firingScheduleIds.value)
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertTrue(viewModel.firingScheduleIds.value.isEmpty())
+        assertEquals(1, subscriptions)
+    }
+
+    @Test
+    fun `repeated local time does not revive a badge for an already closed occurrence`() = runTest {
+        val id = dao.insert(makeSchedule(daysOfWeek = "SUN", startHour = 1, startMinute = 30, endHour = 1, endMinute = 45))
+        val start = Instant.parse("2026-11-01T05:29:00Z")
+        val zone = ZoneId.of("America/New_York")
+        val changes = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+        val viewModel = ScheduleViewModel(repository, alarm) {
+            Clock.fixed(start.plusMillis(testScheduler.currentTime), zone)
+        }
+        val observer = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.observeFiringState(changes)
+        }
+        runCurrent()
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertEquals(setOf(id), viewModel.firingScheduleIds.value)
+        advanceTimeBy(15 * 60_000)
+        runCurrent()
+        assertTrue(viewModel.firingScheduleIds.value.isEmpty())
+        advanceTimeBy(50 * 60_000) // 01:35 on the second offset.
+        changes.emit(Unit)
+        runCurrent()
+        assertTrue(viewModel.firingScheduleIds.value.isEmpty())
+
+        observer.cancel()
+        runCurrent()
+        assertEquals(0, changes.subscriptionCount.value)
+    }
+
 }

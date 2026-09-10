@@ -53,10 +53,10 @@ android {
 
     buildTypes {
         release {
-            // R8 intentionally off: no reflection/serialization surfaces that need keep rules,
-            // and releases are smoke-tested on-device manually (RELEASING.md), not from a signed
-            // local build. Re-add proguardFiles + flip this if APK size ever justifies owning R8.
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            // Android entry points and AndroidX reflection use the platform/library rules.
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
             signingConfig = signingConfigs.getByName("release")
         }
     }
@@ -104,7 +104,6 @@ tasks.register("preReleaseCheck") {
     doLast {
         println("")
         println("✓ Automated tests passed.")
-        println("→ Next: walk docs/superpowers/specs/2026-04-11-testing-manual-checklist.md on target device.")
-        println("  Tier A is mandatory. Tier B is required if you touched the relevant area this release.")
+        println("→ Next: build and smoke-test the optimized APK using RELEASING.md.")
     }
 }
