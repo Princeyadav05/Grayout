@@ -18,25 +18,21 @@ A personal Android app that enforces grayscale mode to reduce phone addiction.
 
 ## Install
 
-### Option 1: F-Droid client (recommended)
+Download the `.apk` file from the [latest GitHub release](https://github.com/Princeyadav05/Grayout/releases/latest) and open it on your Android device to install.
 
-Install [Droidify](https://github.com/Droid-ify/client) or any F-Droid-compatible client. Grayout is available on the [IzzyOnDroid](https://apt.izzysoft.de/fdroid/) repo, which Droidify includes by default. Search for "Grayout" and install.
+After installing, complete the [one-time ADB setup](#setup) below to enable grayscale control.
 
-This is the easiest way to install and get updates. It also avoids the Google Play Protect warning that browser downloads trigger (see note below).
+### Install from your computer with ADB
 
-### Option 2: ADB install
-
-Download the latest APK from [Releases](https://github.com/Princeyadav05/Grayout/releases/latest), then install with ADB:
+If you already have ADB set up, you can install the downloaded APK from your computer:
 
 ```bash
 adb install grayout-v*.apk
 ```
 
-You already need ADB for the permission setup below, so this adds no extra steps. ADB installs are not affected by Play Protect.
+Then grant the permission described in [Setup](#setup).
 
-### Option 3: Direct download
-
-Download the APK from [Releases](https://github.com/Princeyadav05/Grayout/releases/latest) and open it on your device.
+### Verify the download
 
 You can verify the download:
 
@@ -45,8 +41,6 @@ shasum -a 256 grayout-v*.apk
 ```
 
 Match the output against the `.sha256` file attached to the release. On Linux, `sha256sum` works the same way.
-
-> **Play Protect note:** If you install via a browser download, Google Play Protect may warn before installing, as it does for many sideloaded apps. To avoid the warning, use Option 1 or Option 2 instead. Both bypass Play Protect entirely.
 
 ## Setup
 
