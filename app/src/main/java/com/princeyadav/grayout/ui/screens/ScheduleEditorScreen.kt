@@ -33,6 +33,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -59,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.model.formatTime12Hour
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.HapticAction
+import com.princeyadav.grayout.ui.components.SchedulePermissionNotice
 import com.princeyadav.grayout.ui.components.performHaptic
 import com.princeyadav.grayout.ui.theme.GrayoutMotion
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
@@ -89,6 +91,9 @@ fun ScheduleEditorScreen(
     isSaving: Boolean = false,
     isReady: Boolean = true,
     isDeleted: Boolean = false,
+    isPermissionGranted: Boolean = true,
+    onSetupPermission: () -> Unit = {},
+    onSaveAsDisabled: () -> Unit = {},
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
@@ -144,6 +149,11 @@ fun ScheduleEditorScreen(
         }
 
         Spacer(modifier = Modifier.height(dimens.sectionGap))
+
+        if (!isPermissionGranted) {
+            SchedulePermissionNotice(onSetup = onSetupPermission)
+            Spacer(modifier = Modifier.height(dimens.cardGap))
+        }
 
         // Name card
         NameCard(
@@ -235,6 +245,16 @@ fun ScheduleEditorScreen(
                 style = typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
                 color = if (isEditable) colors.bg else colors.offText,
             )
+        }
+
+        if (!isPermissionGranted) {
+            TextButton(
+                onClick = onSaveAsDisabled,
+                enabled = isEditable,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Save as off", color = if (isEditable) colors.text else colors.offText)
+            }
         }
 
         // Delete button (only in edit mode)

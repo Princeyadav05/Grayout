@@ -34,8 +34,11 @@ import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.scheduling.ScheduleAlarmManager
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
+import com.princeyadav.grayout.service.GrayscaleManager
 import com.princeyadav.grayout.service.GrayoutService
 import com.princeyadav.grayout.service.UsageAccess
+import com.princeyadav.grayout.ui.components.AdbCommandSheet
+import com.princeyadav.grayout.ui.rememberSchedulePermission
 import com.princeyadav.grayout.ui.systemTimeChanges
 import com.princeyadav.grayout.ui.screens.ExclusionListScreen
 import com.princeyadav.grayout.ui.screens.HomeScreen
@@ -168,8 +171,19 @@ fun GrayoutNavGraph(
             val db = remember { GrayoutDatabase.getInstance(context) }
             val repository = remember { ScheduleRepository(db.scheduleDao()) }
             val scheduleAlarmManager = remember { ScheduleAlarmManager(context) }
+            val grayscaleManager = remember { GrayscaleManager(context.applicationContext) }
+            val isPermissionGranted by rememberSchedulePermission()
+            var showPermissionSetup by remember { mutableStateOf(false) }
+            if (showPermissionSetup) {
+                AdbCommandSheet(
+                    isGranted = isPermissionGranted,
+                    onDismiss = { showPermissionSetup = false },
+                )
+            }
             val viewModel: ScheduleViewModel = viewModel(
-                factory = ScheduleViewModelFactory(repository, scheduleAlarmManager)
+                factory = ScheduleViewModelFactory(
+                    repository, scheduleAlarmManager, grayscaleManager::canWriteSecureSettings,
+                ),
             )
             val schedules by viewModel.schedules.collectAsStateWithLifecycle()
             val firingScheduleIds by viewModel.firingScheduleIds.collectAsStateWithLifecycle()
@@ -189,6 +203,8 @@ fun GrayoutNavGraph(
 
             ScheduleListScreen(
                 schedules = schedules,
+                isPermissionGranted = isPermissionGranted,
+                onSetupPermission = { showPermissionSetup = true },
                 firingScheduleIds = firingScheduleIds,
                 onAddSchedule = { navController.navigate("schedule_editor?id=0") },
                 onEditSchedule = { id -> navController.navigate("schedule_editor?id=$id") },
@@ -204,8 +220,19 @@ fun GrayoutNavGraph(
             val db = remember { GrayoutDatabase.getInstance(context) }
             val repository = remember { ScheduleRepository(db.scheduleDao()) }
             val scheduleAlarmManager = remember { ScheduleAlarmManager(context) }
+            val grayscaleManager = remember { GrayscaleManager(context.applicationContext) }
+            val isPermissionGranted by rememberSchedulePermission()
+            var showPermissionSetup by remember { mutableStateOf(false) }
+            if (showPermissionSetup) {
+                AdbCommandSheet(
+                    isGranted = isPermissionGranted,
+                    onDismiss = { showPermissionSetup = false },
+                )
+            }
             val viewModel: ScheduleEditorViewModel = viewModel(
-                factory = ScheduleEditorViewModelFactory(repository, scheduleAlarmManager, scheduleId)
+                factory = ScheduleEditorViewModelFactory(
+                    repository, scheduleAlarmManager, grayscaleManager::canWriteSecureSettings, scheduleId,
+                ),
             )
 
             if (scheduleId > 0L) {
@@ -231,6 +258,9 @@ fun GrayoutNavGraph(
 
             ScheduleEditorScreen(
                 name = name,
+                isPermissionGranted = isPermissionGranted,
+                onSetupPermission = { showPermissionSetup = true },
+                onSaveAsDisabled = viewModel::saveAsDisabled,
                 selectedDays = selectedDays,
                 startHour = startHour,
                 startMinute = startMinute,

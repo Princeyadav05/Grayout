@@ -47,7 +47,7 @@ class ScheduleViewModelTest {
 
     private fun TestScope.vm(
         clock: () -> LocalDateTime = { fixedDateTime(DayOfWeek.MONDAY, 12, 0) },
-    ): ScheduleViewModel = ScheduleViewModel(repository, alarm) {
+    ): ScheduleViewModel = ScheduleViewModel(repository, alarm, canWriteSecureSettings = { true }) {
         Clock.fixed(clock().toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
     }.also { viewModel ->
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -210,6 +210,38 @@ class ScheduleViewModelTest {
     }
 
     @Test
+    fun `missing permission blocks enabling and retries after grant`() = runTest {
+        var granted = false
+        val id = dao.insert(makeSchedule(isEnabled = false))
+        val viewModel = ScheduleViewModel(repository, alarm, canWriteSecureSettings = { granted })
+        val errors = mutableListOf<String>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.enableConflict.collect { errors.add(it) }
+        }
+        viewModel.toggleEnabled(dao.getById(id)!!)
+        advanceUntilIdle()
+        assertFalse(dao.getById(id)!!.isEnabled)
+        assertEquals(0, alarm.rescheduleCallCount)
+        assertEquals(listOf("Grant grayscale permission in Set up permission before enabling schedules."), errors)
+
+        granted = true
+        viewModel.toggleEnabled(dao.getById(id)!!)
+        advanceUntilIdle()
+        assertTrue(dao.getById(id)!!.isEnabled)
+        assertEquals(1, alarm.rescheduleCallCount)
+    }
+
+    @Test
+    fun `missing permission does not prevent disabling enabled schedules`() = runTest {
+        val id = dao.insert(makeSchedule())
+        val viewModel = ScheduleViewModel(repository, alarm, canWriteSecureSettings = { false })
+        viewModel.toggleEnabled(dao.getById(id)!!)
+        advanceUntilIdle()
+        assertFalse(dao.getById(id)!!.isEnabled)
+        assertEquals(1, alarm.rescheduleCallCount)
+    }
+
+    @Test
     fun `deleteSchedule removes from repository and triggers reschedule`() = runTest {
         val id = dao.insert(
             makeSchedule(
@@ -252,7 +284,7 @@ class ScheduleViewModelTest {
                 dao.getAllSchedules().collect { emit(it) }
             }
         }
-        val viewModel = ScheduleViewModel(ScheduleRepository(countingDao), alarm) {
+        val viewModel = ScheduleViewModel(ScheduleRepository(countingDao), alarm, canWriteSecureSettings = { true }) {
             Clock.fixed(start.toInstant(ZoneOffset.UTC).plusMillis(testScheduler.currentTime), ZoneOffset.UTC)
         }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -316,7 +348,7 @@ class ScheduleViewModelTest {
         val id = dao.insert(makeSchedule(daysOfWeek = "MON", startHour = 9, endHour = 10))
         val start = fixedDateTime(DayOfWeek.MONDAY, 8, 59).toInstant(ZoneOffset.UTC)
         var clockReads = 0
-        val viewModel = ScheduleViewModel(repository, alarm) {
+        val viewModel = ScheduleViewModel(repository, alarm, canWriteSecureSettings = { true }) {
             clockReads++
             Clock.fixed(start.plusMillis(testScheduler.currentTime), ZoneOffset.UTC)
         }
@@ -357,7 +389,7 @@ class ScheduleViewModelTest {
         val id = dao.insert(makeSchedule(daysOfWeek = "SUN", startHour = 2, startMinute = 30, endHour = 4))
         val zone = ZoneId.of("America/New_York")
         val start = Instant.parse("2026-03-08T07:29:00Z")
-        val viewModel = ScheduleViewModel(repository, alarm) {
+        val viewModel = ScheduleViewModel(repository, alarm, canWriteSecureSettings = { true }) {
             Clock.fixed(start.plusMillis(testScheduler.currentTime), zone)
         }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -380,7 +412,7 @@ class ScheduleViewModelTest {
         val id = dao.insert(makeSchedule(daysOfWeek = "MON", startHour = 9, endHour = 10))
         var base = Instant.parse("2026-04-13T08:00:00Z")
         val changes = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-        val viewModel = ScheduleViewModel(repository, alarm) {
+        val viewModel = ScheduleViewModel(repository, alarm, canWriteSecureSettings = { true }) {
             Clock.fixed(base.plusMillis(testScheduler.currentTime), ZoneOffset.UTC)
         }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -419,7 +451,7 @@ class ScheduleViewModelTest {
             }
         }
         val changes = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-        val viewModel = ScheduleViewModel(ScheduleRepository(countingDao), alarm) {
+        val viewModel = ScheduleViewModel(ScheduleRepository(countingDao), alarm, canWriteSecureSettings = { true }) {
             Clock.fixed(start.plusMillis(testScheduler.currentTime), zone)
         }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -442,7 +474,7 @@ class ScheduleViewModelTest {
         val start = Instant.parse("2026-11-01T05:29:00Z")
         val zone = ZoneId.of("America/New_York")
         val changes = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-        val viewModel = ScheduleViewModel(repository, alarm) {
+        val viewModel = ScheduleViewModel(repository, alarm, canWriteSecureSettings = { true }) {
             Clock.fixed(start.plusMillis(testScheduler.currentTime), zone)
         }
         val observer = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {

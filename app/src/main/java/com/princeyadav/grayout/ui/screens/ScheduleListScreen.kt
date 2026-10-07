@@ -42,6 +42,7 @@ import com.princeyadav.grayout.model.formatTime12Hour
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
 import com.princeyadav.grayout.ui.components.HapticAction
+import com.princeyadav.grayout.ui.components.SchedulePermissionNotice
 import com.princeyadav.grayout.ui.components.performHaptic
 import com.princeyadav.grayout.ui.theme.BrandAccent
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
@@ -57,6 +58,8 @@ fun ScheduleListScreen(
     onToggleEnabled: (Schedule) -> Unit,
     modifier: Modifier = Modifier,
     firingScheduleIds: Set<Long> = emptySet(),
+    isPermissionGranted: Boolean = true,
+    onSetupPermission: () -> Unit = {},
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
@@ -113,6 +116,13 @@ fun ScheduleListScreen(
             Spacer(modifier = Modifier.height(dimens.sectionGap))
         }
 
+        if (!isPermissionGranted) {
+            item {
+                SchedulePermissionNotice(onSetup = onSetupPermission)
+                Spacer(modifier = Modifier.height(dimens.cardGap))
+            }
+        }
+
         if (schedules.isEmpty()) {
             item {
                 GrayoutCard(wash = true) {
@@ -149,7 +159,8 @@ fun ScheduleListScreen(
         items(schedules, key = { it.id }) { schedule ->
             ScheduleCard(
                 schedule = schedule,
-                isFiringNow = schedule.id in firingScheduleIds,
+                isFiringNow = isPermissionGranted && schedule.id in firingScheduleIds,
+                needsPermission = !isPermissionGranted && schedule.isEnabled,
                 onEdit = { onEditSchedule(schedule.id) },
                 onToggle = { onToggleEnabled(schedule) },
             )
@@ -167,6 +178,7 @@ fun ScheduleListScreen(
 private fun ScheduleCard(
     schedule: Schedule,
     isFiringNow: Boolean,
+    needsPermission: Boolean,
     onEdit: () -> Unit,
     onToggle: () -> Unit,
 ) {
@@ -178,6 +190,7 @@ private fun ScheduleCard(
     val view = LocalView.current
 
     val badgeText = when {
+        needsPermission -> "Setup needed"
         isFiringNow -> "Now"
         schedule.isEnabled -> "On"
         else -> "Off"
