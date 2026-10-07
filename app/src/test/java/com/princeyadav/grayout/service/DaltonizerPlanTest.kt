@@ -185,4 +185,50 @@ class DaltonizerPlanTest {
             plan,
         )
     }
+
+    @Test
+    fun `disable restores the owned intermediate state of an incomplete activation`() {
+        for (mode in listOf(-1, 11, 12, 13)) {
+            val baseline = DaltonizerState(0, mode)
+            assertEquals(
+                DaltonizerPlan(write = baseline, captureBaseline = null),
+                daltonizerPlan(false, DaltonizerState(1, mode), baseline, activationPending = true),
+            )
+        }
+    }
+
+    @Test
+    fun `enable retry keeps original baseline instead of capturing its own partial state`() {
+        assertEquals(
+            DaltonizerPlan(write = GRAYSCALE_ON_STATE, captureBaseline = null),
+            daltonizerPlan(true, DaltonizerState(1, 12), DaltonizerState(0, 12), activationPending = true),
+        )
+    }
+
+    @Test
+    fun `incomplete activation does not own a different external mode`() {
+        val external = DaltonizerState(1, 13)
+        assertEquals(
+            DaltonizerPlan(write = external, captureBaseline = null),
+            daltonizerPlan(false, external, DaltonizerState(0, 12), activationPending = true),
+        )
+    }
+
+    @Test
+    fun `enable after an external override captures the newer baseline`() {
+        val external = DaltonizerState(1, 13)
+        assertEquals(
+            DaltonizerPlan(write = GRAYSCALE_ON_STATE, captureBaseline = external),
+            daltonizerPlan(true, external, DaltonizerState(0, 12), activationPending = true),
+        )
+    }
+
+    @Test
+    fun `pending activation without a baseline cannot claim an external correction`() {
+        val external = DaltonizerState(1, 12)
+        assertEquals(
+            DaltonizerPlan(write = external, captureBaseline = null),
+            daltonizerPlan(false, external, null, activationPending = true),
+        )
+    }
 }

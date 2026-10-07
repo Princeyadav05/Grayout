@@ -50,26 +50,34 @@ fun isGrayscaleOn(state: DaltonizerState): Boolean =
  *   grayscale is already on (that would snapshot our own monochrome state and make
  *   "off" restore gray — the self-capture trap). Capturing on every enable-from-off
  *   also re-snapshots if the user changed their correction while Grayout was off.
+ *   A retry of an incomplete activation must likewise keep its original baseline.
  * - disable: only restore the captured [baseline] (or [NEUTRAL_OFF_STATE]) while
  *   the current mode is Grayout's monochromacy. Preserve any other mode, including
  *   externally disabled correction, because an old baseline does not give us
  *   ownership of the user's newer accessibility settings. Never capture.
  *   Check the mode rather than [isGrayscaleOn]: a partially completed disable
  *   can already have enabled == 0 while its mode still needs restoring.
+ * - [activationPending] records an unfinished enable. Since enabled is written
+ *   before mode, its only partial state is enabled == 1 with the baseline mode.
+ *   That exact state is ours to restore; a different external mode is preserved.
  */
 fun daltonizerPlan(
     enable: Boolean,
     current: DaltonizerState,
     baseline: DaltonizerState?,
-): DaltonizerPlan =
-    if (enable) {
-        val capture = if (isGrayscaleOn(current)) null else current
+    activationPending: Boolean = false,
+): DaltonizerPlan {
+    val incompleteActivation = activationPending && baseline != null &&
+        current == baseline.copy(enabled = GRAYSCALE_ON_STATE.enabled)
+    return if (enable) {
+        val capture = if (isGrayscaleOn(current) || incompleteActivation) null else current
         DaltonizerPlan(write = GRAYSCALE_ON_STATE, captureBaseline = capture)
     } else {
-        val restore = if (current.mode == GRAYSCALE_ON_STATE.mode) {
+        val restore = if (current.mode == GRAYSCALE_ON_STATE.mode || incompleteActivation) {
             baseline ?: NEUTRAL_OFF_STATE
         } else {
             current
         }
         DaltonizerPlan(write = restore, captureBaseline = null)
     }
+}

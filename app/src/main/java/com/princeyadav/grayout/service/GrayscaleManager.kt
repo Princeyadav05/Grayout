@@ -38,14 +38,28 @@ class GrayscaleManager internal constructor(
 
     override fun setGrayscale(enabled: Boolean): Boolean = synchronized(GrayscaleStateLock) {
         val current = readState()
-        val plan = daltonizerPlan(enable = enabled, current = current, baseline = readBaseline())
-        plan.captureBaseline?.let { writeBaseline(it) }
-        if (current == plan.write) return@synchronized true
-        try {
+        val plan = daltonizerPlan(
+            enable = enabled,
+            current = current,
+            baseline = readBaseline(),
+            activationPending = prefs.getBoolean(KEY_ACTIVATION_PENDING, false),
+        )
+        if (current == plan.write) {
+            clearPendingActivation()
+            return@synchronized true
+        }
+        // Persist ownership and its baseline together before touching the system.
+        // A failed enable may change only the flag, leaving a correction enabled
+        // that was previously disabled. A recreated manager must recover that
+        // exact intermediate state instead of adopting it as a new user setting.
+        if (enabled && !savePendingActivation(plan.captureBaseline)) return@synchronized false
+        val success = try {
             applyAndVerify(plan.write)
         } catch (_: SecurityException) {
             false
         }
+        if (success) clearPendingActivation()
+        success
     }
 
     // Permission checks must not rewrite a value that can change between the read
@@ -89,12 +103,18 @@ class GrayscaleManager internal constructor(
         )
     }
 
-    private fun writeBaseline(state: DaltonizerState) {
-        prefs.edit()
-            .putBoolean(KEY_BASELINE_CAPTURED, true)
-            .putInt(KEY_BASELINE_ENABLED, state.enabled)
-            .putInt(KEY_BASELINE_MODE, state.mode)
-            .apply()
+    private fun savePendingActivation(baseline: DaltonizerState?): Boolean {
+        val editor = prefs.edit().putBoolean(KEY_ACTIVATION_PENDING, true)
+        baseline?.let {
+            editor.putBoolean(KEY_BASELINE_CAPTURED, true)
+                .putInt(KEY_BASELINE_ENABLED, it.enabled)
+                .putInt(KEY_BASELINE_MODE, it.mode)
+        }
+        return editor.commit()
+    }
+
+    private fun clearPendingActivation() {
+        prefs.edit().remove(KEY_ACTIVATION_PENDING).apply()
     }
 
     companion object {
@@ -103,6 +123,7 @@ class GrayscaleManager internal constructor(
         private const val KEY_BASELINE_CAPTURED = "daltonizer_baseline_captured"
         private const val KEY_BASELINE_ENABLED = "daltonizer_baseline_enabled"
         private const val KEY_BASELINE_MODE = "daltonizer_baseline_mode"
+        private const val KEY_ACTIVATION_PENDING = "daltonizer_activation_pending"
         val DALTONIZER_ENABLED_URI: Uri = Settings.Secure.getUriFor(DALTONIZER_ENABLED)
         val DALTONIZER_MODE_URI: Uri = Settings.Secure.getUriFor(DALTONIZER_MODE)
     }
