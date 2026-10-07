@@ -16,18 +16,19 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.princeyadav.grayout.MainActivity
 import com.princeyadav.grayout.data.GrayoutDatabase
+import com.princeyadav.grayout.testutil.SecureSettingsPermissionRule
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.FileInputStream
 
-/** Run separately with WRITE_SECURE_SETTINGS revoked. This test grants it through real ADB. */
+/** Exercises a real ADB grant and restores the incoming permission state for the next test. */
 @RunWith(AndroidJUnit4::class)
 class SchedulePermissionGrantTest {
-    @get:Rule val composeRule = createEmptyComposeRule()
+    @get:Rule(order = 0) val permissionRule = SecureSettingsPermissionRule(granted = false)
+    @get:Rule(order = 1) val composeRule = createEmptyComposeRule()
 
     @Test
     fun adbGrantRefreshesInPlaceAndRetriesThePreservedDraft() {
@@ -49,9 +50,7 @@ class SchedulePermissionGrantTest {
                 }
                 composeRule.onNodeWithText("Set up permission").performScrollTo().performClick()
                 composeRule.onNodeWithText("Grant via ADB").assertIsDisplayed()
-                instrumentation.uiAutomation.executeShellCommand(
-                    "pm grant ${context.packageName} android.permission.WRITE_SECURE_SETTINGS",
-                ).use { descriptor -> FileInputStream(descriptor.fileDescriptor).use { it.readBytes() } }
+                permissionRule.setGranted(true)
                 composeRule.waitUntil(5_000) {
                     composeRule.onAllNodes(hasText("Permission granted")).fetchSemanticsNodes().isNotEmpty()
                 }

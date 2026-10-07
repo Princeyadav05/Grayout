@@ -17,6 +17,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.princeyadav.grayout.MainActivity
 import com.princeyadav.grayout.data.GrayoutDatabase
 import com.princeyadav.grayout.model.Schedule
+import com.princeyadav.grayout.testutil.SecureSettingsPermissionRule
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -28,10 +29,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalTime
 
-/** Run with WRITE_SECURE_SETTINGS revoked before starting instrumentation. */
+/** Each test temporarily revokes the real permission and restores its incoming state. */
 @RunWith(AndroidJUnit4::class)
 class SchedulePermissionTest {
-    @get:Rule val composeRule = createEmptyComposeRule()
+    @get:Rule(order = 0) val permissionRule = SecureSettingsPermissionRule(granted = false)
+    @get:Rule(order = 1) val composeRule = createEmptyComposeRule()
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val dao = GrayoutDatabase.getInstance(context).scheduleDao()
 
