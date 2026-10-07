@@ -424,6 +424,8 @@ class SystemScheduleRecoveryTest {
     private fun awaitServiceStartCompletion(intent: Intent) {
         val manager = context.getSystemService(NotificationManager::class.java)
         val marker = "Waiting for the implicit service command"
+        // onStartCommand and the remote notification publication can complete separately.
+        await { manager.activeNotifications.any { it.id == GrayoutService.NOTIFICATION_ID } }
         val existing = checkNotNull(manager.activeNotifications.firstOrNull {
             it.id == GrayoutService.NOTIFICATION_ID
         }).notification

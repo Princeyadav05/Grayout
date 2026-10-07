@@ -36,7 +36,7 @@ class ScheduleEditorViewModelTest {
         dao = FakeScheduleDao()
         repository = ScheduleRepository(dao)
         alarm = FakeScheduleAlarmManager()
-        vm = ScheduleEditorViewModel(repository, alarm)
+        vm = ScheduleEditorViewModel(repository, alarm, canWriteSecureSettings = { true })
     }
 
     @Test
@@ -222,7 +222,7 @@ class ScheduleEditorViewModelTest {
     @Test
     fun `existing editor is not editable before initial load starts`() = runTest {
         val id = dao.insert(testSchedule())
-        vm = ScheduleEditorViewModel(repository, alarm, scheduleId = id)
+        vm = ScheduleEditorViewModel(repository, alarm, canWriteSecureSettings = { true }, scheduleId = id)
 
         assertFalse(vm.isReady.value)
         vm.setName("Placeholder edit")
@@ -248,7 +248,7 @@ class ScheduleEditorViewModelTest {
                 return dao.getById(id)
             }
         }
-        vm = ScheduleEditorViewModel(ScheduleRepository(delayedDao), alarm)
+        vm = ScheduleEditorViewModel(ScheduleRepository(delayedDao), alarm, canWriteSecureSettings = { true })
 
         vm.loadSchedule(id)
         assertTrue(vm.isLoading.value)
@@ -283,7 +283,7 @@ class ScheduleEditorViewModelTest {
                 return snapshot
             }
         }
-        vm = ScheduleEditorViewModel(ScheduleRepository(delayedDao), alarm)
+        vm = ScheduleEditorViewModel(ScheduleRepository(delayedDao), alarm, canWriteSecureSettings = { true })
         vm.setName("Focus")
         vm.selectPreset("Weekdays")
 
@@ -316,7 +316,7 @@ class ScheduleEditorViewModelTest {
                 dao.update(schedule)
             }
         }
-        vm = ScheduleEditorViewModel(ScheduleRepository(delayedDao), alarm)
+        vm = ScheduleEditorViewModel(ScheduleRepository(delayedDao), alarm, canWriteSecureSettings = { true })
         vm.loadSchedule(id)
         advanceUntilIdle()
         vm.setName("Saved name")
@@ -347,7 +347,7 @@ class ScheduleEditorViewModelTest {
                 dao.delete(schedule)
             }
         }
-        vm = ScheduleEditorViewModel(ScheduleRepository(delayedDao), alarm)
+        vm = ScheduleEditorViewModel(ScheduleRepository(delayedDao), alarm, canWriteSecureSettings = { true })
         vm.loadSchedule(id)
         advanceUntilIdle()
 
@@ -376,7 +376,7 @@ class ScheduleEditorViewModelTest {
                 return dao.getById(id)
             }
         }
-        vm = ScheduleEditorViewModel(ScheduleRepository(failingDao), alarm)
+        vm = ScheduleEditorViewModel(ScheduleRepository(failingDao), alarm, canWriteSecureSettings = { true })
         vm.loadSchedule(id)
         advanceUntilIdle()
 
@@ -405,7 +405,7 @@ class ScheduleEditorViewModelTest {
                 return dao.insert(schedule)
             }
         }
-        vm = ScheduleEditorViewModel(ScheduleRepository(failingDao), alarm)
+        vm = ScheduleEditorViewModel(ScheduleRepository(failingDao), alarm, canWriteSecureSettings = { true })
         vm.selectPreset("Every day")
         vm.save()
         advanceUntilIdle()
@@ -430,7 +430,7 @@ class ScheduleEditorViewModelTest {
                 if (shouldFail) error("Alarm update failed")
             }
         }
-        vm = ScheduleEditorViewModel(repository, failingAlarm)
+        vm = ScheduleEditorViewModel(repository, failingAlarm, canWriteSecureSettings = { true })
         vm.selectPreset("Every day")
         vm.save()
         advanceUntilIdle()
@@ -454,7 +454,7 @@ class ScheduleEditorViewModelTest {
                 if (shouldFail) error("Alarm update failed")
             }
         }
-        vm = ScheduleEditorViewModel(repository, failingAlarm)
+        vm = ScheduleEditorViewModel(repository, failingAlarm, canWriteSecureSettings = { true })
         vm.loadSchedule(id)
         advanceUntilIdle()
         vm.deleteSchedule()
@@ -479,6 +479,94 @@ class ScheduleEditorViewModelTest {
         vm.deleteSchedule()
         advanceUntilIdle()
         assertTrue(vm.isSaved.value)
+    }
+
+    @Test
+    fun `missing permission blocks activation and a grant retries the same draft`() = runTest {
+        var granted = false
+        vm = ScheduleEditorViewModel(repository, alarm, canWriteSecureSettings = { granted })
+        vm.setName("My draft")
+        vm.selectPreset("Every day")
+        vm.setStartTime(7, 30)
+        vm.save()
+        advanceUntilIdle()
+
+        assertTrue(dao.getAll().isEmpty())
+        assertEquals(0, alarm.rescheduleCallCount)
+        assertFalse(vm.isSaved.value)
+        assertFalse(vm.isSaving.value)
+        assertEquals("My draft", vm.name.value)
+        assertEquals(7, vm.startHour.value)
+        assertEquals("Grant grayscale permission to activate this schedule, or save it as off.", vm.overlapError.value)
+
+        granted = true
+        vm.save()
+        advanceUntilIdle()
+
+        assertTrue(vm.isSaved.value)
+        assertTrue(dao.getAll().single().isEnabled)
+        assertEquals("My draft", dao.getAll().single().name)
+        assertEquals(1, alarm.rescheduleCallCount)
+        assertNull(vm.overlapError.value)
+    }
+
+    @Test
+    fun `save as off preserves a new draft without permission`() = runTest {
+        vm = ScheduleEditorViewModel(repository, alarm, canWriteSecureSettings = { false })
+        vm.setName("Later")
+        vm.selectPreset("Weekends")
+        vm.saveAsDisabled()
+        advanceUntilIdle()
+
+        assertTrue(vm.isSaved.value)
+        assertFalse(dao.getAll().single().isEnabled)
+        assertEquals("Later", dao.getAll().single().name)
+        assertEquals("SAT,SUN", dao.getAll().single().daysOfWeek)
+    }
+
+    @Test
+    fun `missing permission still allows editing disabled schedules`() = runTest {
+        val id = dao.insert(testSchedule().copy(isEnabled = false))
+        vm = ScheduleEditorViewModel(repository, alarm, canWriteSecureSettings = { false })
+        vm.loadSchedule(id)
+        advanceUntilIdle()
+        vm.setName("Renamed while off")
+        vm.save()
+        advanceUntilIdle()
+
+        assertTrue(vm.isSaved.value)
+        assertEquals("Renamed while off", dao.getById(id)!!.name)
+        assertFalse(dao.getById(id)!!.isEnabled)
+    }
+
+    @Test
+    fun `save as off explicitly disables existing enabled schedule without losing edits`() = runTest {
+        val id = dao.insert(testSchedule())
+        vm = ScheduleEditorViewModel(repository, alarm, canWriteSecureSettings = { false })
+        vm.loadSchedule(id)
+        advanceUntilIdle()
+        vm.setName("Edited without permission")
+        vm.saveAsDisabled()
+        advanceUntilIdle()
+
+        assertTrue(vm.isSaved.value)
+        assertEquals(id, dao.getAll().single().id)
+        assertEquals("Edited without permission", dao.getById(id)!!.name)
+        assertFalse(dao.getById(id)!!.isEnabled)
+    }
+
+    @Test
+    fun `missing permission does not prevent deleting enabled schedules`() = runTest {
+        val id = dao.insert(testSchedule())
+        vm = ScheduleEditorViewModel(repository, alarm, canWriteSecureSettings = { false })
+        vm.loadSchedule(id)
+        advanceUntilIdle()
+        vm.deleteSchedule()
+        advanceUntilIdle()
+
+        assertTrue(vm.isSaved.value)
+        assertTrue(dao.getAll().isEmpty())
+        assertEquals(1, alarm.rescheduleCallCount)
     }
 
     private fun testSchedule() = Schedule(

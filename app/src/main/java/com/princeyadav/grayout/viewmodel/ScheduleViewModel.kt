@@ -30,6 +30,7 @@ import java.time.Duration
 class ScheduleViewModel(
     private val repository: ScheduleRepository,
     private val alarmManager: AlarmScheduler,
+    private val canWriteSecureSettings: () -> Boolean,
     private val clock: () -> Clock = { Clock.systemDefaultZone() },
 ) : ViewModel() {
 
@@ -72,6 +73,10 @@ class ScheduleViewModel(
             // blocks creating overlaps, but a schedule disabled while another was
             // edited around it, or legacy data, can still collide on enable.
             if (!schedule.isEnabled) {
+                if (!canWriteSecureSettings()) {
+                    _enableConflict.tryEmit("Grant grayscale permission in Set up permission before enabling schedules.")
+                    return@launch
+                }
                 val conflict = repository.getEnabledSchedules()
                     .firstOrNull { it.id != schedule.id && schedulesOverlap(schedule, it) }
                 if (conflict != null) {
@@ -95,10 +100,11 @@ class ScheduleViewModel(
 class ScheduleViewModelFactory(
     private val repository: ScheduleRepository,
     private val alarmManager: AlarmScheduler,
+    private val canWriteSecureSettings: () -> Boolean,
     private val clock: () -> Clock = { Clock.systemDefaultZone() },
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return ScheduleViewModel(repository, alarmManager, clock) as T
+        return ScheduleViewModel(repository, alarmManager, canWriteSecureSettings, clock) as T
     }
 }

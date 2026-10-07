@@ -16,6 +16,7 @@ import java.time.DayOfWeek
 class ScheduleEditorViewModel(
     private val repository: ScheduleRepository,
     private val alarmManager: AlarmScheduler,
+    private val canWriteSecureSettings: () -> Boolean,
     scheduleId: Long = 0L,
 ) : ViewModel() {
 
@@ -137,7 +138,12 @@ class ScheduleEditorViewModel(
         _overlapError.value = null
     }
 
-    fun save() {
+    fun save() = save(isEnabled = editingIsEnabled)
+
+    /** Explicitly preserve the draft without activating an unusable schedule. */
+    fun saveAsDisabled() = save(isEnabled = false)
+
+    private fun save(isEnabled: Boolean) {
         if (isBusy || !_isReady.value || _isDeleted.value) return
         // Snapshot the edited fields so validation and persistence use the same values.
         val name = _name.value.ifBlank { "Schedule" }
@@ -173,6 +179,12 @@ class ScheduleEditorViewModel(
                     return@launch
                 }
 
+                // Probe at the point of activation, including retries after an ADB grant.
+                if (isEnabled && !canWriteSecureSettings()) {
+                    _overlapError.value = "Grant grayscale permission to activate this schedule, or save it as off."
+                    return@launch
+                }
+
                 val schedule = Schedule(
                     id = editingScheduleId,
                     name = name,
@@ -181,11 +193,12 @@ class ScheduleEditorViewModel(
                     startTimeMinute = startMinute,
                     endTimeHour = endHour,
                     endTimeMinute = endMinute,
-                    isEnabled = editingIsEnabled,
+                    isEnabled = isEnabled,
                 )
                 // Retain the inserted ID so retrying a failed alarm update cannot
                 // insert a second schedule.
                 editingScheduleId = repository.save(schedule)
+                editingIsEnabled = isEnabled
                 didPersist = true
                 alarmManager.reschedule(repository)
                 _isSaved.value = true
@@ -236,10 +249,11 @@ class ScheduleEditorViewModel(
 class ScheduleEditorViewModelFactory(
     private val repository: ScheduleRepository,
     private val alarmManager: AlarmScheduler,
+    private val canWriteSecureSettings: () -> Boolean,
     private val scheduleId: Long = 0L,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return ScheduleEditorViewModel(repository, alarmManager, scheduleId) as T
+        return ScheduleEditorViewModel(repository, alarmManager, canWriteSecureSettings, scheduleId) as T
     }
 }
