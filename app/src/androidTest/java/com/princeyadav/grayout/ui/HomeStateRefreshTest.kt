@@ -16,9 +16,11 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.princeyadav.grayout.MainActivity
+import com.princeyadav.grayout.awaitScheduleStartupRecovery
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.EnforcementAlarmReceiver
 import com.princeyadav.grayout.service.GrayoutService
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -37,12 +39,14 @@ class HomeStateRefreshTest {
 
     @Before
     fun reset() {
+        runBlocking { awaitScheduleStartupRecovery() }
         prefs.edit().clear().commit()
         writeGrayscale(false)
     }
 
     @After
     fun tearDown() {
+        runBlocking { awaitScheduleStartupRecovery() }
         prefs.edit().clear().commit()
         context.stopService(Intent(context, GrayoutService::class.java))
         enforcementAlarm()?.let {

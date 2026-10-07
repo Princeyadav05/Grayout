@@ -5,6 +5,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.provider.Settings
 import androidx.lifecycle.Lifecycle
@@ -12,6 +13,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.princeyadav.grayout.MainActivity
+import com.princeyadav.grayout.awaitScheduleStartupRecovery
 import com.princeyadav.grayout.data.GrayoutDatabase
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.data.scheduleOperationMutex
@@ -47,6 +49,7 @@ class ScheduleStartupRecoveryTest {
 
     @Before fun setUp(): Unit = runBlocking {
         instrumentation.uiAutomation.adoptShellPermissionIdentity(Manifest.permission.WRITE_SECURE_SETTINGS)
+        awaitScheduleStartupRecovery()
         stopService()
         savedRows = dao.getAll()
         savedPrefs = prefs.all
@@ -61,6 +64,9 @@ class ScheduleStartupRecoveryTest {
 
     @After fun tearDown(): Unit = runBlocking {
         try {
+            // Closing an ActivityScenario no longer cancels pending recovery.
+            // Finish every launch before restoring the database and preferences.
+            awaitScheduleStartupRecovery()
             stopService()
             scheduleOperationMutex.withLock { }
             cancelScheduleAlarm()
@@ -102,6 +108,27 @@ class ScheduleStartupRecoveryTest {
             assertTrue(restored.isStart)
             assertFalse(gray.isGrayscaleEnabled())
         }
+    }
+
+    @Test fun closingActivityWhileRecoveryIsWaitingStillRestoresAlarm() = runBlocking {
+        seedAndArm(2, 4)
+        val old = checkNotNull(state.read())
+        cancelScheduleAlarm()
+
+        // An edit or receiver may already own the shared lock when the user
+        // launches the app. Destroy the activity before recovery can acquire it.
+        scheduleOperationMutex.withLock {
+            ActivityScenario.launch(MainActivity::class.java).use {
+                instrumentation.waitForIdleSync()
+                assertNull(scheduleToken())
+            }
+            instrumentation.waitForIdleSync()
+            assertNull(scheduleToken())
+        }
+
+        awaitRegistrationAfter(old.generation)
+        assertEquals(old.triggerMillis, checkNotNull(state.read()).triggerMillis)
+        assertFalse(gray.isGrayscaleEnabled())
     }
 
     @Test fun openingAppPreservesManualColorWithinContinuingSchedule() = runBlocking {
@@ -171,7 +198,13 @@ class ScheduleStartupRecoveryTest {
             state.read()?.generation != oldGeneration && scheduleToken() != null
         }
         // Persistence precedes the AlarmManager call. Drain the complete recovery.
+        awaitScheduleStartupRecovery()
         scheduleOperationMutex.withLock { }
+        val descriptor = instrumentation.uiAutomation.executeShellCommand("dumpsys alarm")
+        val dump = ParcelFileDescriptor.AutoCloseInputStream(descriptor).bufferedReader().use { it.readText() }
+        val alarmTag = Regex("^\\s+tag=\\*walarm\\*:" +
+            Regex.escape(ScheduleAlarmManager.ACTION_SCHEDULE_FIRE) + "\\s*$", RegexOption.MULTILINE)
+        assertTrue("AlarmManager must contain the restored registration, not only a PendingIntent", alarmTag.containsMatchIn(dump))
     }
 
     private fun stopService() {
