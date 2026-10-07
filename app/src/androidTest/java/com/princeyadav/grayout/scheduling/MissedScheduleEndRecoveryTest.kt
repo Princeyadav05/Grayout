@@ -4,7 +4,9 @@ import android.Manifest
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.content.SharedPreferences
 import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -138,6 +140,19 @@ class MissedScheduleEndRecoveryTest {
         assertFalse(checkNotNull(state.read()).isStart)
     }
 
+    @Test fun interruptedActiveBootWithOldStartStillClosesAfterTheWindow() = runBlocking {
+        dao.insert(schedule())
+        managerAt(8, 30).reschedule(repository)
+        assertTrue(checkNotNull(state.read()).isStart)
+        verifyInterruptedActivationCloses()
+    }
+
+    @Test fun interruptedActiveBootWithoutAnAlarmStillClosesAfterTheWindow() = runBlocking {
+        dao.insert(schedule())
+        assertNull(state.read())
+        verifyInterruptedActivationCloses()
+    }
+
     @Test fun noPriorRegistrationPreservesManualGrayscaleOutsideSchedule() = runBlocking {
         dao.insert(schedule())
         gray.setGrayscale(true)
@@ -188,6 +203,47 @@ class MissedScheduleEndRecoveryTest {
         // A successful start deliberately has no failed-write reconciliation record.
         assertNull(pending.read())
         return checkNotNull(dao.getById(id))
+    }
+
+    private suspend fun verifyInterruptedActivationCloses() {
+        // Interrupt exactly after a successful display write clears its retry
+        // record. Only durable alarm provenance can recover after this point.
+        val interruptedPrefs = object : SharedPreferences by prefs {
+            override fun edit(): SharedPreferences.Editor {
+                val delegate = prefs.edit()
+                var clearsRecovery = false
+                return object : SharedPreferences.Editor by delegate {
+                    override fun remove(key: String?): SharedPreferences.Editor {
+                        delegate.remove(key)
+                        if (key == "schedule_reconciliation_configuration") clearsRecovery = true
+                        return this
+                    }
+                    override fun commit(): Boolean {
+                        val success = delegate.commit()
+                        if (clearsRecovery) error("Interrupted after successful display write")
+                        return success
+                    }
+                }
+            }
+        }
+        val interruptedContext = object : ContextWrapper(context) {
+            override fun getSharedPreferences(name: String?, mode: Int): SharedPreferences = interruptedPrefs
+        }
+        try {
+            ScheduleAlarmManager(interruptedContext,
+                Clock.fixed(date.atTime(9, 30).toInstant(ZoneOffset.UTC), ZoneOffset.UTC), gray)
+                .reschedule(repository)
+            fail("Expected injected interruption")
+        } catch (error: IllegalStateException) {
+            assertEquals("Interrupted after successful display write", error.message)
+        }
+        assertTrue(gray.isGrayscaleEnabled())
+        assertNull(pending.read())
+        val interruptedAlarm = state.read()
+        cancel(ScheduleReceiver::class.java, 1001, ScheduleAlarmManager.ACTION_SCHEDULE_FIRE)
+        managerAt(10, 30).reschedule(repository)
+        assertFalse("An interrupted successful activation must still close after restart", gray.isGrayscaleEnabled())
+        assertFalse("Closing provenance must be persisted before activation", checkNotNull(interruptedAlarm).isStart)
     }
 
     private fun schedule() = Schedule(name = "Boot recovery", daysOfWeek = date.dayOfWeek.name.take(3),

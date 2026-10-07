@@ -47,15 +47,7 @@ class ScheduleAlarmManager(
             if (reconciliationState.read()?.configuration?.let {
                     it != scheduleConfiguration(enabledSchedules)
                 } == true) clearReconciliation()
-            val priorAlarm = state.read()
-            val reading = currentClock()
-            val now = reading.instant()
-            // A persisted end is evidence of coverage before shutdown. Consume it
-            // (or persist a failed close for retry) before replacing that evidence.
-            synchronizeActiveWindow(enabledSchedules, priorAlarm)
-            // Retain the pre-write time so a boundary crossed during a slow display
-            // write is still registered for delivery instead of being skipped.
-            replaceNextAlarm(enabledSchedules, now, reading.zone)
+            rescheduleAndSynchronizeWindow(enabledSchedules, state.read())
         }
     }
 
@@ -136,7 +128,7 @@ class ScheduleAlarmManager(
                 DeliveryDecision(now, zone, handledStart)
             }
             // Expired, edited, or deleted current boundaries still advance the
-            // chain, but never call synchronizeActiveWindow after being ignored.
+            // chain, but never synchronize an active window after being ignored.
             // Keep the decision time: an end crossed during the display write
             // must still be armed, even if Android now needs to deliver it immediately.
             replaceNextAlarm(enabledSchedules, decision.at, decision.zone)
@@ -153,7 +145,7 @@ class ScheduleAlarmManager(
     }
 
     /** Only explicit schedule edits/boot synchronize an already active window. */
-    private fun synchronizeActiveWindow(
+    private fun rescheduleAndSynchronizeWindow(
         enabledSchedules: List<Schedule>,
         priorAlarm: ArmedScheduleAlarm?,
     ) {
@@ -162,21 +154,31 @@ class ScheduleAlarmManager(
             // passed while an in-flight detector write held it.
             val reading = currentClock()
             val applyTime = reading.instant()
-            val active = enabledSchedules.any { isCurrentlyFiring(it, applyTime, reading.zone) }
+            val zone = reading.zone
+            val active = enabledSchedules.any { isCurrentlyFiring(it, applyTime, zone) }
             if (active) {
+                // Persist the closing boundary before turning gray. A successful
+                // display write clears its retry record, so an interruption after
+                // that point must leave durable evidence of the active occurrence.
+                replaceNextAlarm(enabledSchedules, applyTime, zone)
                 applyWithRecovery(true, enabledSchedules)
-            } else if (scheduleReconciliationTarget(priorAlarm, enabledSchedules, applyTime, reading.zone) == false) {
-                // No failed-write record exists after a successful start. A valid
-                // prior end still closes that occurrence if it elapsed while off.
-                applyWithRecovery(false, enabledSchedules)
             } else {
-                val pending = reconciliationState.read()
-                if (pending != null) {
-                    if (ExclusionPrefs(prefs).isExcludedAppActive() ||
-                        grayscale.isGrayscaleEnabled() == pending.observedGray) {
-                        applyWithRecovery(false, enabledSchedules)
-                    } else clearReconciliation()
+                if (scheduleReconciliationTarget(priorAlarm, enabledSchedules, applyTime, zone) == false) {
+                    // No failed-write record exists after a successful start. A
+                    // valid prior end still closes an occurrence missed while off.
+                    applyWithRecovery(false, enabledSchedules)
+                } else {
+                    val pending = reconciliationState.read()
+                    if (pending != null) {
+                        if (ExclusionPrefs(prefs).isExcludedAppActive() ||
+                            grayscale.isGrayscaleEnabled() == pending.observedGray) {
+                            applyWithRecovery(false, enabledSchedules)
+                        } else clearReconciliation()
+                    }
                 }
+                // Consume old closing evidence (or retain a failed close for
+                // retry) before a future registration replaces it.
+                replaceNextAlarm(enabledSchedules, applyTime, zone)
             }
             active
         }
