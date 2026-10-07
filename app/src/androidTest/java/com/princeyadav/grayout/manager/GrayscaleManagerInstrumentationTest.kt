@@ -5,7 +5,10 @@ import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.princeyadav.grayout.service.EnforcementPrefs
+import com.princeyadav.grayout.service.ExclusionPrefs
+import com.princeyadav.grayout.service.ExclusionTransition
 import com.princeyadav.grayout.service.GrayscaleManager
+import com.princeyadav.grayout.service.applyExclusionTransition
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -109,6 +112,75 @@ class GrayscaleManagerInstrumentationTest {
         writeDaltonizer(1, 12)
 
         assertFalse(manager.isGrayscaleEnabled())
+    }
+
+    @Test
+    fun firstExclusionPreservesExistingCorrectionWhenGrayscaleWasNeverEnabled() {
+        writeDaltonizer(1, 12)
+        val exclusions = ExclusionPrefs(
+            context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE),
+        )
+        try {
+            applyExclusionTransition(ExclusionTransition.Enter(false), exclusions, manager, 0) {}
+
+            assertTrue(exclusions.isExcludedAppActive())
+            assertFalse(exclusions.wasGrayscaleOnBeforeExclusion())
+            assertFalse(exclusions.isColorRestorePending())
+            assertEquals(1, read(ENABLED, -1))
+            assertEquals(12, read(MODE, -999))
+
+            applyExclusionTransition(ExclusionTransition.Exit(false), exclusions, manager, 0) {}
+            assertEquals(1, read(ENABLED, -1))
+            assertEquals(12, read(MODE, -999))
+        } finally {
+            exclusions.clearExclusionState()
+        }
+    }
+
+    @Test
+    fun disablePreservesExternalCorrectionInsteadOfRestoringAStaleBaseline() {
+        writeDaltonizer(1, 12)
+        assertTrue(manager.setGrayscale(true))
+        assertTrue(manager.setGrayscale(false))
+        writeDaltonizer(1, 13)
+
+        // A recreated manager must not interpret the persisted old baseline as
+        // ownership of a newer correction selected outside Grayout.
+        val restartedManager = GrayscaleManager(context)
+        assertTrue(restartedManager.setGrayscale(false))
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(13, read(MODE, -999))
+
+        assertTrue(restartedManager.setGrayscale(true))
+        assertTrue(restartedManager.setGrayscale(false))
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(13, read(MODE, -999))
+    }
+
+    @Test
+    fun disableFinishesPartialRestoreAfterEnabledFlagWasAlreadyWritten() {
+        writeDaltonizer(0, 12)
+        assertTrue(manager.setGrayscale(true))
+        // Model process interruption or a rejected mode write after the first
+        // half of restoring the disabled correction baseline succeeded.
+        Settings.Secure.putInt(contentResolver, ENABLED, 0)
+        assertFalse(manager.isGrayscaleEnabled())
+
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+        assertEquals(0, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+    }
+
+    @Test
+    fun disablePreservesAnExternallyDisabledCorrection() {
+        writeDaltonizer(1, 12)
+        assertTrue(manager.setGrayscale(true))
+        assertTrue(manager.setGrayscale(false))
+        writeDaltonizer(0, 12)
+
+        assertTrue(manager.setGrayscale(false))
+        assertEquals(0, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
     }
 
     companion object {

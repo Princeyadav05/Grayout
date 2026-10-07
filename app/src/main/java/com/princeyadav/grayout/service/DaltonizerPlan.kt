@@ -50,8 +50,12 @@ fun isGrayscaleOn(state: DaltonizerState): Boolean =
  *   grayscale is already on (that would snapshot our own monochrome state and make
  *   "off" restore gray — the self-capture trap). Capturing on every enable-from-off
  *   also re-snapshots if the user changed their correction while Grayout was off.
- * - disable: write the captured [baseline], or [NEUTRAL_OFF_STATE] if none. Never
- *   capture.
+ * - disable: only restore the captured [baseline] (or [NEUTRAL_OFF_STATE]) while
+ *   the current mode is Grayout's monochromacy. Preserve any other mode, including
+ *   externally disabled correction, because an old baseline does not give us
+ *   ownership of the user's newer accessibility settings. Never capture.
+ *   Check the mode rather than [isGrayscaleOn]: a partially completed disable
+ *   can already have enabled == 0 while its mode still needs restoring.
  */
 fun daltonizerPlan(
     enable: Boolean,
@@ -62,5 +66,10 @@ fun daltonizerPlan(
         val capture = if (isGrayscaleOn(current)) null else current
         DaltonizerPlan(write = GRAYSCALE_ON_STATE, captureBaseline = capture)
     } else {
-        DaltonizerPlan(write = baseline ?: NEUTRAL_OFF_STATE, captureBaseline = null)
+        val restore = if (current.mode == GRAYSCALE_ON_STATE.mode) {
+            baseline ?: NEUTRAL_OFF_STATE
+        } else {
+            current
+        }
+        DaltonizerPlan(write = restore, captureBaseline = null)
     }
