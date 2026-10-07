@@ -29,6 +29,9 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.princeyadav.grayout.data.GrayoutDatabase
+import com.princeyadav.grayout.data.ScheduleRepository
+import com.princeyadav.grayout.scheduling.ScheduleAlarmManager
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
 import com.princeyadav.grayout.service.GrayscaleManager
@@ -137,6 +140,14 @@ class MainActivity : ComponentActivity() {
         }
 
         startForegroundService(Intent(this, GrayoutService::class.java))
+
+        lifecycleScope.launch {
+            // Force-stop removes OS alarms but leaves enabled schedules and their
+            // last boundary on disk. Rebuild on launch without replaying an active
+            // start over a manual color choice in the same schedule window.
+            val repository = ScheduleRepository(GrayoutDatabase.getInstance(applicationContext).scheduleDao())
+            ScheduleAlarmManager(applicationContext).reconcileSystemChange(repository)
+        }
 
         setContent {
             GrayoutTheme {
