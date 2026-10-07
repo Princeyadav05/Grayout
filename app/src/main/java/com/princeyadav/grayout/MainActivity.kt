@@ -138,6 +138,8 @@ class MainActivity : ComponentActivity() {
 
         startForegroundService(Intent(this, GrayoutService::class.java))
 
+        (application as GrayoutApp).recoverScheduleAlarms()
+
         setContent {
             GrayoutTheme {
                 val navController = rememberNavController()

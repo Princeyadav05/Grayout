@@ -10,6 +10,9 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.princeyadav.grayout.MainActivity
+import com.princeyadav.grayout.awaitScheduleStartupRecovery
+import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -19,6 +22,8 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class SystemBarsLayoutTest {
     @get:Rule val composeRule = createEmptyComposeRule()
+
+    @After fun awaitStartupWork() = runBlocking { awaitScheduleStartupRecovery() }
 
     @Test
     fun tabLabelsStayAboveSystemNavigationAndSystemIconsUseDarkAppContrast() {

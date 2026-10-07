@@ -13,6 +13,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.princeyadav.grayout.MainActivity
+import com.princeyadav.grayout.awaitScheduleStartupRecovery
 import com.princeyadav.grayout.data.GrayoutDatabase
 import com.princeyadav.grayout.model.Schedule
 import kotlinx.coroutines.runBlocking
@@ -36,6 +37,7 @@ class ScheduleEditorRecreationTest {
 
     @Before
     fun seedSchedule() = runBlocking {
+        awaitScheduleStartupRecovery()
         scheduleId = dao.insert(
             Schedule(
                 name = "Recreation test schedule",
@@ -51,6 +53,7 @@ class ScheduleEditorRecreationTest {
 
     @After
     fun removeSchedule() = runBlocking {
+        awaitScheduleStartupRecovery()
         dao.getById(scheduleId)?.let { dao.delete(it) }
         Unit
     }
