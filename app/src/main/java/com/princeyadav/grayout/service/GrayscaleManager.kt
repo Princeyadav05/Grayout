@@ -1,6 +1,7 @@
 package com.princeyadav.grayout.service
 
 import android.Manifest
+import android.content.ContentResolver
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -21,7 +22,12 @@ import android.provider.Settings
  * Takes a [Context] (not just a ContentResolver) because the baseline survives
  * process death in [EnforcementPrefs.PREFS_NAME].
  */
-class GrayscaleManager(context: Context) : GrayscaleController {
+class GrayscaleManager internal constructor(
+    context: Context,
+    private val writeSetting: (ContentResolver, String, Int) -> Boolean,
+) : GrayscaleController {
+
+    constructor(context: Context) : this(context, Settings.Secure::putInt)
 
     private val applicationContext = context.applicationContext
     private val contentResolver = applicationContext.contentResolver
@@ -66,8 +72,13 @@ class GrayscaleManager(context: Context) : GrayscaleController {
     }
 
     private fun writeState(state: DaltonizerState) {
-        Settings.Secure.putInt(contentResolver, DALTONIZER_ENABLED, state.enabled)
-        Settings.Secure.putInt(contentResolver, DALTONIZER_MODE, state.mode)
+        writeSetting(contentResolver, DALTONIZER_ENABLED, state.enabled)
+        // A silently rejected flag write must not turn a failed restore into
+        // (1, correctionMode). That looks like external correction to the next
+        // disable, which would otherwise preserve it and falsely report success.
+        // Keep monochromacy until the flag sticks so a later retry can recover.
+        if (Settings.Secure.getInt(contentResolver, DALTONIZER_ENABLED, 0) != state.enabled) return
+        writeSetting(contentResolver, DALTONIZER_MODE, state.mode)
     }
 
     private fun readBaseline(): DaltonizerState? {

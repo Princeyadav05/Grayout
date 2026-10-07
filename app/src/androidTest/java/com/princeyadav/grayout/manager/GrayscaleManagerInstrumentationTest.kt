@@ -183,6 +183,44 @@ class GrayscaleManagerInstrumentationTest {
         assertEquals(12, read(MODE, -999))
     }
 
+    @Test
+    fun disableRetriesAfterEnabledFlagWritesWereSilentlyDropped() {
+        writeDaltonizer(0, 12)
+        var dropEnabledWrites = false
+        val unreliableManager = GrayscaleManager(context) { resolver, key, value ->
+            // Model a provider acknowledging writes without applying them.
+            if (dropEnabledWrites && key == ENABLED) true
+            else Settings.Secure.putInt(resolver, key, value)
+        }
+        assertTrue(unreliableManager.setGrayscale(true))
+        dropEnabledWrites = true
+
+        assertFalse(unreliableManager.setGrayscale(false))
+        // Do not change mode while its enabled flag is still wrong: that would
+        // make a failed restore look like a newer external color correction.
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(0, read(MODE, -999))
+
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+        assertEquals(0, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+    }
+
+    @Test
+    fun failedDisableDoesNotGiveOwnershipOfANewerExternalCorrection() {
+        writeDaltonizer(0, 12)
+        assertTrue(manager.setGrayscale(true))
+        val unreliableManager = GrayscaleManager(context) { resolver, key, value ->
+            if (key == ENABLED) true else Settings.Secure.putInt(resolver, key, value)
+        }
+        assertFalse(unreliableManager.setGrayscale(false))
+
+        writeDaltonizer(1, 13)
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(13, read(MODE, -999))
+    }
+
     companion object {
         private const val ENABLED = "accessibility_display_daltonizer_enabled"
         private const val MODE = "accessibility_display_daltonizer"
