@@ -47,9 +47,7 @@ class ScheduleAlarmManager(
             if (reconciliationState.read()?.configuration?.let {
                     it != scheduleConfiguration(enabledSchedules)
                 } == true) clearReconciliation()
-            val reading = currentClock()
-            replaceNextAlarm(enabledSchedules, reading.instant(), reading.zone)
-            synchronizeActiveWindow(enabledSchedules)
+            rescheduleAndSynchronizeWindow(enabledSchedules, state.read())
         }
     }
 
@@ -130,7 +128,7 @@ class ScheduleAlarmManager(
                 DeliveryDecision(now, zone, handledStart)
             }
             // Expired, edited, or deleted current boundaries still advance the
-            // chain, but never call synchronizeActiveWindow after being ignored.
+            // chain, but never synchronize an active window after being ignored.
             // Keep the decision time: an end crossed during the display write
             // must still be armed, even if Android now needs to deliver it immediately.
             replaceNextAlarm(enabledSchedules, decision.at, decision.zone)
@@ -147,25 +145,42 @@ class ScheduleAlarmManager(
     }
 
     /** Only explicit schedule edits/boot synchronize an already active window. */
-    private fun synchronizeActiveWindow(enabledSchedules: List<Schedule>) {
+    private fun rescheduleAndSynchronizeWindow(
+        enabledSchedules: List<Schedule>,
+        priorAlarm: ArmedScheduleAlarm?,
+    ) {
         val isCurrentlyInSchedule = synchronized(GrayscaleStateLock) {
             // Recheck after acquiring the transition lock. A boundary may have
             // passed while an in-flight detector write held it.
             val reading = currentClock()
-            val applyTime = reading.instant()
-            val active = enabledSchedules.any { isCurrentlyFiring(it, applyTime, reading.zone) }
-            if (active) {
-                applyWithRecovery(true, enabledSchedules)
-            } else {
-                val pending = reconciliationState.read()
-                if (pending != null) {
-                    if (ExclusionPrefs(prefs).isExcludedAppActive() ||
-                        grayscale.isGrayscaleEnabled() == pending.observedGray) {
-                        applyWithRecovery(false, enabledSchedules)
-                    } else clearReconciliation()
+            var applyTime = reading.instant()
+            var zone = reading.zone
+            var activeAtWrite: Boolean
+            var needsRearm: Boolean
+            do {
+                val active = enabledSchedules.any { isCurrentlyFiring(it, applyTime, zone) }
+                if (active) {
+                    // Persist the closing boundary before turning gray. A successful
+                    // write clears its retry record, so this evidence must survive.
+                    replaceNextAlarm(enabledSchedules, applyTime, zone)
+                } else {
+                    rescheduleInactiveWindow(enabledSchedules, priorAlarm, applyTime, zone)
                 }
-            }
-            active
+
+                // Registration can cross either boundary. Refresh coverage and
+                // rearm its current boundary before applying an active target;
+                // do not depend on delivery of an already-due start to synchronize.
+                val writeClock = currentClock()
+                applyTime = writeClock.instant()
+                zone = writeClock.zone
+                activeAtWrite = enabledSchedules.any { isCurrentlyFiring(it, applyTime, zone) }
+                val registered = state.read()
+                needsRearm = active != activeAtWrite ||
+                    registered?.event() != nextScheduleEvent(enabledSchedules, applyTime, zone) ||
+                    (registered != null && registered.zoneId != zone.id)
+            } while (needsRearm)
+            if (activeAtWrite) applyWithRecovery(true, enabledSchedules)
+            activeAtWrite
         }
 
         if (reconciliationState.read() != null) scheduleReconciliationRetry()
@@ -179,6 +194,32 @@ class ScheduleAlarmManager(
                 context.startForegroundServiceSafely(serviceIntent)
             }
         }
+    }
+
+    /** Called under the transition lock, using evidence from before this reschedule. */
+    private fun rescheduleInactiveWindow(
+        enabledSchedules: List<Schedule>,
+        priorAlarm: ArmedScheduleAlarm?,
+        now: Instant,
+        zone: ZoneId,
+    ) {
+        if (scheduleReconciliationTarget(priorAlarm, enabledSchedules, now, zone) == false) {
+            // No failed-write record exists after a successful start. A valid
+            // prior end still closes an occurrence missed while off.
+            applyWithRecovery(false, enabledSchedules)
+        } else {
+            val pending = reconciliationState.read()
+            if (pending != null) {
+                if (ExclusionPrefs(prefs).isExcludedAppActive() ||
+                    grayscale.isGrayscaleEnabled() == pending.observedGray) {
+                    applyWithRecovery(false, enabledSchedules)
+                } else clearReconciliation()
+            }
+        }
+        // Consume old closing evidence (or retain a failed close for retry)
+        // before a future registration replaces it. An activation skipped after
+        // registration must not claim manual gray through its unused end alarm.
+        replaceNextAlarm(enabledSchedules, now, zone)
     }
 
     private fun applyWithRecovery(target: Boolean, schedules: List<Schedule>) {
