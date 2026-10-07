@@ -47,9 +47,15 @@ class ScheduleAlarmManager(
             if (reconciliationState.read()?.configuration?.let {
                     it != scheduleConfiguration(enabledSchedules)
                 } == true) clearReconciliation()
+            val priorAlarm = state.read()
             val reading = currentClock()
-            replaceNextAlarm(enabledSchedules, reading.instant(), reading.zone)
-            synchronizeActiveWindow(enabledSchedules)
+            val now = reading.instant()
+            // A persisted end is evidence of coverage before shutdown. Consume it
+            // (or persist a failed close for retry) before replacing that evidence.
+            synchronizeActiveWindow(enabledSchedules, priorAlarm)
+            // Retain the pre-write time so a boundary crossed during a slow display
+            // write is still registered for delivery instead of being skipped.
+            replaceNextAlarm(enabledSchedules, now, reading.zone)
         }
     }
 
@@ -147,7 +153,10 @@ class ScheduleAlarmManager(
     }
 
     /** Only explicit schedule edits/boot synchronize an already active window. */
-    private fun synchronizeActiveWindow(enabledSchedules: List<Schedule>) {
+    private fun synchronizeActiveWindow(
+        enabledSchedules: List<Schedule>,
+        priorAlarm: ArmedScheduleAlarm?,
+    ) {
         val isCurrentlyInSchedule = synchronized(GrayscaleStateLock) {
             // Recheck after acquiring the transition lock. A boundary may have
             // passed while an in-flight detector write held it.
@@ -156,6 +165,10 @@ class ScheduleAlarmManager(
             val active = enabledSchedules.any { isCurrentlyFiring(it, applyTime, reading.zone) }
             if (active) {
                 applyWithRecovery(true, enabledSchedules)
+            } else if (scheduleReconciliationTarget(priorAlarm, enabledSchedules, applyTime, reading.zone) == false) {
+                // No failed-write record exists after a successful start. A valid
+                // prior end still closes that occurrence if it elapsed while off.
+                applyWithRecovery(false, enabledSchedules)
             } else {
                 val pending = reconciliationState.read()
                 if (pending != null) {
