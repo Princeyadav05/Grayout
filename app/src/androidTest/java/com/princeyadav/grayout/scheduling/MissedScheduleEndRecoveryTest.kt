@@ -26,6 +26,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.Clock
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 
@@ -154,6 +155,30 @@ class MissedScheduleEndRecoveryTest {
         verifyInterruptedActivationCloses()
     }
 
+    @Test fun startCrossedWhileRearmingActivatesWithoutWaitingForAlarmDelivery() = runBlocking {
+        dao.insert(schedule())
+        ScheduleAlarmManager(context, clockCrossing(LocalTime.of(8, 59, 59), LocalTime.of(9, 0, 1)), gray)
+            .reschedule(repository)
+        assertTrue("A start crossed during registration must synchronize immediately", gray.isGrayscaleEnabled())
+        assertFalse("Activation must first persist its ending boundary", checkNotNull(state.read()).isStart)
+    }
+
+    @Test fun interruptedActivationAfterCrossingStartStillClosesAfterTheWindow() = runBlocking {
+        dao.insert(schedule())
+        verifyInterruptedActivationCloses(clockCrossing(LocalTime.of(8, 59, 59), LocalTime.of(9, 0, 1)))
+    }
+
+    @Test fun bothBoundariesCrossedWhileRearmingPreserveManualGrayscale() = runBlocking {
+        dao.insert(schedule())
+        gray.setGrayscale(true)
+        ScheduleAlarmManager(context, clockCrossing(LocalTime.of(8, 59, 59), LocalTime.of(10, 0, 1)), gray)
+            .reschedule(repository)
+        assertTrue(gray.isGrayscaleEnabled())
+        assertTrue(checkNotNull(state.read()).isStart)
+        managerAt(10, 30).reschedule(repository)
+        assertTrue("An entirely skipped window must not claim manual grayscale", gray.isGrayscaleEnabled())
+    }
+
     @Test fun endCrossedWhileRearmingClosesPreviouslyOwnedGrayscale() = runBlocking {
         startSchedule()
         managerCrossingEnd().reschedule(repository)
@@ -230,7 +255,9 @@ class MissedScheduleEndRecoveryTest {
         return checkNotNull(dao.getById(id))
     }
 
-    private suspend fun verifyInterruptedActivationCloses() {
+    private suspend fun verifyInterruptedActivationCloses(
+        clock: Clock = Clock.fixed(date.atTime(9, 30).toInstant(ZoneOffset.UTC), ZoneOffset.UTC),
+    ) {
         // Interrupt exactly after a successful display write clears its retry
         // record. Only durable alarm provenance can recover after this point.
         val interruptedPrefs = object : SharedPreferences by prefs {
@@ -255,9 +282,7 @@ class MissedScheduleEndRecoveryTest {
             override fun getSharedPreferences(name: String?, mode: Int): SharedPreferences = interruptedPrefs
         }
         try {
-            ScheduleAlarmManager(interruptedContext,
-                Clock.fixed(date.atTime(9, 30).toInstant(ZoneOffset.UTC), ZoneOffset.UTC), gray)
-                .reschedule(repository)
+            ScheduleAlarmManager(interruptedContext, clock, gray).reschedule(repository)
             fail("Expected injected interruption")
         } catch (error: IllegalStateException) {
             assertEquals("Interrupted after successful display write", error.message)
@@ -279,14 +304,16 @@ class MissedScheduleEndRecoveryTest {
             Clock.fixed(date.atTime(hour, minute).toInstant(ZoneOffset.UTC), ZoneOffset.UTC), controller)
 
     private fun managerCrossingEnd(): ScheduleAlarmManager {
+        return ScheduleAlarmManager(context, clockCrossing(LocalTime.of(9, 59), LocalTime.of(10, 30)), gray)
+    }
+
+    private fun clockCrossing(before: LocalTime, after: LocalTime): Clock {
         var reads = 0
-        val clock = object : Clock() {
+        return object : Clock() {
             override fun getZone(): ZoneId = ZoneOffset.UTC
             override fun withZone(zone: ZoneId): Clock = Clock.fixed(instant(), zone)
-            override fun instant() = (if (reads++ == 0) date.atTime(9, 59)
-                else date.atTime(10, 30)).toInstant(ZoneOffset.UTC)
+            override fun instant() = date.atTime(if (reads++ == 0) before else after).toInstant(ZoneOffset.UTC)
         }
-        return ScheduleAlarmManager(context, clock, gray)
     }
 
     private fun token(receiver: Class<*>, code: Int, action: String) =

@@ -153,27 +153,34 @@ class ScheduleAlarmManager(
             // Recheck after acquiring the transition lock. A boundary may have
             // passed while an in-flight detector write held it.
             val reading = currentClock()
-            val applyTime = reading.instant()
-            val zone = reading.zone
-            val active = enabledSchedules.any { isCurrentlyFiring(it, applyTime, zone) }
-            if (active) {
-                // Persist the closing boundary before turning gray. A successful
-                // display write clears its retry record, so an interruption after
-                // that point must leave durable evidence of the active occurrence.
-                replaceNextAlarm(enabledSchedules, applyTime, zone)
-                // Persisting/registering an alarm can block across the end. Check
-                // coverage again before changing the display or exclusion target.
+            var applyTime = reading.instant()
+            var zone = reading.zone
+            var activeAtWrite: Boolean
+            var needsRearm: Boolean
+            do {
+                val active = enabledSchedules.any { isCurrentlyFiring(it, applyTime, zone) }
+                if (active) {
+                    // Persist the closing boundary before turning gray. A successful
+                    // write clears its retry record, so this evidence must survive.
+                    replaceNextAlarm(enabledSchedules, applyTime, zone)
+                } else {
+                    rescheduleInactiveWindow(enabledSchedules, priorAlarm, applyTime, zone)
+                }
+
+                // Registration can cross either boundary. Refresh coverage and
+                // rearm its current boundary before applying an active target;
+                // do not depend on delivery of an already-due start to synchronize.
                 val writeClock = currentClock()
-                val writeTime = writeClock.instant()
-                val writeZone = writeClock.zone
-                val activeAtWrite = enabledSchedules.any { isCurrentlyFiring(it, writeTime, writeZone) }
-                if (activeAtWrite) applyWithRecovery(true, enabledSchedules)
-                else rescheduleInactiveWindow(enabledSchedules, priorAlarm, writeTime, writeZone)
-                activeAtWrite
-            } else {
-                rescheduleInactiveWindow(enabledSchedules, priorAlarm, applyTime, zone)
-                false
-            }
+                applyTime = writeClock.instant()
+                zone = writeClock.zone
+                activeAtWrite = enabledSchedules.any { isCurrentlyFiring(it, applyTime, zone) }
+                val registered = state.read()
+                needsRearm = active != activeAtWrite ||
+                    registered?.event() != nextScheduleEvent(enabledSchedules, applyTime, zone) ||
+                    (registered != null && registered.zoneId != zone.id)
+            } while (needsRearm)
+            if (activeAtWrite) applyWithRecovery(true, enabledSchedules)
+            activeAtWrite
         }
 
         if (reconciliationState.read() != null) scheduleReconciliationRetry()
