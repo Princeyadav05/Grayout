@@ -26,6 +26,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
 
 /** Real Room, AlarmManager and secure settings; the clock models time spent powered off. */
@@ -153,6 +154,30 @@ class MissedScheduleEndRecoveryTest {
         verifyInterruptedActivationCloses()
     }
 
+    @Test fun endCrossedWhileRearmingClosesPreviouslyOwnedGrayscale() = runBlocking {
+        startSchedule()
+        managerCrossingEnd().reschedule(repository)
+        assertFalse(gray.isGrayscaleEnabled())
+        assertTrue(checkNotNull(state.read()).isStart)
+    }
+
+    @Test fun endCrossedWhileRearmingDoesNotStartAnExpiredWindow() = runBlocking {
+        dao.insert(schedule())
+        managerCrossingEnd().reschedule(repository)
+        assertFalse(gray.isGrayscaleEnabled())
+        assertTrue(checkNotNull(state.read()).isStart)
+    }
+
+    @Test fun endCrossedWhileRearmingPreservesUnownedManualGrayscale() = runBlocking {
+        dao.insert(schedule())
+        gray.setGrayscale(true)
+        managerCrossingEnd().reschedule(repository)
+        assertTrue(gray.isGrayscaleEnabled())
+        assertTrue(checkNotNull(state.read()).isStart)
+        managerAt(10, 31).reschedule(repository)
+        assertTrue("A skipped activation must not claim manual grayscale on the next boot", gray.isGrayscaleEnabled())
+    }
+
     @Test fun noPriorRegistrationPreservesManualGrayscaleOutsideSchedule() = runBlocking {
         dao.insert(schedule())
         gray.setGrayscale(true)
@@ -252,6 +277,17 @@ class MissedScheduleEndRecoveryTest {
     private fun managerAt(hour: Int, minute: Int, controller: GrayscaleController = gray) =
         ScheduleAlarmManager(context,
             Clock.fixed(date.atTime(hour, minute).toInstant(ZoneOffset.UTC), ZoneOffset.UTC), controller)
+
+    private fun managerCrossingEnd(): ScheduleAlarmManager {
+        var reads = 0
+        val clock = object : Clock() {
+            override fun getZone(): ZoneId = ZoneOffset.UTC
+            override fun withZone(zone: ZoneId): Clock = Clock.fixed(instant(), zone)
+            override fun instant() = (if (reads++ == 0) date.atTime(9, 59)
+                else date.atTime(10, 30)).toInstant(ZoneOffset.UTC)
+        }
+        return ScheduleAlarmManager(context, clock, gray)
+    }
 
     private fun token(receiver: Class<*>, code: Int, action: String) =
         PendingIntent.getBroadcast(context, code, Intent(context, receiver).setAction(action),

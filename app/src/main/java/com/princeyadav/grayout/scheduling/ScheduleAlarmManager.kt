@@ -161,26 +161,19 @@ class ScheduleAlarmManager(
                 // display write clears its retry record, so an interruption after
                 // that point must leave durable evidence of the active occurrence.
                 replaceNextAlarm(enabledSchedules, applyTime, zone)
-                applyWithRecovery(true, enabledSchedules)
+                // Persisting/registering an alarm can block across the end. Check
+                // coverage again before changing the display or exclusion target.
+                val writeClock = currentClock()
+                val writeTime = writeClock.instant()
+                val writeZone = writeClock.zone
+                val activeAtWrite = enabledSchedules.any { isCurrentlyFiring(it, writeTime, writeZone) }
+                if (activeAtWrite) applyWithRecovery(true, enabledSchedules)
+                else rescheduleInactiveWindow(enabledSchedules, priorAlarm, writeTime, writeZone)
+                activeAtWrite
             } else {
-                if (scheduleReconciliationTarget(priorAlarm, enabledSchedules, applyTime, zone) == false) {
-                    // No failed-write record exists after a successful start. A
-                    // valid prior end still closes an occurrence missed while off.
-                    applyWithRecovery(false, enabledSchedules)
-                } else {
-                    val pending = reconciliationState.read()
-                    if (pending != null) {
-                        if (ExclusionPrefs(prefs).isExcludedAppActive() ||
-                            grayscale.isGrayscaleEnabled() == pending.observedGray) {
-                            applyWithRecovery(false, enabledSchedules)
-                        } else clearReconciliation()
-                    }
-                }
-                // Consume old closing evidence (or retain a failed close for
-                // retry) before a future registration replaces it.
-                replaceNextAlarm(enabledSchedules, applyTime, zone)
+                rescheduleInactiveWindow(enabledSchedules, priorAlarm, applyTime, zone)
+                false
             }
-            active
         }
 
         if (reconciliationState.read() != null) scheduleReconciliationRetry()
@@ -194,6 +187,32 @@ class ScheduleAlarmManager(
                 context.startForegroundServiceSafely(serviceIntent)
             }
         }
+    }
+
+    /** Called under the transition lock, using evidence from before this reschedule. */
+    private fun rescheduleInactiveWindow(
+        enabledSchedules: List<Schedule>,
+        priorAlarm: ArmedScheduleAlarm?,
+        now: Instant,
+        zone: ZoneId,
+    ) {
+        if (scheduleReconciliationTarget(priorAlarm, enabledSchedules, now, zone) == false) {
+            // No failed-write record exists after a successful start. A valid
+            // prior end still closes an occurrence missed while off.
+            applyWithRecovery(false, enabledSchedules)
+        } else {
+            val pending = reconciliationState.read()
+            if (pending != null) {
+                if (ExclusionPrefs(prefs).isExcludedAppActive() ||
+                    grayscale.isGrayscaleEnabled() == pending.observedGray) {
+                    applyWithRecovery(false, enabledSchedules)
+                } else clearReconciliation()
+            }
+        }
+        // Consume old closing evidence (or retain a failed close for retry)
+        // before a future registration replaces it. An activation skipped after
+        // registration must not claim manual gray through its unused end alarm.
+        replaceNextAlarm(enabledSchedules, now, zone)
     }
 
     private fun applyWithRecovery(target: Boolean, schedules: List<Schedule>) {
