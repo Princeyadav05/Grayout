@@ -1,6 +1,8 @@
 package com.princeyadav.grayout.manager
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.SharedPreferences
 import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -303,6 +305,72 @@ class GrayscaleManagerInstrumentationTest {
         assertFalse(unreliableManager.setGrayscale(true))
         assertEquals(1, read(ENABLED, -1))
         assertEquals(mode, read(MODE, -999))
+    }
+
+    @Test
+    fun entirelyDroppedActivationDoesNotOwnCorrectionEnabledLaterByTheUser() {
+        assertRejectedActivationPreservesLaterExternalCorrection(permissionDenied = false)
+    }
+
+    @Test
+    fun permissionDeniedActivationDoesNotOwnCorrectionEnabledLaterByTheUser() {
+        assertRejectedActivationPreservesLaterExternalCorrection(permissionDenied = true)
+    }
+
+    private fun assertRejectedActivationPreservesLaterExternalCorrection(permissionDenied: Boolean) {
+        writeDaltonizer(0, 12)
+        val refusingManager = GrayscaleManager(context) { _, _, _ ->
+            if (permissionDenied) throw SecurityException("Injected secure-settings denial")
+            true // Acknowledge the enabled write without changing anything.
+        }
+        assertFalse(refusingManager.setGrayscale(true))
+        assertEquals(0, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+
+        writeDaltonizer(1, 12)
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+    }
+
+    @Test
+    fun failedOwnershipRetirementIsReportedAndCanBeRetried() {
+        failActivationFromDisabledBaseline(12)
+        val failingStorageManager = GrayscaleManager(contextRejectingOwnershipRetirement())
+
+        assertFalse(failingStorageManager.setGrayscale(false))
+        assertEquals(0, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+
+        writeDaltonizer(1, 12)
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+    }
+
+    /** Reject journal removal without changing the real stored recovery evidence. */
+    private fun contextRejectingOwnershipRetirement(): Context = object : ContextWrapper(context) {
+        override fun getApplicationContext(): Context = this
+
+        override fun getSharedPreferences(name: String, mode: Int): SharedPreferences {
+            val prefs = super.getSharedPreferences(name, mode)
+            return object : SharedPreferences by prefs {
+                override fun edit(): SharedPreferences.Editor {
+                    val editor = prefs.edit()
+                    return object : SharedPreferences.Editor by editor {
+                        override fun remove(key: String): SharedPreferences.Editor =
+                            if (key == KEY_ACTIVATION_PENDING) {
+                                object : SharedPreferences.Editor by editor {
+                                    override fun commit(): Boolean = false
+                                }
+                            } else {
+                                editor.remove(key)
+                            }
+                    }
+                }
+            }
+        }
     }
 
     companion object {

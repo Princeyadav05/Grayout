@@ -45,20 +45,28 @@ class GrayscaleManager internal constructor(
             activationPending = prefs.getBoolean(KEY_ACTIVATION_PENDING, false),
         )
         if (current == plan.write) {
-            clearPendingActivation()
-            return@synchronized true
+            return@synchronized clearPendingActivation()
         }
         // Persist ownership and its baseline together before touching the system.
         // A failed enable may change only the flag, leaving a correction enabled
         // that was previously disabled. A recreated manager must recover that
         // exact intermediate state instead of adopting it as a new user setting.
-        if (enabled && !savePendingActivation(plan.captureBaseline)) return@synchronized false
-        val success = try {
-            applyAndVerify(plan.write)
-        } catch (_: SecurityException) {
+        val success = if (enabled && !savePendingActivation(plan.captureBaseline)) {
             false
+        } else {
+            try {
+                applyAndVerify(plan.write)
+            } catch (_: SecurityException) {
+                false
+            }
         }
-        if (success) clearPendingActivation()
+        if (success || readState() == readBaseline()) {
+            // A wholly rejected activation owns no system change. Retaining its
+            // journal would misidentify a later user-enabled correction as our
+            // partial activation. A real intermediate state keeps its evidence.
+            val retired = clearPendingActivation()
+            return@synchronized success && retired
+        }
         success
     }
 
@@ -113,9 +121,11 @@ class GrayscaleManager internal constructor(
         return editor.commit()
     }
 
-    private fun clearPendingActivation() {
-        prefs.edit().remove(KEY_ACTIVATION_PENDING).apply()
-    }
+    // Retirement must be durable too: an asynchronously cleared journal could
+    // reappear after process death and claim a later external correction. Do not
+    // report success when persistence fails; callers can retry the retirement.
+    private fun clearPendingActivation(): Boolean =
+        prefs.edit().remove(KEY_ACTIVATION_PENDING).commit()
 
     companion object {
         private const val DALTONIZER_ENABLED = "accessibility_display_daltonizer_enabled"
