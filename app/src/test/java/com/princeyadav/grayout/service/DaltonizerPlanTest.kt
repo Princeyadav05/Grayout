@@ -104,6 +104,50 @@ class DaltonizerPlanTest {
     // --- daltonizerPlan: disable ---
 
     @Test
+    fun `disable without a baseline preserves existing colour correction`() {
+        for (mode in listOf(11, 12, 13)) {
+            val correction = DaltonizerState(1, mode)
+            assertEquals(
+                DaltonizerPlan(write = correction, captureBaseline = null),
+                daltonizerPlan(enable = false, current = correction, baseline = null),
+            )
+        }
+    }
+
+    @Test
+    fun `disable does not replace newer external correction with a stale baseline`() {
+        val previousCorrection = DaltonizerState(1, 12)
+        val newerCorrection = DaltonizerState(1, 13)
+        assertEquals(
+            DaltonizerPlan(write = newerCorrection, captureBaseline = null),
+            daltonizerPlan(enable = false, current = newerCorrection, baseline = previousCorrection),
+        )
+    }
+
+    @Test
+    fun `disable preserves an externally disabled correction instead of reenabling baseline`() {
+        for (mode in listOf(-1, 11, 12, 13)) {
+            val disabled = DaltonizerState(0, mode)
+            assertEquals(
+                DaltonizerPlan(write = disabled, captureBaseline = null),
+                daltonizerPlan(enable = false, current = disabled, baseline = DaltonizerState(1, 12)),
+            )
+        }
+    }
+
+    @Test
+    fun `disable retries a partial restore whose enabled write succeeded but mode did not`() {
+        // Settings.Secure writes enabled before mode. A failed second write can
+        // leave (0, 0), which is not enabled grayscale but still needs restoration.
+        for (baseline in listOf(null, DaltonizerState(0, -1), DaltonizerState(0, 12))) {
+            assertEquals(
+                DaltonizerPlan(write = baseline ?: NEUTRAL_OFF_STATE, captureBaseline = null),
+                daltonizerPlan(enable = false, current = DaltonizerState(0, 0), baseline = baseline),
+            )
+        }
+    }
+
+    @Test
     fun `disable restores the captured correction baseline`() {
         val plan = daltonizerPlan(
             enable = false,
@@ -139,6 +183,52 @@ class DaltonizerPlanTest {
         assertEquals(
             DaltonizerPlan(write = DaltonizerState(0, -1), captureBaseline = null),
             plan,
+        )
+    }
+
+    @Test
+    fun `disable restores the owned intermediate state of an incomplete activation`() {
+        for (mode in listOf(-1, 11, 12, 13)) {
+            val baseline = DaltonizerState(0, mode)
+            assertEquals(
+                DaltonizerPlan(write = baseline, captureBaseline = null),
+                daltonizerPlan(false, DaltonizerState(1, mode), baseline, activationPending = true),
+            )
+        }
+    }
+
+    @Test
+    fun `enable retry keeps original baseline instead of capturing its own partial state`() {
+        assertEquals(
+            DaltonizerPlan(write = GRAYSCALE_ON_STATE, captureBaseline = null),
+            daltonizerPlan(true, DaltonizerState(1, 12), DaltonizerState(0, 12), activationPending = true),
+        )
+    }
+
+    @Test
+    fun `incomplete activation does not own a different external mode`() {
+        val external = DaltonizerState(1, 13)
+        assertEquals(
+            DaltonizerPlan(write = external, captureBaseline = null),
+            daltonizerPlan(false, external, DaltonizerState(0, 12), activationPending = true),
+        )
+    }
+
+    @Test
+    fun `enable after an external override captures the newer baseline`() {
+        val external = DaltonizerState(1, 13)
+        assertEquals(
+            DaltonizerPlan(write = GRAYSCALE_ON_STATE, captureBaseline = external),
+            daltonizerPlan(true, external, DaltonizerState(0, 12), activationPending = true),
+        )
+    }
+
+    @Test
+    fun `pending activation without a baseline cannot claim an external correction`() {
+        val external = DaltonizerState(1, 12)
+        assertEquals(
+            DaltonizerPlan(write = external, captureBaseline = null),
+            daltonizerPlan(false, external, null, activationPending = true),
         )
     }
 }

@@ -1,11 +1,16 @@
 package com.princeyadav.grayout.manager
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.SharedPreferences
 import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.princeyadav.grayout.service.EnforcementPrefs
+import com.princeyadav.grayout.service.ExclusionPrefs
+import com.princeyadav.grayout.service.ExclusionTransition
 import com.princeyadav.grayout.service.GrayscaleManager
+import com.princeyadav.grayout.service.applyExclusionTransition
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -44,6 +49,7 @@ class GrayscaleManagerInstrumentationTest {
             .remove(KEY_BASELINE_CAPTURED)
             .remove(KEY_BASELINE_ENABLED)
             .remove(KEY_BASELINE_MODE)
+            .remove(KEY_ACTIVATION_PENDING)
             .apply()
     }
 
@@ -111,11 +117,268 @@ class GrayscaleManagerInstrumentationTest {
         assertFalse(manager.isGrayscaleEnabled())
     }
 
+    @Test
+    fun firstExclusionPreservesExistingCorrectionWhenGrayscaleWasNeverEnabled() {
+        writeDaltonizer(1, 12)
+        val exclusions = ExclusionPrefs(
+            context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE),
+        )
+        try {
+            applyExclusionTransition(ExclusionTransition.Enter(false), exclusions, manager, 0) {}
+
+            assertTrue(exclusions.isExcludedAppActive())
+            assertFalse(exclusions.wasGrayscaleOnBeforeExclusion())
+            assertFalse(exclusions.isColorRestorePending())
+            assertEquals(1, read(ENABLED, -1))
+            assertEquals(12, read(MODE, -999))
+
+            applyExclusionTransition(ExclusionTransition.Exit(false), exclusions, manager, 0) {}
+            assertEquals(1, read(ENABLED, -1))
+            assertEquals(12, read(MODE, -999))
+        } finally {
+            exclusions.clearExclusionState()
+        }
+    }
+
+    @Test
+    fun disablePreservesExternalCorrectionInsteadOfRestoringAStaleBaseline() {
+        writeDaltonizer(1, 12)
+        assertTrue(manager.setGrayscale(true))
+        assertTrue(manager.setGrayscale(false))
+        writeDaltonizer(1, 13)
+
+        // A recreated manager must not interpret the persisted old baseline as
+        // ownership of a newer correction selected outside Grayout.
+        val restartedManager = GrayscaleManager(context)
+        assertTrue(restartedManager.setGrayscale(false))
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(13, read(MODE, -999))
+
+        assertTrue(restartedManager.setGrayscale(true))
+        assertTrue(restartedManager.setGrayscale(false))
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(13, read(MODE, -999))
+    }
+
+    @Test
+    fun disableFinishesPartialRestoreAfterEnabledFlagWasAlreadyWritten() {
+        writeDaltonizer(0, 12)
+        assertTrue(manager.setGrayscale(true))
+        // Model process interruption or a rejected mode write after the first
+        // half of restoring the disabled correction baseline succeeded.
+        Settings.Secure.putInt(contentResolver, ENABLED, 0)
+        assertFalse(manager.isGrayscaleEnabled())
+
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+        assertEquals(0, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+    }
+
+    @Test
+    fun disablePreservesAnExternallyDisabledCorrection() {
+        writeDaltonizer(1, 12)
+        assertTrue(manager.setGrayscale(true))
+        assertTrue(manager.setGrayscale(false))
+        writeDaltonizer(0, 12)
+
+        assertTrue(manager.setGrayscale(false))
+        assertEquals(0, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+    }
+
+    @Test
+    fun disableRetriesAfterEnabledFlagWritesWereSilentlyDropped() {
+        writeDaltonizer(0, 12)
+        var dropEnabledWrites = false
+        val unreliableManager = GrayscaleManager(context) { resolver, key, value ->
+            // Model a provider acknowledging writes without applying them.
+            if (dropEnabledWrites && key == ENABLED) true
+            else Settings.Secure.putInt(resolver, key, value)
+        }
+        assertTrue(unreliableManager.setGrayscale(true))
+        dropEnabledWrites = true
+
+        assertFalse(unreliableManager.setGrayscale(false))
+        // Do not change mode while its enabled flag is still wrong: that would
+        // make a failed restore look like a newer external color correction.
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(0, read(MODE, -999))
+
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+        assertEquals(0, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+    }
+
+    @Test
+    fun failedDisableDoesNotGiveOwnershipOfANewerExternalCorrection() {
+        writeDaltonizer(0, 12)
+        assertTrue(manager.setGrayscale(true))
+        val unreliableManager = GrayscaleManager(context) { resolver, key, value ->
+            if (key == ENABLED) true else Settings.Secure.putInt(resolver, key, value)
+        }
+        assertFalse(unreliableManager.setGrayscale(false))
+
+        writeDaltonizer(1, 13)
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(13, read(MODE, -999))
+    }
+
+    @Test
+    fun disableRestoresDisabledCorrectionAfterModeWritesPreventedActivation() {
+        assertFailedActivationRestoresDisabledBaseline(12)
+    }
+
+    @Test
+    fun disableRestoresNeutralOffAfterModeWritesPreventedActivation() {
+        assertFailedActivationRestoresDisabledBaseline(-1)
+    }
+
+    private fun assertFailedActivationRestoresDisabledBaseline(mode: Int) {
+        failActivationFromDisabledBaseline(mode)
+
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+        assertEquals(0, read(ENABLED, -1))
+        assertEquals(mode, read(MODE, -999))
+    }
+
+    @Test
+    fun retryActivationDoesNotCaptureItsOwnPartialStateAsTheBaseline() {
+        failActivationFromDisabledBaseline(12)
+
+        val recreated = GrayscaleManager(context)
+        assertTrue(recreated.setGrayscale(true))
+        assertTrue(recreated.setGrayscale(false))
+        assertEquals(0, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+    }
+
+    @Test
+    fun failedActivationRecoveryRetainsEvidenceUntilRestoreSucceeds() {
+        failActivationFromDisabledBaseline(12)
+        val unreliableManager = GrayscaleManager(context) { resolver, key, value ->
+            if (key == ENABLED) true else Settings.Secure.putInt(resolver, key, value)
+        }
+
+        assertFalse(unreliableManager.setGrayscale(false))
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+        assertEquals(0, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+    }
+
+    @Test
+    fun newerExternalCorrectionSupersedesFailedActivationEvidence() {
+        failActivationFromDisabledBaseline(12)
+        writeDaltonizer(1, 13)
+
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(13, read(MODE, -999))
+
+        // Having observed a different external setting, stale evidence must not
+        // later claim ownership when the user selects the original mode again.
+        writeDaltonizer(1, 12)
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+    }
+
+    @Test
+    fun successfulActivationClearsOwnershipOfItsPossiblePartialState() {
+        writeDaltonizer(0, 12)
+        assertTrue(manager.setGrayscale(true))
+        writeDaltonizer(1, 12)
+
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+    }
+
+    private fun failActivationFromDisabledBaseline(mode: Int) {
+        writeDaltonizer(0, mode)
+        val unreliableManager = GrayscaleManager(context) { resolver, key, value ->
+            if (key == MODE && value == 0) true
+            else Settings.Secure.putInt(resolver, key, value)
+        }
+        assertFalse(unreliableManager.setGrayscale(true))
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(mode, read(MODE, -999))
+    }
+
+    @Test
+    fun entirelyDroppedActivationDoesNotOwnCorrectionEnabledLaterByTheUser() {
+        assertRejectedActivationPreservesLaterExternalCorrection(permissionDenied = false)
+    }
+
+    @Test
+    fun permissionDeniedActivationDoesNotOwnCorrectionEnabledLaterByTheUser() {
+        assertRejectedActivationPreservesLaterExternalCorrection(permissionDenied = true)
+    }
+
+    private fun assertRejectedActivationPreservesLaterExternalCorrection(permissionDenied: Boolean) {
+        writeDaltonizer(0, 12)
+        val refusingManager = GrayscaleManager(context) { _, _, _ ->
+            if (permissionDenied) throw SecurityException("Injected secure-settings denial")
+            true // Acknowledge the enabled write without changing anything.
+        }
+        assertFalse(refusingManager.setGrayscale(true))
+        assertEquals(0, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+
+        writeDaltonizer(1, 12)
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+    }
+
+    @Test
+    fun failedOwnershipRetirementIsReportedAndCanBeRetried() {
+        failActivationFromDisabledBaseline(12)
+        val failingStorageManager = GrayscaleManager(contextRejectingOwnershipRetirement())
+
+        assertFalse(failingStorageManager.setGrayscale(false))
+        assertEquals(0, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+
+        writeDaltonizer(1, 12)
+        assertTrue(GrayscaleManager(context).setGrayscale(false))
+        assertEquals(1, read(ENABLED, -1))
+        assertEquals(12, read(MODE, -999))
+    }
+
+    /** Reject journal removal without changing the real stored recovery evidence. */
+    private fun contextRejectingOwnershipRetirement(): Context = object : ContextWrapper(context) {
+        override fun getApplicationContext(): Context = this
+
+        override fun getSharedPreferences(name: String, mode: Int): SharedPreferences {
+            val prefs = super.getSharedPreferences(name, mode)
+            return object : SharedPreferences by prefs {
+                override fun edit(): SharedPreferences.Editor {
+                    val editor = prefs.edit()
+                    return object : SharedPreferences.Editor by editor {
+                        override fun remove(key: String): SharedPreferences.Editor =
+                            if (key == KEY_ACTIVATION_PENDING) {
+                                object : SharedPreferences.Editor by editor {
+                                    override fun commit(): Boolean = false
+                                }
+                            } else {
+                                editor.remove(key)
+                            }
+                    }
+                }
+            }
+        }
+    }
+
     companion object {
         private const val ENABLED = "accessibility_display_daltonizer_enabled"
         private const val MODE = "accessibility_display_daltonizer"
         private const val KEY_BASELINE_CAPTURED = "daltonizer_baseline_captured"
         private const val KEY_BASELINE_ENABLED = "daltonizer_baseline_enabled"
         private const val KEY_BASELINE_MODE = "daltonizer_baseline_mode"
+        private const val KEY_ACTIVATION_PENDING = "daltonizer_activation_pending"
     }
 }

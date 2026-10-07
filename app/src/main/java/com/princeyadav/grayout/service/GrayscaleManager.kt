@@ -1,6 +1,7 @@
 package com.princeyadav.grayout.service
 
 import android.Manifest
+import android.content.ContentResolver
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -21,7 +22,12 @@ import android.provider.Settings
  * Takes a [Context] (not just a ContentResolver) because the baseline survives
  * process death in [EnforcementPrefs.PREFS_NAME].
  */
-class GrayscaleManager(context: Context) : GrayscaleController {
+class GrayscaleManager internal constructor(
+    context: Context,
+    private val writeSetting: (ContentResolver, String, Int) -> Boolean,
+) : GrayscaleController {
+
+    constructor(context: Context) : this(context, Settings.Secure::putInt)
 
     private val applicationContext = context.applicationContext
     private val contentResolver = applicationContext.contentResolver
@@ -32,14 +38,36 @@ class GrayscaleManager(context: Context) : GrayscaleController {
 
     override fun setGrayscale(enabled: Boolean): Boolean = synchronized(GrayscaleStateLock) {
         val current = readState()
-        val plan = daltonizerPlan(enable = enabled, current = current, baseline = readBaseline())
-        plan.captureBaseline?.let { writeBaseline(it) }
-        if (current == plan.write) return@synchronized true
-        try {
-            applyAndVerify(plan.write)
-        } catch (_: SecurityException) {
-            false
+        val plan = daltonizerPlan(
+            enable = enabled,
+            current = current,
+            baseline = readBaseline(),
+            activationPending = prefs.getBoolean(KEY_ACTIVATION_PENDING, false),
+        )
+        if (current == plan.write) {
+            return@synchronized clearPendingActivation()
         }
+        // Persist ownership and its baseline together before touching the system.
+        // A failed enable may change only the flag, leaving a correction enabled
+        // that was previously disabled. A recreated manager must recover that
+        // exact intermediate state instead of adopting it as a new user setting.
+        val success = if (enabled && !savePendingActivation(plan.captureBaseline)) {
+            false
+        } else {
+            try {
+                applyAndVerify(plan.write)
+            } catch (_: SecurityException) {
+                false
+            }
+        }
+        if (success || readState() == readBaseline()) {
+            // A wholly rejected activation owns no system change. Retaining its
+            // journal would misidentify a later user-enabled correction as our
+            // partial activation. A real intermediate state keeps its evidence.
+            val retired = clearPendingActivation()
+            return@synchronized success && retired
+        }
+        success
     }
 
     // Permission checks must not rewrite a value that can change between the read
@@ -66,8 +94,13 @@ class GrayscaleManager(context: Context) : GrayscaleController {
     }
 
     private fun writeState(state: DaltonizerState) {
-        Settings.Secure.putInt(contentResolver, DALTONIZER_ENABLED, state.enabled)
-        Settings.Secure.putInt(contentResolver, DALTONIZER_MODE, state.mode)
+        writeSetting(contentResolver, DALTONIZER_ENABLED, state.enabled)
+        // A silently rejected flag write must not turn a failed restore into
+        // (1, correctionMode). That looks like external correction to the next
+        // disable, which would otherwise preserve it and falsely report success.
+        // Keep monochromacy until the flag sticks so a later retry can recover.
+        if (Settings.Secure.getInt(contentResolver, DALTONIZER_ENABLED, 0) != state.enabled) return
+        writeSetting(contentResolver, DALTONIZER_MODE, state.mode)
     }
 
     private fun readBaseline(): DaltonizerState? {
@@ -78,13 +111,21 @@ class GrayscaleManager(context: Context) : GrayscaleController {
         )
     }
 
-    private fun writeBaseline(state: DaltonizerState) {
-        prefs.edit()
-            .putBoolean(KEY_BASELINE_CAPTURED, true)
-            .putInt(KEY_BASELINE_ENABLED, state.enabled)
-            .putInt(KEY_BASELINE_MODE, state.mode)
-            .apply()
+    private fun savePendingActivation(baseline: DaltonizerState?): Boolean {
+        val editor = prefs.edit().putBoolean(KEY_ACTIVATION_PENDING, true)
+        baseline?.let {
+            editor.putBoolean(KEY_BASELINE_CAPTURED, true)
+                .putInt(KEY_BASELINE_ENABLED, it.enabled)
+                .putInt(KEY_BASELINE_MODE, it.mode)
+        }
+        return editor.commit()
     }
+
+    // Retirement must be durable too: an asynchronously cleared journal could
+    // reappear after process death and claim a later external correction. Do not
+    // report success when persistence fails; callers can retry the retirement.
+    private fun clearPendingActivation(): Boolean =
+        prefs.edit().remove(KEY_ACTIVATION_PENDING).commit()
 
     companion object {
         private const val DALTONIZER_ENABLED = "accessibility_display_daltonizer_enabled"
@@ -92,6 +133,7 @@ class GrayscaleManager(context: Context) : GrayscaleController {
         private const val KEY_BASELINE_CAPTURED = "daltonizer_baseline_captured"
         private const val KEY_BASELINE_ENABLED = "daltonizer_baseline_enabled"
         private const val KEY_BASELINE_MODE = "daltonizer_baseline_mode"
+        private const val KEY_ACTIVATION_PENDING = "daltonizer_activation_pending"
         val DALTONIZER_ENABLED_URI: Uri = Settings.Secure.getUriFor(DALTONIZER_ENABLED)
         val DALTONIZER_MODE_URI: Uri = Settings.Secure.getUriFor(DALTONIZER_MODE)
     }
