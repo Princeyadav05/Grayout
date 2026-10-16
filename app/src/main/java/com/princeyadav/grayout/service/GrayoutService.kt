@@ -236,18 +236,11 @@ class GrayoutService : Service() {
         val hasActiveCountdown = countdownTargetElapsedMs > now
         val reEnablePending = hasActiveCountdown || hasPendingEnforcementAlarm()
 
-        if (shouldReEnableOnExclusionEnd(
-                currentInterval, reEnablePending, grayscaleManager.isGrayscaleEnabled(),
-            )
-        ) {
-            val success = grayscaleManager.setGrayscale(true)
-            if (!success) {
-                detector.stop()
-                startForeground(NOTIFICATION_ID, buildNotification(currentInterval))
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-                return@synchronized
-            }
+        reEnableOnExclusionEnd(currentInterval, reEnablePending, grayscaleManager) {
+            // Fire now so the receiver's tick retries each interval and posts
+            // "permission lost". Stopping here left enforcement and exclusions dead
+            // until the app was reopened, even after the permission came back.
+            scheduleEnforcementAlarmAtElapsed(this, now, currentInterval)
         }
 
         if (hasActiveCountdown) {
@@ -341,8 +334,8 @@ class GrayoutService : Service() {
         /**
          * Whether a [GrayoutService] instance is alive (onCreate..onDestroy),
          * observed for diagnostics on the Settings screen. Reflects actual liveness
-         * — including self-stops when enforcement is off with no exclusions, or on a
-         * lost WRITE_SECURE_SETTINGS permission — not just whether the service is
+         * — including self-stops when enforcement is off with no exclusions — not
+         * just whether the service is
          * configured to run. Emits so the UI updates live, not only on screen resume.
          */
         val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
@@ -373,6 +366,20 @@ fun shouldReEnableOnExclusionEnd(
     reEnablePending: Boolean,
     grayscaleEnabled: Boolean,
 ): Boolean = interval > 0 && !reEnablePending && !grayscaleEnabled
+
+/**
+ * Applies [shouldReEnableOnExclusionEnd]. A write that does not stick goes to
+ * [onWriteFailed] instead of being dropped, so the enforcement retry can recover it.
+ */
+fun reEnableOnExclusionEnd(
+    interval: Int,
+    reEnablePending: Boolean,
+    grayscale: GrayscaleController,
+    onWriteFailed: () -> Unit,
+) {
+    if (!shouldReEnableOnExclusionEnd(interval, reEnablePending, grayscale.isGrayscaleEnabled())) return
+    if (!grayscale.setGrayscale(true)) onWriteFailed()
+}
 
 /**
  * Schedules (or reschedules) the enforcement re-enable alarm to fire at
