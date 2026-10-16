@@ -9,17 +9,21 @@ import android.os.SystemClock
 import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.princeyadav.grayout.testutil.UsageAccessRule
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /** Exercises the real service observer and AlarmManager after a mode-only change. */
 @RunWith(AndroidJUnit4::class)
 class GrayoutServiceInstrumentationTest {
+    @get:Rule val usageAccess = UsageAccessRule()
+
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
     private val prefs = context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
