@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        val recovery = startupRecoveryFor(intent.action) ?: return
 
         val prefs = context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
         val enforcementPrefs = EnforcementPrefs(prefs)
@@ -33,10 +33,26 @@ class BootReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         receiverScope.launch {
             try {
-                alarmManager.reschedule(repository)
+                when (recovery) {
+                    StartupRecovery.Boot -> alarmManager.reschedule(repository)
+                    StartupRecovery.Update -> alarmManager.reconcileSystemChange(repository)
+                }
             } finally {
                 pendingResult.finish()
             }
         }
     }
+}
+
+/**
+ * An update kills the process and its service but keeps OS alarms, the
+ * elapsed-time enforcement deadline and the user's manual choices; only a reboot
+ * needs the full resync of an active schedule window.
+ */
+internal enum class StartupRecovery { Boot, Update }
+
+internal fun startupRecoveryFor(action: String?): StartupRecovery? = when (action) {
+    Intent.ACTION_BOOT_COMPLETED -> StartupRecovery.Boot
+    Intent.ACTION_MY_PACKAGE_REPLACED -> StartupRecovery.Update
+    else -> null
 }
