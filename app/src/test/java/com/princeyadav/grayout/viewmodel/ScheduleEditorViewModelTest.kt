@@ -426,7 +426,7 @@ class ScheduleEditorViewModelTest {
     fun `retry after failed alarm update keeps the inserted schedule id`() = runTest {
         var shouldFail = true
         val failingAlarm = object : AlarmScheduler {
-            override suspend fun reschedule(repository: ScheduleRepository) {
+            override suspend fun reschedule(repository: ScheduleRepository, keepManualChoice: Boolean) {
                 if (shouldFail) error("Alarm update failed")
             }
         }
@@ -450,7 +450,7 @@ class ScheduleEditorViewModelTest {
         val id = dao.insert(testSchedule())
         var shouldFail = true
         val failingAlarm = object : AlarmScheduler {
-            override suspend fun reschedule(repository: ScheduleRepository) {
+            override suspend fun reschedule(repository: ScheduleRepository, keepManualChoice: Boolean) {
                 if (shouldFail) error("Alarm update failed")
             }
         }

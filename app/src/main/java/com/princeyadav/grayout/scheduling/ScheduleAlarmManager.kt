@@ -9,6 +9,7 @@ import android.os.PowerManager
 import android.os.SystemClock
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.data.scheduleOperationMutex
+import com.princeyadav.grayout.logic.editSynchronizesActiveWindow
 import com.princeyadav.grayout.logic.isCurrentlyFiring
 import com.princeyadav.grayout.logic.legacyScheduleDeliveryTarget
 import com.princeyadav.grayout.logic.nextScheduleEvent
@@ -42,13 +43,16 @@ class ScheduleAlarmManager(
     private val state = ScheduleAlarmState(prefs)
     private val reconciliationState = ScheduleReconciliationState(prefs)
 
-    override suspend fun reschedule(repository: ScheduleRepository): Unit = withContext(Dispatchers.IO) {
+    override suspend fun reschedule(
+        repository: ScheduleRepository,
+        keepManualChoice: Boolean,
+    ): Unit = withContext(Dispatchers.IO) {
         scheduleOperationMutex.withLock {
             val enabledSchedules = repository.getEnabledSchedules()
             if (reconciliationState.read()?.configuration?.let {
                     it != scheduleConfiguration(enabledSchedules)
                 } == true) clearReconciliation()
-            rescheduleAndSynchronizeWindow(enabledSchedules, state.read())
+            rescheduleAndSynchronizeWindow(enabledSchedules, state.read(), keepManualChoice)
         }
     }
 
@@ -145,10 +149,11 @@ class ScheduleAlarmManager(
         if (next != null) setExactAlarm(next)
     }
 
-    /** Only explicit schedule edits/boot synchronize an already active window. */
+    /** Only boot and coverage-changing schedule edits synchronize an already active window. */
     private fun rescheduleAndSynchronizeWindow(
         enabledSchedules: List<Schedule>,
         priorAlarm: ArmedScheduleAlarm?,
+        keepManualChoice: Boolean,
     ) {
         val isCurrentlyInSchedule = synchronized(GrayscaleStateLock) {
             // Recheck after acquiring the transition lock. A boundary may have
@@ -180,7 +185,9 @@ class ScheduleAlarmManager(
                     registered?.event() != nextScheduleEvent(enabledSchedules, applyTime, zone) ||
                     (registered != null && registered.zoneId != zone.id)
             } while (needsRearm)
-            if (activeAtWrite) applyWithRecovery(true, enabledSchedules)
+            if (activeAtWrite && (!keepManualChoice ||
+                    editSynchronizesActiveWindow(priorAlarm, enabledSchedules, applyTime, zone))
+            ) applyWithRecovery(true, enabledSchedules)
             activeAtWrite
         }
 

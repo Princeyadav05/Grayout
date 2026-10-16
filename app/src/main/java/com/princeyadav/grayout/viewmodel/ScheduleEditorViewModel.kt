@@ -200,7 +200,7 @@ class ScheduleEditorViewModel(
                 editingScheduleId = repository.save(schedule)
                 editingIsEnabled = isEnabled
                 didPersist = true
-                alarmManager.reschedule(repository)
+                alarmManager.reschedule(repository, keepManualChoice = true)
                 _isSaved.value = true
             } catch (error: CancellationException) {
                 throw error
@@ -228,7 +228,7 @@ class ScheduleEditorViewModel(
                     _isDeleted.value = true
                 }
                 didDelete = true
-                alarmManager.reschedule(repository)
+                alarmManager.reschedule(repository, keepManualChoice = true)
                 _isSaved.value = true
             } catch (error: CancellationException) {
                 throw error

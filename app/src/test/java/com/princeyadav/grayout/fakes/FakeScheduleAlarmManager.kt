@@ -18,7 +18,7 @@ class FakeScheduleAlarmManager : AlarmScheduler {
     var lastRescheduleRepository: ScheduleRepository? = null
         private set
 
-    override suspend fun reschedule(repository: ScheduleRepository) {
+    override suspend fun reschedule(repository: ScheduleRepository, keepManualChoice: Boolean) {
         rescheduleCallCount++
         lastRescheduleRepository = repository
     }

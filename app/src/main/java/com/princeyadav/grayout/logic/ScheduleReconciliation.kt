@@ -29,6 +29,18 @@ internal fun scheduleReconciliationTarget(
         now.isBefore(Instant.ofEpochMilli(armed.endMillis))) null else true
 }
 
+/**
+ * Whether a schedule edit re-applies an active window. Unchanged coverage (an edit
+ * to another schedule, or a rename) keeps a manual colour choice; new or changed
+ * coverage is a new schedule decision. [prior] is the alarm armed before the edit.
+ */
+internal fun editSynchronizesActiveWindow(
+    prior: ArmedScheduleAlarm?,
+    schedules: List<Schedule>,
+    now: Instant,
+    zone: ZoneId,
+): Boolean = scheduleReconciliationTarget(prior, schedules, now, zone) != null
+
 private fun ArmedScheduleAlarm.matches(schedule: Schedule): Boolean {
     if (!schedule.isEnabled || schedule.id != scheduleId) return false
     val start = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)

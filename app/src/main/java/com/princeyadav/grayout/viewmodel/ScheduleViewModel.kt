@@ -85,14 +85,14 @@ class ScheduleViewModel(
                 }
             }
             repository.setEnabled(schedule.id, !schedule.isEnabled)
-            alarmManager.reschedule(repository)
+            alarmManager.reschedule(repository, keepManualChoice = true)
         }
     }
 
     fun deleteSchedule(schedule: Schedule) {
         viewModelScope.launch {
             repository.delete(schedule)
-            alarmManager.reschedule(repository)
+            alarmManager.reschedule(repository, keepManualChoice = true)
         }
     }
 }
