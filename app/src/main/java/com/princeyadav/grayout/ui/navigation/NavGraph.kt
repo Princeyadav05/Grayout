@@ -326,12 +326,16 @@ fun GrayoutNavGraph(
                 onExactAlarmAccessClick = {
                     // Granting re-arms schedules through SystemScheduleReceiver.
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        context.startActivity(
-                            Intent(
-                                AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                                Uri.fromParts("package", context.packageName, null),
+                        try {
+                            context.startActivity(
+                                Intent(
+                                    AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                    Uri.fromParts("package", context.packageName, null),
+                                )
                             )
-                        )
+                        } catch (_: ActivityNotFoundException) {
+                            context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
+                        }
                     }
                 },
             )
