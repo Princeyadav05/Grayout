@@ -183,9 +183,8 @@ class ScheduleAlarmManager(
             do {
                 val active = enabledSchedules.any { isCurrentlyFiring(it, applyTime, zone) }
                 if (active) {
-                    // Persist the closing boundary before turning gray. A successful
-                    // write clears its retry record, so this evidence must survive.
-                    // Save the retry record first (see applyActivation).
+                    // Save the retry record, then persist the closing boundary, before
+                    // turning gray (see applyActivation).
                     if (!staged && reconciliationState.read() == null && synchronizes(applyTime, zone)) {
                         saveReconciliation(enabledSchedules)
                         staged = true

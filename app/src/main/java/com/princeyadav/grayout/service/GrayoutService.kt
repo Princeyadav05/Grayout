@@ -379,8 +379,8 @@ class GrayoutService : Service() {
          * Whether a [GrayoutService] instance is alive (onCreate..onDestroy),
          * observed for diagnostics on the Settings screen. Reflects actual liveness
          * — including self-stops when enforcement is off with no exclusions — not
-         * just whether the service is
-         * configured to run. Emits so the UI updates live, not only on screen resume.
+         * just whether the service is configured to run. Emits so the UI updates
+         * live, not only on screen resume.
          */
         val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
 
@@ -429,8 +429,8 @@ fun reEnableOnExclusionEnd(
  * Schedules (or reschedules) the enforcement re-enable alarm to fire at
  * [triggerAtMillis] (wall-clock). Shared by [GrayoutService] and
  * [EnforcementAlarmReceiver] (the receiver reschedules a retry when a tick's write
- * fails, so a transient failure resolves next interval and a restored permission
- * auto-recovers). Falls back to an inexact alarm when exact alarms are unavailable
+ * fails, so a transient failure resolves on the next attempt and a restored
+ * permission auto-recovers, see [writeRetryDelayMs]). Falls back to an inexact alarm when exact alarms are unavailable
  * or revoked, mirroring the countdown-alarm contract.
  */
 internal fun scheduleEnforcementAlarm(context: Context, triggerAtMillis: Long, intervalMinutes: Int? = null) {

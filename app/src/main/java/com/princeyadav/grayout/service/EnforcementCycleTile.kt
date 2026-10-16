@@ -56,7 +56,6 @@ class EnforcementCycleTile : TileService() {
         tile.icon = Icon.createWithResource(this, R.drawable.ic_tile)
         tile.updateTile()
     }
-
 }
 
 private val INTERVALS = intArrayOf(0, 1, 5, 10, 15, 30)

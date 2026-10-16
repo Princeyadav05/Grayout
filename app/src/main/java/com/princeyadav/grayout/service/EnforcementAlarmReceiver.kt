@@ -66,9 +66,9 @@ class EnforcementAlarmReceiver : BroadcastReceiver() {
      * ContentObserver only fires on a *successful* write, so without this the failed
      * attempt would strand enforcement (no retry, no signal). Two things happen:
      *
-     * 1. Reschedule a retry one interval out. A transient write contention then
+     * 1. Reschedule a retry (see [writeRetryDelayMs]). A transient write contention
      *    resolves on the next tick, and a genuinely revoked WRITE_SECURE_SETTINGS
-     *    auto-recovers as soon as it is restored — without the user reopening the app.
+     *    auto-recovers within 15 minutes of being restored, without reopening the app.
      * 2. If the permission is genuinely gone (the OnePlus OEM-cleanup path in the
      *    README), also replace the frozen "enforcement active" notification with a
      *    "permission lost" state. Tapping opens the app on Home, whose attention
@@ -147,8 +147,7 @@ fun applyEnforcementTick(
 /**
  * Delay before retrying a grayscale write that did not stick. A transient failure
  * keeps its normal cadence. A revoked WRITE_SECURE_SETTINGS fails every attempt
- * until it is re-granted, so back off instead of waking every minute; reopening
- * the app still recovers at once.
+ * until it is re-granted, so back off instead of waking every minute.
  */
 internal fun writeRetryDelayMs(normalMs: Long, canWriteSecureSettings: Boolean): Long =
     if (canWriteSecureSettings) normalMs else maxOf(normalMs, PERMISSION_MISSING_RETRY_MS)
