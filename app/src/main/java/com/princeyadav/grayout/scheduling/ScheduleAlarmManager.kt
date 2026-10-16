@@ -84,11 +84,13 @@ class ScheduleAlarmManager(
                 val target = boundaryTarget ?: if (mayRetry) {
                     schedules.any { isCurrentlyFiring(it, now, zone) }
                 } else null
-                if (target != null) applyWithRecovery(target, schedules)
+                if (target != null) applyWithRecovery(target, schedules) {
+                    replaceNextAlarm(schedules, now, zone)
+                }
                 else if (pending != null) clearReconciliation()
-                DeliveryDecision(now, zone, null)
+                DeliveryDecision(now, zone, null, rearmed = target == true)
             }
-            replaceNextAlarm(schedules, decision.at, decision.zone)
+            if (!decision.rearmed) replaceNextAlarm(schedules, decision.at, decision.zone)
             if (reconciliationState.read() != null) scheduleReconciliationRetry()
         }
     }
@@ -127,16 +129,18 @@ class ScheduleAlarmManager(
                     legacyScheduleDeliveryTarget(legacyIsStart, enabledSchedules, now, zone)
                 } else null
                 val handledStart = if (target != null) {
-                    applyWithRecovery(target, enabledSchedules)
+                    applyWithRecovery(target, enabledSchedules) {
+                        replaceNextAlarm(enabledSchedules, now, zone)
+                    }
                     armed?.isStart ?: legacyIsStart
                 } else null
-                DeliveryDecision(now, zone, handledStart)
+                DeliveryDecision(now, zone, handledStart, rearmed = target == true)
             }
             // Expired, edited, or deleted current boundaries still advance the
             // chain, but never synchronize an active window after being ignored.
             // Keep the decision time: an end crossed during the display write
             // must still be armed, even if Android now needs to deliver it immediately.
-            replaceNextAlarm(enabledSchedules, decision.at, decision.zone)
+            if (!decision.rearmed) replaceNextAlarm(enabledSchedules, decision.at, decision.zone)
             if (reconciliationState.read() != null) scheduleReconciliationRetry()
             decision.handledStart
         }
@@ -163,11 +167,15 @@ class ScheduleAlarmManager(
             var zone = reading.zone
             var activeAtWrite: Boolean
             var needsRearm: Boolean
+            fun synchronizes(at: Instant, atZone: ZoneId) = !keepManualChoice ||
+                editSynchronizesActiveWindow(priorAlarm, enabledSchedules, at, atZone)
             do {
                 val active = enabledSchedules.any { isCurrentlyFiring(it, applyTime, zone) }
                 if (active) {
                     // Persist the closing boundary before turning gray. A successful
                     // write clears its retry record, so this evidence must survive.
+                    // Save the retry record first (see applyActivation).
+                    if (synchronizes(applyTime, zone)) saveReconciliation(enabledSchedules)
                     replaceNextAlarm(enabledSchedules, applyTime, zone)
                 } else {
                     rescheduleInactiveWindow(enabledSchedules, priorAlarm, applyTime, zone)
@@ -185,9 +193,7 @@ class ScheduleAlarmManager(
                     registered?.event() != nextScheduleEvent(enabledSchedules, applyTime, zone) ||
                     (registered != null && registered.zoneId != zone.id)
             } while (needsRearm)
-            if (activeAtWrite && (!keepManualChoice ||
-                    editSynchronizesActiveWindow(priorAlarm, enabledSchedules, applyTime, zone))
-            ) applyWithRecovery(true, enabledSchedules)
+            if (activeAtWrite && synchronizes(applyTime, zone)) applyWithRecovery(true, enabledSchedules)
             activeAtWrite
         }
 
@@ -230,15 +236,23 @@ class ScheduleAlarmManager(
         replaceNextAlarm(enabledSchedules, now, zone)
     }
 
-    private fun applyWithRecovery(target: Boolean, schedules: List<Schedule>) {
-        reconciliationState.save(PendingScheduleReconciliation(
-            scheduleConfiguration(schedules), grayscale.isGrayscaleEnabled(),
-        ))
-        val success = applyScheduleGrayscale(target, ExclusionPrefs(prefs), grayscale) {
-            context.getSystemService(PowerManager::class.java).isInteractive
+    private fun applyWithRecovery(
+        target: Boolean,
+        schedules: List<Schedule>,
+        armClosingBoundary: () -> Unit = {},
+    ) {
+        saveReconciliation(schedules)
+        val success = applyActivation(target, armClosingBoundary) {
+            applyScheduleGrayscale(target, ExclusionPrefs(prefs), grayscale) {
+                context.getSystemService(PowerManager::class.java).isInteractive
+            }
         }
         if (success) clearReconciliation()
-        else reconciliationState.save(PendingScheduleReconciliation(
+        else saveReconciliation(schedules)
+    }
+
+    private fun saveReconciliation(schedules: List<Schedule>) {
+        reconciliationState.save(PendingScheduleReconciliation(
             scheduleConfiguration(schedules), grayscale.isGrayscaleEnabled(),
         ))
     }
@@ -299,7 +313,12 @@ class ScheduleAlarmManager(
     // A retained manager must see later device timezone changes too.
     private fun currentClock(): Clock = clock ?: Clock.systemDefaultZone()
 
-    private data class DeliveryDecision(val at: Instant, val zone: ZoneId, val handledStart: Boolean?)
+    private data class DeliveryDecision(
+        val at: Instant,
+        val zone: ZoneId,
+        val handledStart: Boolean?,
+        val rearmed: Boolean,
+    )
 
     private fun cancelAll() {
         val intent = Intent(context, ScheduleReceiver::class.java).apply {
@@ -322,4 +341,19 @@ class ScheduleAlarmManager(
         private const val REQUEST_CODE = 1001
         internal const val RETRY_REQUEST_CODE = 1002
     }
+}
+
+/**
+ * Arms an activation's closing boundary before its display write. A process death
+ * after a gray write but before arming its end would otherwise leave the window
+ * gray past its end with no alarm left to close it. The caller saves the retry
+ * record first, so a death before the write is retried.
+ */
+internal inline fun applyActivation(
+    target: Boolean,
+    armClosingBoundary: () -> Unit,
+    write: () -> Boolean,
+): Boolean {
+    if (target) armClosingBoundary()
+    return write()
 }
