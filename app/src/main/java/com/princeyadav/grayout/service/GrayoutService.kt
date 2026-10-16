@@ -20,6 +20,7 @@ import android.os.PowerManager
 import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.princeyadav.grayout.GrayoutApp
 import com.princeyadav.grayout.MainActivity
 import com.princeyadav.grayout.R
 import com.princeyadav.grayout.ui.theme.BrandAccentArgb
@@ -157,6 +158,11 @@ class GrayoutService : Service() {
             IntentFilter(Intent.ACTION_PACKAGE_FULLY_REMOVED).apply { addDataScheme("package") },
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+
+        // A sticky restart, boot, tile or schedule start can bring the service back
+        // without MainActivity, e.g. after Android 12 kills the app for revoking
+        // exact alarms and drops its schedule alarms. Rebuild them here too.
+        (application as GrayoutApp).recoverScheduleAlarms()
 
         _isRunning.value = true
     }
