@@ -23,6 +23,15 @@ class ExclusionPrefs(private val prefs: SharedPreferences) {
         setExcludedPackages(current)
     }
 
+    /** Drops packages that are no longer installed. Returns whether any were removed. */
+    fun removeUninstalledPackages(isInstalled: (String) -> Boolean): Boolean {
+        val current = getExcludedPackages()
+        val kept = current.filterTo(HashSet(), isInstalled)
+        if (kept.size == current.size) return false
+        setExcludedPackages(kept)
+        return true
+    }
+
     fun isExcluded(packageName: String): Boolean =
         getExcludedPackages().contains(packageName)
 

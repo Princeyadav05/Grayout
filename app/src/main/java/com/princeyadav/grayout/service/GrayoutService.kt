@@ -10,6 +10,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.os.Build
 import android.os.Handler
@@ -97,6 +98,19 @@ class GrayoutService : Service() {
         }
     }
 
+    // An uninstalled excluded app can't be unticked in the picker (it has no row), and
+    // its stale entry would keep this service and the 1 s detector alive for nothing.
+    // FULLY_REMOVED fires on a real uninstall only, never on an update.
+    private val packageRemovedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (exclusionPrefs.removeUninstalledPackages(::isInstalled)) {
+                // Re-run the start path: it ends a now-unwatchable session and stops
+                // the service when nothing is left to do.
+                startService(Intent(this@GrayoutService, GrayoutService::class.java))
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         grayscaleManager = GrayscaleManager(this)
@@ -137,6 +151,13 @@ class GrayoutService : Service() {
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
 
+        ContextCompat.registerReceiver(
+            this,
+            packageRemovedReceiver,
+            IntentFilter(Intent.ACTION_PACKAGE_FULLY_REMOVED).apply { addDataScheme("package") },
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+
         _isRunning.value = true
     }
 
@@ -156,6 +177,8 @@ class GrayoutService : Service() {
             hasReceivedStartCommand = true
             currentInterval = interval
 
+            // Catches uninstalls that happened while this service wasn't running.
+            exclusionPrefs.removeUninstalledPackages(::isInstalled)
             val excludedCount = exclusionPrefs.getExcludedCount()
             reconcileExclusionOnStart(exclusionPrefs, grayscaleManager, isScreenInteractive)
 
@@ -256,6 +279,7 @@ class GrayoutService : Service() {
         detector.stop()
         detectorScope.cancel()
         unregisterReceiver(screenReceiver)
+        unregisterReceiver(packageRemovedReceiver)
         countdownTargetElapsedMs = 0L
         super.onDestroy()
     }
@@ -318,6 +342,13 @@ class GrayoutService : Service() {
     }
 
     private fun cancelEnforcementAlarm() = cancelEnforcementCountdown(this)
+
+    private fun isInstalled(pkg: String): Boolean = try {
+        packageManager.getApplicationInfo(pkg, 0)
+        true
+    } catch (_: PackageManager.NameNotFoundException) {
+        false
+    }
 
     private fun hasPendingEnforcementAlarm(): Boolean {
         val intent = Intent(this, EnforcementAlarmReceiver::class.java)

@@ -82,6 +82,16 @@ class ExclusionPrefsTest {
     }
 
     @Test
+    fun `removeUninstalledPackages drops only packages that are gone`() {
+        prefs.addExcludedPackage("com.kept")
+        prefs.addExcludedPackage("com.uninstalled")
+
+        assertTrue(prefs.removeUninstalledPackages { it == "com.kept" })
+        assertEquals(setOf("com.kept"), prefs.getExcludedPackages())
+        assertFalse(prefs.removeUninstalledPackages { true })
+    }
+
+    @Test
     fun `isExcluded returns false for unknown package`() {
         assertFalse(prefs.isExcluded("com.example.unknown"))
     }
