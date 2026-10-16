@@ -159,6 +159,9 @@ class ForegroundAppDetector(
     @Volatile
     internal var lastKnownPkg: String? = null
 
+    /** Bumped by [stop] under [GrayscaleStateLock]; a read from an older generation is discarded. */
+    private var generation = 0
+
     /** Starts the poll loop. Idempotent. */
     fun start() {
         if (loopJob?.isActive == true) return
@@ -179,8 +182,11 @@ class ForegroundAppDetector(
     fun stop() {
         loopJob?.cancel()
         loopJob = null
-        // Under the transition lock, so a read still in flight can't publish after it.
-        synchronized(GrayscaleStateLock) { lastKnownPkg = null }
+        // A read still in flight can't publish after this, even if the screen is on again.
+        synchronized(GrayscaleStateLock) {
+            generation++
+            lastKnownPkg = null
+        }
     }
 
     /**
@@ -190,12 +196,14 @@ class ForegroundAppDetector(
     internal fun tickOnce() {
         if (exclusionPrefs.getExcludedCount() == 0) return
 
+        val readGeneration = synchronized(GrayscaleStateLock) { generation }
         val read = provider.currentForegroundPackage()
         if (read == null && !hasUsageAccess()) {
             // Revoked Usage Access reads empty forever. Carrying the last package
             // forward would hold an excluded session (colour on, enforcement skipped)
             // indefinitely, so end it as if the user had left the app.
             synchronized(GrayscaleStateLock) {
+                if (readGeneration != generation) return
                 lastKnownPkg = null
                 if (!isScreenOn() || !exclusionPrefs.isExcludedAppActive()) return
                 applyExclusionTransition(
@@ -216,7 +224,7 @@ class ForegroundAppDetector(
             // and undo the pre-gray (see preGrayOnScreenOff). Checked after the read so it
             // reflects screen state at apply time; isScreenInteractive is @Volatile. It also
             // keeps that late read out of the cache stop() just cleared.
-            if (!isScreenOn()) return
+            if (!isScreenOn() || readGeneration != generation) return
             if (read != null) lastKnownPkg = read
             val pkg = read ?: lastKnownPkg ?: return
             if (pkg == ownPackage) return
