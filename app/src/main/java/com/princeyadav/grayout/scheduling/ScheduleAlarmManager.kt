@@ -357,3 +357,11 @@ internal inline fun applyActivation(
     if (target) armClosingBoundary()
     return write()
 }
+
+/**
+ * Whether Settings should ask for "Alarms & reminders". Only Android 12/12L let the
+ * user deny it (33+ holds the non-revocable USE_EXACT_ALARM). Denied, schedules fall
+ * back to inexact alarms that can arrive after a short window has already ended.
+ */
+internal fun needsExactAlarmAccess(sdkInt: Int, canScheduleExact: Boolean): Boolean =
+    sdkInt in Build.VERSION_CODES.S..Build.VERSION_CODES.S_V2 && !canScheduleExact
