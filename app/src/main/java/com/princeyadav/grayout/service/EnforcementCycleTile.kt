@@ -22,8 +22,13 @@ class EnforcementCycleTile : TileService() {
                 MODE_PRIVATE,
             )
         )
-        val current = prefs.getInterval()
-        val newInterval = nextInterval(current)
+        val newInterval = enforcementTileTarget(
+            prefs.getInterval(), GrayscaleManager(this).canWriteSecureSettings(),
+        )
+        if (newInterval == null) {
+            launchSetup()
+            return
+        }
         prefs.setInterval(newInterval)
 
         val intent = Intent(this, GrayoutService::class.java)
@@ -52,13 +57,23 @@ class EnforcementCycleTile : TileService() {
         tile.updateTile()
     }
 
-    companion object {
-        private val INTERVALS = intArrayOf(0, 1, 5, 10, 15, 30)
+}
 
-        private fun nextInterval(current: Int): Int {
-            val index = INTERVALS.indexOf(current)
-            return if (index == -1) INTERVALS[0]
-            else INTERVALS[(index + 1) % INTERVALS.size]
-        }
-    }
+private val INTERVALS = intArrayOf(0, 1, 5, 10, 15, 30)
+
+private fun nextInterval(current: Int): Int {
+    val index = INTERVALS.indexOf(current)
+    return if (index == -1) INTERVALS[0]
+    else INTERVALS[(index + 1) % INTERVALS.size]
+}
+
+/**
+ * The tile's next interval, or null to open setup instead. Without
+ * WRITE_SECURE_SETTINGS every tick would fail, so the tile can only turn
+ * enforcement off; Home applies the same gate.
+ */
+internal fun enforcementTileTarget(current: Int, canWrite: Boolean): Int? = when {
+    canWrite -> nextInterval(current)
+    current != 0 -> 0
+    else -> null
 }
