@@ -10,7 +10,9 @@ import com.princeyadav.grayout.scheduling.AlarmScheduler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 
 class ScheduleEditorViewModel(
@@ -196,11 +198,14 @@ class ScheduleEditorViewModel(
                     isEnabled = isEnabled,
                 )
                 // Retain the inserted ID so retrying a failed alarm update cannot
-                // insert a second schedule.
-                editingScheduleId = repository.save(schedule)
-                editingIsEnabled = isEnabled
-                didPersist = true
-                alarmManager.reschedule(repository, keepManualChoice = true)
+                // insert a second schedule. Leaving the screen must not cancel
+                // between the commit and its alarms.
+                withContext(NonCancellable) {
+                    editingScheduleId = repository.save(schedule)
+                    editingIsEnabled = isEnabled
+                    didPersist = true
+                    alarmManager.reschedule(repository, keepManualChoice = true)
+                }
                 _isSaved.value = true
             } catch (error: CancellationException) {
                 throw error
@@ -223,12 +228,14 @@ class ScheduleEditorViewModel(
         viewModelScope.launch {
             var didDelete = false
             try {
-                if (!_isDeleted.value) {
-                    repository.getById(editingScheduleId)?.let { repository.delete(it) }
-                    _isDeleted.value = true
+                withContext(NonCancellable) {
+                    if (!_isDeleted.value) {
+                        repository.getById(editingScheduleId)?.let { repository.delete(it) }
+                        _isDeleted.value = true
+                    }
+                    didDelete = true
+                    alarmManager.reschedule(repository, keepManualChoice = true)
                 }
-                didDelete = true
-                alarmManager.reschedule(repository, keepManualChoice = true)
                 _isSaved.value = true
             } catch (error: CancellationException) {
                 throw error

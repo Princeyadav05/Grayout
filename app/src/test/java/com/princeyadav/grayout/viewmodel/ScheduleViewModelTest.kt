@@ -6,7 +6,11 @@ import com.princeyadav.grayout.fakes.FakeScheduleDao
 import com.princeyadav.grayout.model.Schedule
 import com.princeyadav.grayout.testutil.MainDispatcherRule
 import com.princeyadav.grayout.testutil.fixedDateTime
+import androidx.lifecycle.viewModelScope
+import com.princeyadav.grayout.scheduling.AlarmScheduler
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -185,6 +189,30 @@ class ScheduleViewModelTest {
             "Expected at least one reschedule after toggleEnabled, had ${alarm.rescheduleCallCount} total",
             alarm.rescheduleCallCount > baselineRescheduleCalls,
         )
+    }
+
+    @Test
+    fun `leaving the screen mid-toggle still reschedules the persisted change`() = runTest {
+        val id = dao.insert(makeSchedule(isEnabled = false))
+        val gate = CompletableDeferred<Unit>()
+        var rescheduled = 0
+        val slowAlarm = object : AlarmScheduler {
+            override suspend fun reschedule(repository: ScheduleRepository, keepManualChoice: Boolean) {
+                gate.await()
+                rescheduled++
+            }
+        }
+        val vm = ScheduleViewModel(repository, slowAlarm, canWriteSecureSettings = { true })
+
+        vm.toggleEnabled(dao.getAll().first { it.id == id })
+        advanceUntilIdle()
+        // Back pops the screen after Room committed but before alarms were rebuilt.
+        vm.viewModelScope.cancel()
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(dao.getAll().first { it.id == id }.isEnabled)
+        assertEquals(1, rescheduled)
     }
 
     @Test
