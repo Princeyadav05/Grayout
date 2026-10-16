@@ -23,6 +23,7 @@ import com.princeyadav.grayout.service.GrayscaleManager
 import com.princeyadav.grayout.service.GrayscaleController
 import com.princeyadav.grayout.service.GrayscaleStateLock
 import com.princeyadav.grayout.service.applyScheduleGrayscale
+import com.princeyadav.grayout.service.writeRetryDelayMs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -253,7 +254,8 @@ class ScheduleAlarmManager(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         // Recovery is not a user-visible precise boundary and can be batched by Android.
         alarmManager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-            SystemClock.elapsedRealtime() + 60_000L, pendingIntent)
+            SystemClock.elapsedRealtime() + writeRetryDelayMs(60_000L, grayscale.canWriteSecureSettings()),
+            pendingIntent)
     }
 
     private fun setExactAlarm(alarm: ArmedScheduleAlarm) {

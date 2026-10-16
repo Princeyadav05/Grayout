@@ -89,4 +89,11 @@ class EnforcementTickTest {
         assertEquals(EnforcementTickResult.WriteFailed, result)
         assertFalse(grayscale.isGrayscaleEnabled())
     }
+
+    @Test
+    fun `write retries back off while the permission is missing`() {
+        assertEquals(60_000L, writeRetryDelayMs(60_000L, canWriteSecureSettings = true))
+        assertEquals(15 * 60_000L, writeRetryDelayMs(60_000L, canWriteSecureSettings = false))
+        assertEquals(30 * 60_000L, writeRetryDelayMs(30 * 60_000L, canWriteSecureSettings = false))
+    }
 }

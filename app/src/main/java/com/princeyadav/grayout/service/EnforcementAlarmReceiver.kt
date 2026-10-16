@@ -76,10 +76,12 @@ class EnforcementAlarmReceiver : BroadcastReceiver() {
      *    recovery itself no longer depends on the tap, since the retry auto-recovers.
      */
     private fun onWriteFailed(context: Context, intervalMinutes: Int, grayscale: GrayscaleController) {
+        val canWrite = grayscale.canWriteSecureSettings()
         if (intervalMinutes > 0) {
-            scheduleEnforcementAlarm(context, System.currentTimeMillis() + intervalMinutes * 60_000L, intervalMinutes)
+            val delayMs = writeRetryDelayMs(intervalMinutes * 60_000L, canWrite)
+            scheduleEnforcementAlarm(context, System.currentTimeMillis() + delayMs, intervalMinutes)
         }
-        if (!grayscale.canWriteSecureSettings()) postPermissionLost(context)
+        if (!canWrite) postPermissionLost(context)
     }
 
     private fun postPermissionLost(context: Context) {
@@ -141,3 +143,14 @@ fun applyEnforcementTick(
         EnforcementTickResult.WriteFailed
     }
 }
+
+/**
+ * Delay before retrying a grayscale write that did not stick. A transient failure
+ * keeps its normal cadence. A revoked WRITE_SECURE_SETTINGS fails every attempt
+ * until it is re-granted, so back off instead of waking every minute; reopening
+ * the app still recovers at once.
+ */
+internal fun writeRetryDelayMs(normalMs: Long, canWriteSecureSettings: Boolean): Long =
+    if (canWriteSecureSettings) normalMs else maxOf(normalMs, PERMISSION_MISSING_RETRY_MS)
+
+private const val PERMISSION_MISSING_RETRY_MS = 15 * 60_000L
