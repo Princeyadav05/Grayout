@@ -350,7 +350,14 @@ class GrayoutService : Service() {
     private fun cancelEnforcementAlarm() = cancelEnforcementCountdown(this)
 
     private fun isInstalled(pkg: String): Boolean = try {
-        packageManager.getApplicationInfo(pkg, 0)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            // An archived app keeps its data and comes back on tap; keep its exclusion.
+            packageManager.getApplicationInfo(
+                pkg, PackageManager.ApplicationInfoFlags.of(PackageManager.MATCH_ARCHIVED_PACKAGES),
+            )
+        } else {
+            packageManager.getApplicationInfo(pkg, 0)
+        }
         true
     } catch (_: PackageManager.NameNotFoundException) {
         false
