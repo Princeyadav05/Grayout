@@ -109,6 +109,48 @@ class ForegroundAppDetectorTest {
     }
 
     @Test
+    fun `a read in flight across screen-off cannot revive the forgotten package`() {
+        exclusionPrefs.addExcludedPackage("com.excluded")
+        grayscale.grayscaleEnabled = true
+        var screenOn = true
+        lateinit var detector: ForegroundAppDetector
+        var raceScreenOff = false
+        val racingProvider = object : ForegroundAppProvider {
+            override fun currentForegroundPackage(): String? {
+                if (raceScreenOff) {
+                    // SCREEN_OFF lands while this query is still running.
+                    screenOn = false
+                    detector.stop()
+                    raceScreenOff = false
+                    return "com.excluded"
+                }
+                return provider.currentForegroundPackage()
+            }
+        }
+        detector = ForegroundAppDetector(
+            provider = racingProvider,
+            exclusionPrefs = exclusionPrefs,
+            enforcementPrefs = enforcementPrefs,
+            grayscale = grayscale,
+            ownPackage = own,
+            onExclusionEnded = { endedCount++ },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            isScreenOn = { screenOn },
+        )
+
+        raceScreenOff = true
+        detector.tickOnce()
+
+        // Wake on the keyguard: nothing to read.
+        screenOn = true
+        provider.foregroundPackage = null
+        detector.tickOnce()
+
+        assertFalse(exclusionPrefs.isExcludedAppActive())
+        assertTrue(grayscale.isGrayscaleEnabled())
+    }
+
+    @Test
     fun `revoked usage access ends the active session instead of carrying it forward`() {
         exclusionPrefs.addExcludedPackage("com.excluded")
         grayscale.grayscaleEnabled = true
