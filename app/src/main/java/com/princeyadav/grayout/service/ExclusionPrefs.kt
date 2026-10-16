@@ -1,6 +1,7 @@
 package com.princeyadav.grayout.service
 
 import android.content.SharedPreferences
+import android.content.pm.ApplicationInfo
 
 class ExclusionPrefs(private val prefs: SharedPreferences) {
 
@@ -84,3 +85,12 @@ class ExclusionPrefs(private val prefs: SharedPreferences) {
         private const val KEY_GRAYSCALE_RESTORE_PENDING = "exclusion_grayscale_restore_pending"
     }
 }
+
+/**
+ * Whether an excluded package is still installed. [appFlags] comes from a lookup that
+ * includes uninstalled packages (null when PackageManager no longer knows it), so an
+ * app on temporarily unmounted storage is kept and only a real uninstall is dropped.
+ * An archived app (Android 15) keeps its data and comes back on tap.
+ */
+internal fun keepsExclusion(appFlags: Int?, isArchived: Boolean): Boolean =
+    appFlags != null && (appFlags and ApplicationInfo.FLAG_INSTALLED != 0 || isArchived)
