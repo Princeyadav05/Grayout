@@ -1,9 +1,11 @@
 package com.princeyadav.grayout.ui.navigation
 
+import android.app.AlarmManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings as AndroidSettings
 import android.widget.Toast
@@ -32,6 +34,7 @@ import com.princeyadav.grayout.data.GrayoutDatabase
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.scheduling.ScheduleAlarmManager
+import com.princeyadav.grayout.scheduling.needsExactAlarmAccess
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
 import com.princeyadav.grayout.service.GrayscaleManager
@@ -288,12 +291,19 @@ fun GrayoutNavGraph(
             var isUsageAccessGranted by remember {
                 mutableStateOf(UsageAccess.isGranted(context))
             }
+            fun exactAlarmAccessNeeded() = needsExactAlarmAccess(
+                Build.VERSION.SDK_INT,
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                    context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms(),
+            )
+            var needsExactAlarms by remember { mutableStateOf(exactAlarmAccessNeeded()) }
             val isServiceRunning by homeViewModel.isServiceRunning.collectAsStateWithLifecycle()
             val versionName = remember(context) { installedVersionName(context) }
 
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                     isUsageAccessGranted = UsageAccess.isGranted(context)
+                    needsExactAlarms = exactAlarmAccessNeeded()
                 }
             }
 
@@ -304,12 +314,28 @@ fun GrayoutNavGraph(
                 isAdbPermissionGranted = isAdbPermissionGranted,
                 isUsageAccessGranted = isUsageAccessGranted,
                 isBatteryUnrestricted = isBatteryUnrestricted,
+                needsExactAlarmAccess = needsExactAlarms,
                 onBatteryOptimizationClick = onBatteryOptimizationClick,
                 onUsageAccessClick = {
                     try {
                         context.startActivity(Intent(AndroidSettings.ACTION_USAGE_ACCESS_SETTINGS))
                     } catch (_: ActivityNotFoundException) {
                         context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
+                    }
+                },
+                onExactAlarmAccessClick = {
+                    // Granting re-arms schedules through SystemScheduleReceiver.
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        try {
+                            context.startActivity(
+                                Intent(
+                                    AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                    Uri.fromParts("package", context.packageName, null),
+                                )
+                            )
+                        } catch (_: ActivityNotFoundException) {
+                            context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
+                        }
                     }
                 },
             )

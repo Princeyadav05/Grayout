@@ -23,7 +23,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Clock
 import java.time.Duration
 
@@ -84,15 +86,20 @@ class ScheduleViewModel(
                     return@launch
                 }
             }
-            repository.setEnabled(schedule.id, !schedule.isEnabled)
-            alarmManager.reschedule(repository)
+            // Leaving the screen must not cancel between the commit and its alarms.
+            withContext(NonCancellable) {
+                repository.setEnabled(schedule.id, !schedule.isEnabled)
+                alarmManager.reschedule(repository, keepManualChoice = true)
+            }
         }
     }
 
     fun deleteSchedule(schedule: Schedule) {
         viewModelScope.launch {
-            repository.delete(schedule)
-            alarmManager.reschedule(repository)
+            withContext(NonCancellable) {
+                repository.delete(schedule)
+                alarmManager.reschedule(repository, keepManualChoice = true)
+            }
         }
     }
 }

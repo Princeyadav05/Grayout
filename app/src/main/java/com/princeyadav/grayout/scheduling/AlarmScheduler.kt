@@ -10,5 +10,9 @@ import com.princeyadav.grayout.data.ScheduleRepository
  * fakes to record [reschedule] invocations without touching [android.app.AlarmManager].
  */
 interface AlarmScheduler {
-    suspend fun reschedule(repository: ScheduleRepository)
+    /**
+     * [keepManualChoice] is for schedule edits: an active window whose coverage the
+     * edit did not change keeps the user's manual colour choice. Boot resyncs it.
+     */
+    suspend fun reschedule(repository: ScheduleRepository, keepManualChoice: Boolean = false)
 }

@@ -146,6 +146,7 @@ class ForegroundAppDetector(
     private val onExclusionEnded: () -> Unit,
     private val scope: CoroutineScope,
     private val isScreenOn: () -> Boolean = { true },
+    private val hasUsageAccess: () -> Boolean = { true },
     private val pollIntervalMs: Long = POLL_INTERVAL_MS,
 ) {
     private var loopJob: Job? = null
@@ -158,6 +159,9 @@ class ForegroundAppDetector(
     @Volatile
     internal var lastKnownPkg: String? = null
 
+    /** Bumped by [stop] under [GrayscaleStateLock]; a read from an older generation is discarded. */
+    private var generation = 0
+
     /** Starts the poll loop. Idempotent. */
     fun start() {
         if (loopJob?.isActive == true) return
@@ -169,10 +173,20 @@ class ForegroundAppDetector(
         }
     }
 
-    /** Stops the poll loop. Idempotent. */
+    /**
+     * Stops the poll loop. Idempotent. Forgets [lastKnownPkg]: after a screen-off the
+     * keyguard emits no foreground event, so a carried-forward excluded package would
+     * re-enter it and turn the lock screen to colour. A really-foreground app is read
+     * fresh from the lookback window.
+     */
     fun stop() {
         loopJob?.cancel()
         loopJob = null
+        // A read still in flight can't publish after this, even if the screen is on again.
+        synchronized(GrayscaleStateLock) {
+            generation++
+            lastKnownPkg = null
+        }
     }
 
     /**
@@ -182,12 +196,38 @@ class ForegroundAppDetector(
     internal fun tickOnce() {
         if (exclusionPrefs.getExcludedCount() == 0) return
 
+        val readGeneration = synchronized(GrayscaleStateLock) { generation }
         val read = provider.currentForegroundPackage()
-        if (read != null) lastKnownPkg = read
-        val pkg = read ?: lastKnownPkg ?: return
-        if (pkg == ownPackage) return
-
+        if (read == null && !hasUsageAccess()) {
+            // Revoked Usage Access reads empty forever. Carrying the last package
+            // forward would hold an excluded session (colour on, enforcement skipped)
+            // indefinitely, so end it as if the user had left the app.
+            synchronized(GrayscaleStateLock) {
+                if (readGeneration != generation) return
+                lastKnownPkg = null
+                if (!isScreenOn() || !exclusionPrefs.isExcludedAppActive()) return
+                applyExclusionTransition(
+                    transition = ExclusionTransition.Exit(exclusionPrefs.wasGrayscaleOnBeforeExclusion()),
+                    exclusionPrefs = exclusionPrefs,
+                    grayscale = grayscale,
+                    enforcementInterval = enforcementPrefs.getInterval(),
+                    onExclusionEnded = onExclusionEnded,
+                )
+            }
+            return
+        }
         synchronized(GrayscaleStateLock) {
+            // The detector must not mutate the FSM once the screen is off. This poll runs on
+            // a background thread, and stop()'s cooperative cancel cannot abort a tick already
+            // in progress, so a tick that began while the screen was on could otherwise land
+            // here after GrayoutService cleared the exclusion state on SCREEN_OFF, re-Enter,
+            // and undo the pre-gray (see preGrayOnScreenOff). Checked after the read so it
+            // reflects screen state at apply time; isScreenInteractive is @Volatile. It also
+            // keeps that late read out of the cache stop() just cleared.
+            if (!isScreenOn() || readGeneration != generation) return
+            if (read != null) lastKnownPkg = read
+            val pkg = read ?: lastKnownPkg ?: return
+            if (pkg == ownPackage) return
             val isExcluded = exclusionPrefs.isExcluded(pkg)
             val excludedAppActive = exclusionPrefs.isExcludedAppActive()
             // Stable polls and exits do not depend on the current system setting.
@@ -205,13 +245,6 @@ class ForegroundAppDetector(
                 grayscaleEnabled = grayscaleEnabled,
                 wasGrayscaleOnBeforeExclusion = exclusionPrefs.wasGrayscaleOnBeforeExclusion(),
             )
-            // The detector must not mutate the FSM once the screen is off. This poll runs on
-            // a background thread, and stop()'s cooperative cancel cannot abort a tick already
-            // in progress, so a tick that began while the screen was on could otherwise land
-            // here after GrayoutService cleared the exclusion state on SCREEN_OFF, re-Enter,
-            // and undo the pre-gray (see preGrayOnScreenOff). Checked after the read so it
-            // reflects screen state at apply time; isScreenInteractive is @Volatile.
-            if (!isScreenOn()) return
             if (transition == ExclusionTransition.None && isExcluded &&
                 exclusionPrefs.isColorRestorePending()
             ) {

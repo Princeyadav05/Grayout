@@ -163,6 +163,7 @@ class ScheduleEditorViewModelTest {
             "Expected at least one reschedule after save, had ${alarm.rescheduleCallCount}",
             alarm.rescheduleCallCount >= 1,
         )
+        assertEquals("A schedule edit must not override a manual color choice", true, alarm.lastKeepManualChoice)
 
         val enabled = dao.getEnabledSchedules()
         assertEquals("Expected exactly one enabled schedule in dao", 1, enabled.size)
@@ -426,7 +427,7 @@ class ScheduleEditorViewModelTest {
     fun `retry after failed alarm update keeps the inserted schedule id`() = runTest {
         var shouldFail = true
         val failingAlarm = object : AlarmScheduler {
-            override suspend fun reschedule(repository: ScheduleRepository) {
+            override suspend fun reschedule(repository: ScheduleRepository, keepManualChoice: Boolean) {
                 if (shouldFail) error("Alarm update failed")
             }
         }
@@ -450,7 +451,7 @@ class ScheduleEditorViewModelTest {
         val id = dao.insert(testSchedule())
         var shouldFail = true
         val failingAlarm = object : AlarmScheduler {
-            override suspend fun reschedule(repository: ScheduleRepository) {
+            override suspend fun reschedule(repository: ScheduleRepository, keepManualChoice: Boolean) {
                 if (shouldFail) error("Alarm update failed")
             }
         }

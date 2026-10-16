@@ -1,5 +1,6 @@
 package com.princeyadav.grayout.service
 
+import android.content.pm.ApplicationInfo
 import com.princeyadav.grayout.fakes.FakeSharedPreferences
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -79,6 +80,27 @@ class ExclusionPrefsTest {
         prefs.addExcludedPackage("com.example.a")
         prefs.removeExcludedPackage("com.example.nonexistent")
         assertEquals(1, prefs.getExcludedCount())
+    }
+
+    @Test
+    fun `removeUninstalledPackages drops only packages that are gone`() {
+        prefs.addExcludedPackage("com.kept")
+        prefs.addExcludedPackage("com.uninstalled")
+
+        assertTrue(prefs.removeUninstalledPackages { it == "com.kept" })
+        assertEquals(setOf("com.kept"), prefs.getExcludedPackages())
+        assertFalse(prefs.removeUninstalledPackages { true })
+    }
+
+    @Test
+    fun `only a real uninstall drops an exclusion`() {
+        // Still installed, including on storage that is temporarily unmounted.
+        assertTrue(keepsExclusion(appFlags = ApplicationInfo.FLAG_INSTALLED, isArchived = false))
+        // Archived on Android 15: comes back on tap with its data.
+        assertTrue(keepsExclusion(appFlags = 0, isArchived = true))
+        // Data kept but uninstalled for this user, or not known at all.
+        assertFalse(keepsExclusion(appFlags = 0, isArchived = false))
+        assertFalse(keepsExclusion(appFlags = null, isArchived = false))
     }
 
     @Test

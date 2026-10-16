@@ -3,7 +3,9 @@ package com.princeyadav.grayout.logic
 import com.princeyadav.grayout.model.Schedule
 import com.princeyadav.grayout.scheduling.ArmedScheduleAlarm
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDateTime
@@ -54,6 +56,18 @@ class ScheduleReconciliationTest {
         assertNull(target(alarm(false), at, schedules = listOf(schedule.copy(daysOfWeek = "MON"))))
         assertNull(target(alarm(false), at, schedules = listOf(schedule.copy(startTimeMinute = 30))))
         assertNull(target(alarm(false), at, schedules = listOf(schedule.copy(endTimeHour = 16))))
+    }
+    @Test fun `editing another schedule keeps a manual choice in the active window`() {
+        val evening = schedule.copy(id = 2, startTimeHour = 20, endTimeHour = 22)
+        val now = Instant.parse("2026-09-11T11:00:00Z")
+        assertFalse(editSynchronizesActiveWindow(alarm(false), listOf(schedule, evening), now, utc, owesRetry = false))
+        assertFalse(editSynchronizesActiveWindow(alarm(false), listOf(schedule.copy(name = "Work")), now, utc, owesRetry = false))
+        // Changed or newly armed coverage is a new schedule decision.
+        assertTrue(editSynchronizesActiveWindow(alarm(false), listOf(schedule.copy(endTimeHour = 18)), now, utc, owesRetry = false))
+        assertTrue(editSynchronizesActiveWindow(alarm(true), listOf(schedule), now, utc, owesRetry = false))
+        assertTrue(editSynchronizesActiveWindow(null, listOf(schedule), now, utc, owesRetry = false))
+        // A failed activation is not a manual choice: an edit elsewhere still retries it.
+        assertTrue(editSynchronizesActiveWindow(alarm(false), listOf(schedule, evening), now, utc, owesRetry = true))
     }
     @Test fun `continuing overlapping window is active at a crossed closing boundary`() {
         val second = schedule.copy(id = 2, startTimeHour = 16, endTimeHour = 19)

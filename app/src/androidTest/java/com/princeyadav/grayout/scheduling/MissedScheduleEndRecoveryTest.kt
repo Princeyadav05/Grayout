@@ -203,6 +203,30 @@ class MissedScheduleEndRecoveryTest {
         assertTrue("A skipped activation must not claim manual grayscale on the next boot", gray.isGrayscaleEnabled())
     }
 
+    @Test fun editingAnotherScheduleStillRetriesAFailedActivation() = runBlocking {
+        dao.insert(schedule())
+        val failed = object : GrayscaleController by gray {
+            override fun setGrayscale(enabled: Boolean) = false
+        }
+        managerAt(9, 30, failed).reschedule(repository)
+        assertFalse(gray.isGrayscaleEnabled())
+        assertNotNull(pending.read())
+        dao.insert(schedule().copy(name = "Evening", startTimeHour = 20, endTimeHour = 21))
+        managerAt(9, 31).reschedule(repository, keepManualChoice = true)
+        assertTrue("An edit elsewhere must not drop an activation still owed", gray.isGrayscaleEnabled())
+        assertNull(pending.read())
+    }
+
+    @Test fun editingAnotherScheduleKeepsManualColorInTheActiveWindow() = runBlocking {
+        dao.insert(schedule())
+        managerAt(9, 30).reschedule(repository)
+        assertTrue(gray.isGrayscaleEnabled())
+        gray.setGrayscale(false)
+        dao.insert(schedule().copy(name = "Evening", startTimeHour = 20, endTimeHour = 21))
+        managerAt(9, 31).reschedule(repository, keepManualChoice = true)
+        assertFalse("An unrelated edit must not override manual color", gray.isGrayscaleEnabled())
+    }
+
     @Test fun noPriorRegistrationPreservesManualGrayscaleOutsideSchedule() = runBlocking {
         dao.insert(schedule())
         gray.setGrayscale(true)

@@ -27,12 +27,14 @@ import com.princeyadav.grayout.service.GrayscaleManager
 import com.princeyadav.grayout.service.GrayscaleController
 import com.princeyadav.grayout.service.GrayoutService
 import com.princeyadav.grayout.service.applyExclusionTransition
+import com.princeyadav.grayout.testutil.UsageAccessRule
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalTime
@@ -46,6 +48,8 @@ import java.util.concurrent.TimeUnit
 /** Real broadcasts, Room resynchronization, and secure settings on a test device. */
 @RunWith(AndroidJUnit4::class)
 class ScheduleExclusionIntegrationTest {
+    @get:Rule val usageAccess = UsageAccessRule()
+
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
     private val prefs = context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)

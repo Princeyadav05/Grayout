@@ -10,6 +10,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.os.Build
 import android.os.Handler
@@ -19,6 +20,7 @@ import android.os.PowerManager
 import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.princeyadav.grayout.GrayoutApp
 import com.princeyadav.grayout.MainActivity
 import com.princeyadav.grayout.R
 import com.princeyadav.grayout.ui.theme.BrandAccentArgb
@@ -97,6 +99,19 @@ class GrayoutService : Service() {
         }
     }
 
+    // An uninstalled excluded app can't be unticked in the picker (it has no row), and
+    // its stale entry would keep this service and the 1 s detector alive for nothing.
+    // FULLY_REMOVED fires on a real uninstall only, never on an update.
+    private val packageRemovedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (exclusionPrefs.removeUninstalledPackages(::isInstalled)) {
+                // Re-run the start path: it ends a session left with no exclusions and
+                // stops the service when nothing is left to do.
+                startService(Intent(this@GrayoutService, GrayoutService::class.java))
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         grayscaleManager = GrayscaleManager(this)
@@ -123,6 +138,7 @@ class GrayoutService : Service() {
             onExclusionEnded = { handler.post { handleExclusionEnded() } },
             scope = detectorScope,
             isScreenOn = { isScreenInteractive },
+            hasUsageAccess = { UsageAccess.isGranted(this) },
         )
 
         isScreenInteractive = getSystemService(PowerManager::class.java).isInteractive
@@ -135,6 +151,18 @@ class GrayoutService : Service() {
             },
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+
+        ContextCompat.registerReceiver(
+            this,
+            packageRemovedReceiver,
+            IntentFilter(Intent.ACTION_PACKAGE_FULLY_REMOVED).apply { addDataScheme("package") },
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+
+        // A sticky restart, boot, tile or schedule start can bring the service back
+        // without MainActivity, e.g. after Android 12 kills the app for revoking
+        // exact alarms and drops its schedule alarms. Rebuild them here too.
+        (application as GrayoutApp).recoverScheduleAlarms()
 
         _isRunning.value = true
     }
@@ -155,6 +183,8 @@ class GrayoutService : Service() {
             hasReceivedStartCommand = true
             currentInterval = interval
 
+            // Catches uninstalls that happened while this service wasn't running.
+            exclusionPrefs.removeUninstalledPackages(::isInstalled)
             val excludedCount = exclusionPrefs.getExcludedCount()
             reconcileExclusionOnStart(exclusionPrefs, grayscaleManager, isScreenInteractive)
 
@@ -235,18 +265,11 @@ class GrayoutService : Service() {
         val hasActiveCountdown = countdownTargetElapsedMs > now
         val reEnablePending = hasActiveCountdown || hasPendingEnforcementAlarm()
 
-        if (shouldReEnableOnExclusionEnd(
-                currentInterval, reEnablePending, grayscaleManager.isGrayscaleEnabled(),
-            )
-        ) {
-            val success = grayscaleManager.setGrayscale(true)
-            if (!success) {
-                detector.stop()
-                startForeground(NOTIFICATION_ID, buildNotification(currentInterval))
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-                return@synchronized
-            }
+        reEnableOnExclusionEnd(currentInterval, reEnablePending, grayscaleManager) {
+            // Fire now so the receiver's tick retries each interval and posts
+            // "permission lost". Stopping here left enforcement and exclusions dead
+            // until the app was reopened, even after the permission came back.
+            scheduleEnforcementAlarmAtElapsed(this, now, currentInterval)
         }
 
         if (hasActiveCountdown) {
@@ -262,6 +285,7 @@ class GrayoutService : Service() {
         detector.stop()
         detectorScope.cancel()
         unregisterReceiver(screenReceiver)
+        unregisterReceiver(packageRemovedReceiver)
         countdownTargetElapsedMs = 0L
         super.onDestroy()
     }
@@ -325,6 +349,24 @@ class GrayoutService : Service() {
 
     private fun cancelEnforcementAlarm() = cancelEnforcementCountdown(this)
 
+    private fun isInstalled(pkg: String): Boolean {
+        val info = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                packageManager.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(
+                    PackageManager.MATCH_UNINSTALLED_PACKAGES.toLong() or PackageManager.MATCH_ARCHIVED_PACKAGES,
+                ))
+            } else {
+                packageManager.getApplicationInfo(pkg, PackageManager.MATCH_UNINSTALLED_PACKAGES)
+            }
+        } catch (_: PackageManager.NameNotFoundException) {
+            null
+        }
+        return keepsExclusion(
+            info?.flags,
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM && info?.isArchived == true,
+        )
+    }
+
     private fun hasPendingEnforcementAlarm(): Boolean {
         val intent = Intent(this, EnforcementAlarmReceiver::class.java)
             .setAction(ACTION_ENFORCEMENT_TICK)
@@ -340,9 +382,9 @@ class GrayoutService : Service() {
         /**
          * Whether a [GrayoutService] instance is alive (onCreate..onDestroy),
          * observed for diagnostics on the Settings screen. Reflects actual liveness
-         * — including self-stops when enforcement is off with no exclusions, or on a
-         * lost WRITE_SECURE_SETTINGS permission — not just whether the service is
-         * configured to run. Emits so the UI updates live, not only on screen resume.
+         * — including self-stops when enforcement is off with no exclusions — not
+         * just whether the service is configured to run. Emits so the UI updates
+         * live, not only on screen resume.
          */
         val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
 
@@ -374,12 +416,27 @@ fun shouldReEnableOnExclusionEnd(
 ): Boolean = interval > 0 && !reEnablePending && !grayscaleEnabled
 
 /**
+ * Applies [shouldReEnableOnExclusionEnd]. A write that does not stick goes to
+ * [onWriteFailed] instead of being dropped, so the enforcement retry can recover it.
+ */
+fun reEnableOnExclusionEnd(
+    interval: Int,
+    reEnablePending: Boolean,
+    grayscale: GrayscaleController,
+    onWriteFailed: () -> Unit,
+) {
+    if (!shouldReEnableOnExclusionEnd(interval, reEnablePending, grayscale.isGrayscaleEnabled())) return
+    if (!grayscale.setGrayscale(true)) onWriteFailed()
+}
+
+/**
  * Schedules (or reschedules) the enforcement re-enable alarm to fire at
  * [triggerAtMillis] (wall-clock). Shared by [GrayoutService] and
  * [EnforcementAlarmReceiver] (the receiver reschedules a retry when a tick's write
- * fails, so a transient failure resolves next interval and a restored permission
- * auto-recovers). Falls back to an inexact alarm when exact alarms are unavailable
- * or revoked, mirroring the countdown-alarm contract.
+ * fails, so a transient failure resolves on the next attempt and a restored
+ * permission auto-recovers, see [writeRetryDelayMs]). Falls back to an inexact
+ * alarm when exact alarms are unavailable or revoked, mirroring the
+ * countdown-alarm contract.
  */
 internal fun scheduleEnforcementAlarm(context: Context, triggerAtMillis: Long, intervalMinutes: Int? = null) {
     scheduleEnforcementAlarmAtElapsed(context, SystemClock.elapsedRealtime() +

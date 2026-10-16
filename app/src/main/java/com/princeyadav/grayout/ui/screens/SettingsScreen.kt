@@ -33,8 +33,10 @@ fun SettingsScreen(
     isAdbPermissionGranted: Boolean,
     isUsageAccessGranted: Boolean,
     isBatteryUnrestricted: Boolean,
+    needsExactAlarmAccess: Boolean,
     onBatteryOptimizationClick: () -> Unit,
     onUsageAccessClick: () -> Unit,
+    onExactAlarmAccessClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = GrayoutTheme.colors
@@ -68,8 +70,10 @@ fun SettingsScreen(
             isAdbPermissionGranted = isAdbPermissionGranted,
             isUsageAccessGranted = isUsageAccessGranted,
             isBatteryUnrestricted = isBatteryUnrestricted,
+            needsExactAlarmAccess = needsExactAlarmAccess,
             onBatteryOptimizationClick = onBatteryOptimizationClick,
             onUsageAccessClick = onUsageAccessClick,
+            onExactAlarmAccessClick = onExactAlarmAccessClick,
         )
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
@@ -130,8 +134,10 @@ private fun SetupCard(
     isAdbPermissionGranted: Boolean,
     isUsageAccessGranted: Boolean,
     isBatteryUnrestricted: Boolean,
+    needsExactAlarmAccess: Boolean,
     onBatteryOptimizationClick: () -> Unit,
     onUsageAccessClick: () -> Unit,
+    onExactAlarmAccessClick: () -> Unit,
 ) {
     val colors = GrayoutTheme.colors
     val dimens = GrayoutTheme.dimens
@@ -169,6 +175,23 @@ private fun SetupCard(
                     )
                 },
             )
+
+            if (needsExactAlarmAccess) {
+                HorizontalDivider(thickness = 1.dp, color = colors.border)
+
+                SettingsRow(
+                    label = "Alarms & reminders",
+                    subtitle = "Required for on-time schedules",
+                    onClick = onExactAlarmAccessClick,
+                    trailing = {
+                        Text(
+                            text = "Not granted",
+                            style = GrayoutTheme.typography.bodyMedium,
+                            color = colors.danger,
+                        )
+                    },
+                )
+            }
 
             HorizontalDivider(thickness = 1.dp, color = colors.border)
 

@@ -1,5 +1,7 @@
 package com.princeyadav.grayout.service
 
+import com.princeyadav.grayout.fakes.FakeGrayscaleController
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -48,5 +50,17 @@ class ExclusionEndDecisionTest {
                 interval = 5, reEnablePending = false, grayscaleEnabled = true,
             )
         )
+    }
+
+    @Test
+    fun `failed re-enable hands off to the enforcement retry`() {
+        val grayscale = FakeGrayscaleController().apply { canWrite = false }
+        var retries = 0
+
+        reEnableOnExclusionEnd(
+            interval = 5, reEnablePending = false, grayscale = grayscale, onWriteFailed = { retries++ },
+        )
+
+        assertEquals(1, retries)
     }
 }

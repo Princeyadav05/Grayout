@@ -58,21 +58,22 @@ class GrayscaleToggleTile : TileService() {
         tile.icon = Icon.createWithResource(this, R.drawable.ic_tile)
         tile.updateTile()
     }
+}
 
-    private fun launchSetup() {
-        val intent = Intent(this, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        // startActivityAndCollapse(Intent) throws on API 34+; use the PendingIntent overload there.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startActivityAndCollapse(
-                PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-            )
-        } else {
-            // The PendingIntent overload only exists on API 34+; the Intent overload is
-            // the only option on 26-33, deprecated-in-34 notwithstanding.
-            @Suppress("DEPRECATION")
-            @SuppressLint("StartActivityAndCollapseDeprecated")
-            startActivityAndCollapse(intent)
-        }
+/** Opens the app (Home routes on to ADB setup) and collapses Quick Settings. */
+internal fun TileService.launchSetup() {
+    val intent = Intent(this, MainActivity::class.java)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    // startActivityAndCollapse(Intent) throws on API 34+; use the PendingIntent overload there.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        startActivityAndCollapse(
+            PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+        )
+    } else {
+        // The PendingIntent overload only exists on API 34+; the Intent overload is
+        // the only option on 26-33, deprecated-in-34 notwithstanding.
+        @Suppress("DEPRECATION")
+        @SuppressLint("StartActivityAndCollapseDeprecated")
+        startActivityAndCollapse(intent)
     }
 }
