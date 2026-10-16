@@ -189,6 +189,7 @@ class ScheduleViewModelTest {
             "Expected at least one reschedule after toggleEnabled, had ${alarm.rescheduleCallCount} total",
             alarm.rescheduleCallCount > baselineRescheduleCalls,
         )
+        assertEquals("A schedule edit must not override a manual color choice", true, alarm.lastKeepManualChoice)
     }
 
     @Test

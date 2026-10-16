@@ -163,6 +163,7 @@ class ScheduleEditorViewModelTest {
             "Expected at least one reschedule after save, had ${alarm.rescheduleCallCount}",
             alarm.rescheduleCallCount >= 1,
         )
+        assertEquals("A schedule edit must not override a manual color choice", true, alarm.lastKeepManualChoice)
 
         val enabled = dao.getEnabledSchedules()
         assertEquals("Expected exactly one enabled schedule in dao", 1, enabled.size)
