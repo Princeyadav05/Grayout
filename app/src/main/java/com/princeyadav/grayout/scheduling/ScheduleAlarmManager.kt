@@ -49,10 +49,17 @@ class ScheduleAlarmManager(
     ): Unit = withContext(Dispatchers.IO) {
         scheduleOperationMutex.withLock {
             val enabledSchedules = repository.getEnabledSchedules()
-            if (reconciliationState.read()?.configuration?.let {
+            val pending = reconciliationState.read()
+            // Read before a configuration change clears it: unless the display has
+            // changed since (as in reconcileSystemChange), the failed write is still owed.
+            val owesRetry = pending != null && synchronized(GrayscaleStateLock) {
+                ExclusionPrefs(prefs).isExcludedAppActive() ||
+                    grayscale.isGrayscaleEnabled() == pending.observedGray
+            }
+            if (pending?.configuration?.let {
                     it != scheduleConfiguration(enabledSchedules)
                 } == true) clearReconciliation()
-            rescheduleAndSynchronizeWindow(enabledSchedules, state.read(), keepManualChoice)
+            rescheduleAndSynchronizeWindow(enabledSchedules, state.read(), keepManualChoice, owesRetry)
         }
     }
 
@@ -158,6 +165,7 @@ class ScheduleAlarmManager(
         enabledSchedules: List<Schedule>,
         priorAlarm: ArmedScheduleAlarm?,
         keepManualChoice: Boolean,
+        owesRetry: Boolean,
     ) {
         val isCurrentlyInSchedule = synchronized(GrayscaleStateLock) {
             // Recheck after acquiring the transition lock. A boundary may have
@@ -168,7 +176,7 @@ class ScheduleAlarmManager(
             var activeAtWrite: Boolean
             var needsRearm: Boolean
             fun synchronizes(at: Instant, atZone: ZoneId) = !keepManualChoice ||
-                editSynchronizesActiveWindow(priorAlarm, enabledSchedules, at, atZone)
+                editSynchronizesActiveWindow(priorAlarm, enabledSchedules, at, atZone, owesRetry)
             // A record staged for an activation that then never happens must not be
             // read as an unfinished write: it would close unowned manual gray.
             var staged = false

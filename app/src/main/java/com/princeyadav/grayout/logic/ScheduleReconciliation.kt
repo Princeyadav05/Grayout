@@ -33,13 +33,15 @@ internal fun scheduleReconciliationTarget(
  * Whether a schedule edit re-applies an active window. Unchanged coverage (an edit
  * to another schedule, or a rename) keeps a manual colour choice; new or changed
  * coverage is a new schedule decision. [prior] is the alarm armed before the edit.
+ * [owesRetry]: a failed schedule write is not a manual choice and is still applied.
  */
 internal fun editSynchronizesActiveWindow(
     prior: ArmedScheduleAlarm?,
     schedules: List<Schedule>,
     now: Instant,
     zone: ZoneId,
-): Boolean = scheduleReconciliationTarget(prior, schedules, now, zone) != null
+    owesRetry: Boolean,
+): Boolean = owesRetry || scheduleReconciliationTarget(prior, schedules, now, zone) != null
 
 private fun ArmedScheduleAlarm.matches(schedule: Schedule): Boolean {
     if (!schedule.isEnabled || schedule.id != scheduleId) return false
