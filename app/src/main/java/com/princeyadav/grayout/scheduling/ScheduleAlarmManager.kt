@@ -169,15 +169,23 @@ class ScheduleAlarmManager(
             var needsRearm: Boolean
             fun synchronizes(at: Instant, atZone: ZoneId) = !keepManualChoice ||
                 editSynchronizesActiveWindow(priorAlarm, enabledSchedules, at, atZone)
+            // A record staged for an activation that then never happens must not be
+            // read as an unfinished write: it would close unowned manual gray.
+            var staged = false
             do {
                 val active = enabledSchedules.any { isCurrentlyFiring(it, applyTime, zone) }
                 if (active) {
                     // Persist the closing boundary before turning gray. A successful
                     // write clears its retry record, so this evidence must survive.
                     // Save the retry record first (see applyActivation).
-                    if (synchronizes(applyTime, zone)) saveReconciliation(enabledSchedules)
+                    if (!staged && reconciliationState.read() == null && synchronizes(applyTime, zone)) {
+                        saveReconciliation(enabledSchedules)
+                        staged = true
+                    }
                     replaceNextAlarm(enabledSchedules, applyTime, zone)
                 } else {
+                    if (staged) reconciliationState.save(null)
+                    staged = false
                     rescheduleInactiveWindow(enabledSchedules, priorAlarm, applyTime, zone)
                 }
 
