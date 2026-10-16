@@ -169,10 +169,16 @@ class ForegroundAppDetector(
         }
     }
 
-    /** Stops the poll loop. Idempotent. */
+    /**
+     * Stops the poll loop. Idempotent. Forgets [lastKnownPkg]: after a screen-off the
+     * keyguard emits no foreground event, so a carried-forward excluded package would
+     * re-enter it and turn the lock screen to colour. A really-foreground app is read
+     * fresh from the lookback window.
+     */
     fun stop() {
         loopJob?.cancel()
         loopJob = null
+        lastKnownPkg = null
     }
 
     /**

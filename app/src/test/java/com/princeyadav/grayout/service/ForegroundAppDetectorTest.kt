@@ -83,6 +83,28 @@ class ForegroundAppDetectorTest {
     }
 
     @Test
+    fun `stop forgets the last package so an empty read after wake does not re-enter`() {
+        exclusionPrefs.addExcludedPackage("com.excluded")
+        grayscale.grayscaleEnabled = true
+        val detector = detector()
+
+        provider.foregroundPackage = "com.excluded"
+        detector.tickOnce()
+        assertTrue(exclusionPrefs.isExcludedAppActive())
+
+        // SCREEN_OFF: pre-gray resets the session, then the detector stops.
+        assertTrue(preGrayOnScreenOff(exclusionPrefs, grayscale))
+        detector.stop()
+
+        // SCREEN_ON on the keyguard after the lookback window: nothing to read.
+        provider.foregroundPackage = null
+        detector.tickOnce()
+
+        assertFalse(exclusionPrefs.isExcludedAppActive())
+        assertTrue(grayscale.isGrayscaleEnabled())
+    }
+
+    @Test
     fun `own package read does not clear active and does not Exit`() {
         exclusionPrefs.addExcludedPackage("com.excluded")
         // Simulate already inside an excluded app.
