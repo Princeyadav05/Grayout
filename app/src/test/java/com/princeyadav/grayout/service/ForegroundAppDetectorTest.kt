@@ -30,7 +30,10 @@ class ForegroundAppDetectorTest {
     private var endedCount = 0
     private var grayscaleReadCount = 0
 
-    private fun detector(isScreenOn: () -> Boolean = { true }): ForegroundAppDetector =
+    private fun detector(
+        isScreenOn: () -> Boolean = { true },
+        hasUsageAccess: () -> Boolean = { true },
+    ): ForegroundAppDetector =
         ForegroundAppDetector(
             provider = provider,
             exclusionPrefs = exclusionPrefs,
@@ -45,6 +48,7 @@ class ForegroundAppDetectorTest {
             onExclusionEnded = { endedCount++ },
             scope = CoroutineScope(Dispatchers.Unconfined),
             isScreenOn = isScreenOn,
+            hasUsageAccess = hasUsageAccess,
         )
 
     @Before
@@ -97,6 +101,27 @@ class ForegroundAppDetectorTest {
         detector.stop()
 
         // SCREEN_ON on the keyguard after the lookback window: nothing to read.
+        provider.foregroundPackage = null
+        detector.tickOnce()
+
+        assertFalse(exclusionPrefs.isExcludedAppActive())
+        assertTrue(grayscale.isGrayscaleEnabled())
+    }
+
+    @Test
+    fun `revoked usage access ends the active session instead of carrying it forward`() {
+        exclusionPrefs.addExcludedPackage("com.excluded")
+        grayscale.grayscaleEnabled = true
+        var hasAccess = true
+        val detector = detector(hasUsageAccess = { hasAccess })
+
+        provider.foregroundPackage = "com.excluded"
+        detector.tickOnce()
+        assertTrue(exclusionPrefs.isExcludedAppActive())
+        assertFalse(grayscale.isGrayscaleEnabled())
+
+        // Access revoked: every read is now empty, so the excluded app can't be seen.
+        hasAccess = false
         provider.foregroundPackage = null
         detector.tickOnce()
 

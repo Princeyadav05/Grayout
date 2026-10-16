@@ -123,6 +123,7 @@ class GrayoutService : Service() {
             onExclusionEnded = { handler.post { handleExclusionEnded() } },
             scope = detectorScope,
             isScreenOn = { isScreenInteractive },
+            hasUsageAccess = { UsageAccess.isGranted(this) },
         )
 
         isScreenInteractive = getSystemService(PowerManager::class.java).isInteractive

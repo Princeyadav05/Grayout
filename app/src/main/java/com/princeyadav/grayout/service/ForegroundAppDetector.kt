@@ -146,6 +146,7 @@ class ForegroundAppDetector(
     private val onExclusionEnded: () -> Unit,
     private val scope: CoroutineScope,
     private val isScreenOn: () -> Boolean = { true },
+    private val hasUsageAccess: () -> Boolean = { true },
     private val pollIntervalMs: Long = POLL_INTERVAL_MS,
 ) {
     private var loopJob: Job? = null
@@ -189,6 +190,23 @@ class ForegroundAppDetector(
         if (exclusionPrefs.getExcludedCount() == 0) return
 
         val read = provider.currentForegroundPackage()
+        if (read == null && !hasUsageAccess()) {
+            // Revoked Usage Access reads empty forever. Carrying the last package
+            // forward would hold an excluded session (colour on, enforcement skipped)
+            // indefinitely, so end it as if the user had left the app.
+            lastKnownPkg = null
+            synchronized(GrayscaleStateLock) {
+                if (!isScreenOn() || !exclusionPrefs.isExcludedAppActive()) return
+                applyExclusionTransition(
+                    transition = ExclusionTransition.Exit(exclusionPrefs.wasGrayscaleOnBeforeExclusion()),
+                    exclusionPrefs = exclusionPrefs,
+                    grayscale = grayscale,
+                    enforcementInterval = enforcementPrefs.getInterval(),
+                    onExclusionEnded = onExclusionEnded,
+                )
+            }
+            return
+        }
         if (read != null) lastKnownPkg = read
         val pkg = read ?: lastKnownPkg ?: return
         if (pkg == ownPackage) return
