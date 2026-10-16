@@ -68,7 +68,7 @@ class EnforcementAlarmReceiver : BroadcastReceiver() {
      *
      * 1. Reschedule a retry (see [writeRetryDelayMs]). A transient write contention
      *    resolves on the next tick, and a genuinely revoked WRITE_SECURE_SETTINGS
-     *    auto-recovers within 15 minutes of being restored, without reopening the app.
+     *    auto-recovers on the next retry after it is restored, without reopening the app.
      * 2. If the permission is genuinely gone (the OnePlus OEM-cleanup path in the
      *    README), also replace the frozen "enforcement active" notification with a
      *    "permission lost" state. Tapping opens the app on Home, whose attention

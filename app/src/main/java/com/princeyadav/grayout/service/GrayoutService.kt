@@ -105,8 +105,8 @@ class GrayoutService : Service() {
     private val packageRemovedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (exclusionPrefs.removeUninstalledPackages(::isInstalled)) {
-                // Re-run the start path: it ends a now-unwatchable session and stops
-                // the service when nothing is left to do.
+                // Re-run the start path: it ends a session left with no exclusions and
+                // stops the service when nothing is left to do.
                 startService(Intent(this@GrayoutService, GrayoutService::class.java))
             }
         }
@@ -430,8 +430,9 @@ fun reEnableOnExclusionEnd(
  * [triggerAtMillis] (wall-clock). Shared by [GrayoutService] and
  * [EnforcementAlarmReceiver] (the receiver reschedules a retry when a tick's write
  * fails, so a transient failure resolves on the next attempt and a restored
- * permission auto-recovers, see [writeRetryDelayMs]). Falls back to an inexact alarm when exact alarms are unavailable
- * or revoked, mirroring the countdown-alarm contract.
+ * permission auto-recovers, see [writeRetryDelayMs]). Falls back to an inexact
+ * alarm when exact alarms are unavailable or revoked, mirroring the
+ * countdown-alarm contract.
  */
 internal fun scheduleEnforcementAlarm(context: Context, triggerAtMillis: Long, intervalMinutes: Int? = null) {
     scheduleEnforcementAlarmAtElapsed(context, SystemClock.elapsedRealtime() +
