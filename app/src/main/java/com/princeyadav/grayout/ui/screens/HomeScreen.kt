@@ -123,10 +123,11 @@ fun HomeScreen(
 private fun AppHeader() {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
+    val dimens = GrayoutTheme.dimens
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
         modifier = Modifier.padding(vertical = 12.dp),
     ) {
         Image(
@@ -176,7 +177,7 @@ private fun NeedsAttentionStrip(
                     .size(6.dp)
                     .background(colors.danger, CircleShape),
             )
-            Spacer(modifier = Modifier.size(8.dp))
+            Spacer(modifier = Modifier.size(dimens.tightGap))
             Text(
                 text = message,
                 style = typography.bodyMedium,
@@ -478,7 +479,7 @@ private fun ExcludedAppsCard(
                     Spacer(modifier = Modifier.height(dimens.tightGap))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
                     ) {
                         excludedAppIcons.forEach { icon ->
                             Image(
