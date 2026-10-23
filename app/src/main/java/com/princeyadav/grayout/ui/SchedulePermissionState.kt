@@ -17,7 +17,9 @@ fun rememberSchedulePermission(): State<Boolean> {
     val context = LocalContext.current.applicationContext
     val manager = remember(context) { GrayscaleManager(context) }
     val lifecycleOwner = LocalLifecycleOwner.current
-    return produceState(manager.canWriteSecureSettings(), lifecycleOwner, manager) {
+    // produceState only uses its initial value once; don't re-probe on every recomposition.
+    val initial = remember(lifecycleOwner, manager) { manager.canWriteSecureSettings() }
+    return produceState(initial, lifecycleOwner, manager) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             while (true) {
                 value = manager.canWriteSecureSettings()
