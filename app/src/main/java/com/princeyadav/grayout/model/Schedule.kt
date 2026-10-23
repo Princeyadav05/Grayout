@@ -24,7 +24,9 @@ val Schedule.daysOfWeekList: List<DayOfWeek>
             else DayOfWeek.entries.firstOrNull { it.name.startsWith(trimmed) }
         }
 
-fun formatTime12Hour(hour: Int, minute: Int): String {
+/** Matches the device 12/24-hour setting, as the editor's time picker does. */
+fun formatTime(hour: Int, minute: Int, is24Hour: Boolean): String {
+    if (is24Hour) return "%02d:%02d".format(hour, minute)
     val period = if (hour < 12) "AM" else "PM"
     val displayHour = when (hour % 12) {
         0 -> 12

@@ -112,6 +112,12 @@ exclusions, both tiles, and exact-alarm revoke/regrant. The report records the A
 hash and five force-stopped launch timings. These timings are an emulator sample,
 not a physical-device startup benchmark. `--startup-only` runs just that sample.
 
+Restoring the clock does not always restore UsageStats. After time-shifting tests
+or smoke runs, the emulator can keep future-dated usage buckets, and foreground
+detection then sees no events for any build. The script stops early with a
+message when it finds no recent usage events. Relaunch the emulator with
+`-wipe-data`, which erases that emulator, and run it again.
+
 ## Compare equivalent release sizes
 
 Build the same app source, dependency versions, release version, and signing key

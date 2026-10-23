@@ -147,6 +147,7 @@ def run(args):
     original_auto_time = device.shell("settings", "get", "global", "auto_time")
     original_auto_zone = device.shell("settings", "get", "global", "auto_time_zone")
     original_screen_timeout = device.shell("settings", "get", "system", "screen_off_timeout")
+    original_time_format = device.shell("settings", "get", "system", "time_12_24")
     result = {"apk": str(apk), "apk_sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
               "apk_bytes": apk.stat().st_size,
               "sdk": device.shell("getprop", "ro.build.version.sdk"), "checks": []}
@@ -166,6 +167,8 @@ def run(args):
         device.shell("settings", "put", "global", "auto_time", "0")
         device.shell("settings", "put", "global", "auto_time_zone", "0")
         device.shell("settings", "put", "system", "screen_off_timeout", "1800000")
+        # The schedule steps tap AM/PM in the picker and expect AM/PM labels.
+        device.shell("settings", "put", "system", "time_12_24", "12")
         device.shell("cmd", "alarm", "set-timezone", "UTC")
         device.shell("input", "keyevent", "KEYCODE_WAKEUP")
         device.shell("wm", "dismiss-keyguard")
@@ -182,6 +185,16 @@ def run(args):
         passed("five successful release launches")
         if args.startup_only:
             return result
+        # Exclusions read UsageStats. Earlier clock shifts can leave its in-memory
+        # buckets future-dated, which hides every recent event from all builds.
+        # Events are recorded asynchronously, so give the launches a moment to land.
+        def recent_usage():
+            dump = device.shell("dumpsys", "usagestats")
+            # Android 8 has no recent-events section; skip the check there.
+            return ("Last 24 hour events" not in dump or
+                    PACKAGE in dump.split("In-memory daily stats")[0])
+        wait_for(recent_usage, "No recent UsageStats events, likely stale future-dated buckets. "
+                               "Relaunch the emulator with -wipe-data.", seconds=10)
 
         device.set_time(8, 55)
         device.tap("Grayscale", "content-desc")
@@ -234,6 +247,10 @@ def run(args):
         wait_for(lambda: not device.gray(), "timezone change must close departed schedule")
         passed("manifest timezone receiver enters and closes windows")
 
+        # google_apis images ship Google's Clock; AOSP images ship the AOSP one.
+        clock = next((p for p in ("com.google.android.deskclock", "com.android.deskclock")
+                      if device.shell("pm", "path", p, check=False)), None)
+        assert clock, "No Clock app installed to test exclusions with"
         device.tap("EXCLUSIONS", scroll=True)
         device.text("Clock")
         device.tap("Exclude Clock", "content-desc")
@@ -241,7 +258,7 @@ def run(args):
         device.tap("Grayscale", "content-desc")
         wait_for(device.gray, "grayscale should start on")
         device.shell("am", "start", "-W", "-a", "android.intent.action.MAIN", "-c",
-                     "android.intent.category.LAUNCHER", "-p", "com.android.deskclock")
+                     "android.intent.category.LAUNCHER", "-p", clock)
         wait_for(lambda: not device.gray(), "excluded Clock must stay colored")
         device.shell("input", "keyevent", "KEYCODE_HOME")
         wait_for(device.gray, "leaving Clock must restore grayscale")
@@ -309,6 +326,10 @@ def run(args):
             device.shell("settings", "delete", "system", "screen_off_timeout", check=False)
         else:
             device.shell("settings", "put", "system", "screen_off_timeout", original_screen_timeout, check=False)
+        if original_time_format == "null":
+            device.shell("settings", "delete", "system", "time_12_24", check=False)
+        else:
+            device.shell("settings", "put", "system", "time_12_24", original_time_format, check=False)
         device.shell("input", "keyevent", "KEYCODE_HOME", check=False)
 
 

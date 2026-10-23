@@ -6,7 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.logic.nextScheduleStart
-import com.princeyadav.grayout.model.formatTime12Hour
+import com.princeyadav.grayout.model.formatTime
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
 import com.princeyadav.grayout.service.GrayscaleController
@@ -38,6 +38,7 @@ class HomeViewModel(
     serviceRunning: StateFlow<Boolean>,
     private val onEnforcementIntervalChanged: (Int) -> Unit = {},
     private val clock: () -> Clock = { Clock.systemDefaultZone() },
+    private val is24HourFormat: () -> Boolean = { false },
 ) : ViewModel() {
 
     private val _isGrayscaleOn = MutableStateFlow(false)
@@ -137,7 +138,7 @@ class HomeViewModel(
                 _nextScheduleText.value = if (next == null) {
                     "No active schedule"
                 } else {
-                    formatTime12Hour(next.hour, next.minute)
+                    formatTime(next.hour, next.minute, is24HourFormat())
                 }
                 if (next == null) break
                 val nextInstant = next.atZone(zone).toInstant()
@@ -158,6 +159,7 @@ class HomeViewModelFactory(
     private val usageAccessProbe: () -> Boolean,
     private val serviceRunning: StateFlow<Boolean>,
     private val onEnforcementIntervalChanged: (Int) -> Unit,
+    private val is24HourFormat: () -> Boolean,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -171,6 +173,7 @@ class HomeViewModelFactory(
             usageAccessProbe,
             serviceRunning,
             onEnforcementIntervalChanged,
+            is24HourFormat = is24HourFormat,
         ) as T
     }
 }

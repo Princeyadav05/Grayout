@@ -13,7 +13,7 @@ import kotlinx.coroutines.delay
 
 /** ADB grants can arrive without an activity resume. Only poll while this screen is visible. */
 @Composable
-fun rememberSchedulePermission(): State<Boolean> {
+fun rememberSecureSettingsPermission(): State<Boolean> {
     val context = LocalContext.current.applicationContext
     val manager = remember(context) { GrayscaleManager(context) }
     val lifecycleOwner = LocalLifecycleOwner.current
