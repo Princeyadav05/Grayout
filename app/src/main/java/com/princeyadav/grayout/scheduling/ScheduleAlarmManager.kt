@@ -132,7 +132,7 @@ class ScheduleAlarmManager(
                 val target = if (armed != null) {
                     scheduleDeliveryTarget(armed.event(), enabledSchedules, now, zone,
                         Instant.ofEpochMilli(armed.startMillis), Instant.ofEpochMilli(armed.endMillis))
-                } else if (armed == null && generation == null && !state.isInitialized()) {
+                } else if (generation == null && !state.isInitialized()) {
                     legacyScheduleDeliveryTarget(legacyIsStart, enabledSchedules, now, zone)
                 } else null
                 val handledStart = if (target != null) {
