@@ -76,7 +76,6 @@ private fun installedVersionName(context: Context): String = try {
 object Routes {
     const val HOME = "home"
     const val SCHEDULES = "schedules"
-    const val SCHEDULE_EDITOR = "schedule_editor"
     const val SETTINGS = "settings"
     const val EXCLUSION_LIST = "exclusion_list"
 }
