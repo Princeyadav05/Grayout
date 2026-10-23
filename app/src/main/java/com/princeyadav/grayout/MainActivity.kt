@@ -66,7 +66,7 @@ class MainActivity : ComponentActivity() {
             grayscaleManager = grayscaleManager,
             enforcementPrefs = enforcementPrefs,
             exclusionPrefs = exclusionPrefs,
-            isBatteryOptimized = {
+            isBatteryUnrestricted = {
                 getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
             },
             loadExcludedIcons = { packages ->

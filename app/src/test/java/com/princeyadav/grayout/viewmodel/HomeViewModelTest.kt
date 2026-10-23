@@ -39,7 +39,7 @@ class HomeViewModelTest {
     private lateinit var grayscale: FakeGrayscaleController
     private lateinit var enforcementPrefs: EnforcementPrefs
     private lateinit var exclusionPrefs: ExclusionPrefs
-    private var batteryOptimized = true // true = exempt/granted
+    private var batteryUnrestricted = true // true = exempt/granted
     private val serviceRunning = MutableStateFlow(false)
     private val intervalCommands = mutableListOf<Int>()
     private var iconLoads = 0
@@ -47,18 +47,18 @@ class HomeViewModelTest {
     private fun vm(
         canWrite: Boolean = true,
         usageAccessGranted: Boolean = true,
-        isBatteryOptimized: Boolean = true,
+        isBatteryUnrestricted: Boolean = true,
         serviceRunning: Boolean = false,
         clock: () -> Clock = { Clock.systemDefaultZone() },
     ): HomeViewModel {
         grayscale.canWrite = canWrite
-        batteryOptimized = isBatteryOptimized
+        batteryUnrestricted = isBatteryUnrestricted
         this.serviceRunning.value = serviceRunning
         return HomeViewModel(
             grayscaleManager = grayscale,
             enforcementPrefs = enforcementPrefs,
             exclusionPrefs = exclusionPrefs,
-            isBatteryOptimized = { batteryOptimized },
+            isBatteryUnrestricted = { batteryUnrestricted },
             loadExcludedIcons = { _ ->
                 iconLoads++
                 emptyList<android.graphics.Bitmap>() to 0
@@ -190,7 +190,7 @@ class HomeViewModelTest {
         val homeViewModel = vm(
             canWrite = false,
             usageAccessGranted = false,
-            isBatteryOptimized = false,
+            isBatteryUnrestricted = false,
         )
         advanceUntilIdle()
 
@@ -205,7 +205,7 @@ class HomeViewModelTest {
         val homeViewModel = vm(
             canWrite = true,
             usageAccessGranted = true,
-            isBatteryOptimized = true,
+            isBatteryUnrestricted = true,
         )
         advanceUntilIdle()
 
@@ -220,7 +220,7 @@ class HomeViewModelTest {
         val homeViewModel = vm(
             canWrite = true,
             usageAccessGranted = true,
-            isBatteryOptimized = false,
+            isBatteryUnrestricted = false,
         )
         advanceUntilIdle()
 
@@ -235,7 +235,7 @@ class HomeViewModelTest {
         val homeViewModel = vm(
             canWrite = true,
             usageAccessGranted = false,
-            isBatteryOptimized = true,
+            isBatteryUnrestricted = true,
         )
         advanceUntilIdle()
 
