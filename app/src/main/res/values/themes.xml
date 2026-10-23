@@ -15,12 +15,4 @@
         <item name="android:windowLightStatusBar">false</item>
     </style>
 
-    <!--
-      Splash theme used by the launcher activity. Identical to the main theme
-      (the brand-bg windowBackground is what kills the white flash); kept as a
-      distinct style so we can swap in Android 12+ windowSplashScreen* items
-      later without touching the manifest.
-    -->
-    <style name="Theme.GrayOut.Splash" parent="Theme.GrayOut" />
-
 </resources>
