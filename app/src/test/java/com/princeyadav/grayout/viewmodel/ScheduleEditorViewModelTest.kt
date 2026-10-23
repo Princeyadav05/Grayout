@@ -209,7 +209,7 @@ class ScheduleEditorViewModelTest {
         advanceUntilIdle()
         vm.setName("Unsaved name")
         vm.setStartTime(7, 30)
-        vm.selectPreset("Weekends")
+        vm.selectPreset(setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY))
 
         vm.loadSchedule(id)
         advanceUntilIdle()
@@ -227,7 +227,7 @@ class ScheduleEditorViewModelTest {
 
         assertFalse(vm.isReady.value)
         vm.setName("Placeholder edit")
-        vm.selectPreset("Every day")
+        vm.selectPreset(DayOfWeek.entries.toSet())
         vm.save()
         vm.deleteSchedule()
         advanceUntilIdle()
@@ -257,7 +257,7 @@ class ScheduleEditorViewModelTest {
         vm.loadSchedule(id)
         runCurrent()
         vm.setName("Do not overwrite the loaded name")
-        vm.selectPreset("Every day")
+        vm.selectPreset(DayOfWeek.entries.toSet())
         vm.save()
         vm.deleteSchedule()
         assertEquals(1, readCount)
@@ -286,7 +286,7 @@ class ScheduleEditorViewModelTest {
         }
         vm = ScheduleEditorViewModel(ScheduleRepository(delayedDao), alarm, canWriteSecureSettings = { true })
         vm.setName("Focus")
-        vm.selectPreset("Weekdays")
+        vm.selectPreset(setOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY))
 
         vm.save()
         assertTrue(vm.isSaving.value)
@@ -407,7 +407,7 @@ class ScheduleEditorViewModelTest {
             }
         }
         vm = ScheduleEditorViewModel(ScheduleRepository(failingDao), alarm, canWriteSecureSettings = { true })
-        vm.selectPreset("Every day")
+        vm.selectPreset(DayOfWeek.entries.toSet())
         vm.save()
         advanceUntilIdle()
 
@@ -432,7 +432,7 @@ class ScheduleEditorViewModelTest {
             }
         }
         vm = ScheduleEditorViewModel(repository, failingAlarm, canWriteSecureSettings = { true })
-        vm.selectPreset("Every day")
+        vm.selectPreset(DayOfWeek.entries.toSet())
         vm.save()
         advanceUntilIdle()
         val id = dao.getAll().single().id
@@ -467,7 +467,7 @@ class ScheduleEditorViewModelTest {
         assertTrue(vm.isDeleted.value)
         vm.setName("Do not save after deletion")
         vm.setStartTime(6, 0)
-        vm.selectPreset("Every day")
+        vm.selectPreset(DayOfWeek.entries.toSet())
         vm.save()
         advanceUntilIdle()
         assertEquals("Focus", vm.name.value)
@@ -487,7 +487,7 @@ class ScheduleEditorViewModelTest {
         var granted = false
         vm = ScheduleEditorViewModel(repository, alarm, canWriteSecureSettings = { granted })
         vm.setName("My draft")
-        vm.selectPreset("Every day")
+        vm.selectPreset(DayOfWeek.entries.toSet())
         vm.setStartTime(7, 30)
         vm.save()
         advanceUntilIdle()
@@ -515,7 +515,7 @@ class ScheduleEditorViewModelTest {
     fun `save as off preserves a new draft without permission`() = runTest {
         vm = ScheduleEditorViewModel(repository, alarm, canWriteSecureSettings = { false })
         vm.setName("Later")
-        vm.selectPreset("Weekends")
+        vm.selectPreset(setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY))
         vm.saveAsDisabled()
         advanceUntilIdle()
 
