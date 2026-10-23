@@ -101,7 +101,7 @@ fun applyExclusionTransition(
             // rejected write loses the only evidence that grayscale needs restoring,
             // and every later non-excluded poll becomes None instead of retrying Exit.
             if (transition.wasGrayscaleOn &&
-                !restoreExclusionGrayscale(exclusionPrefs, grayscale)
+                !grayscale.setGrayscale(true)
             ) return@synchronized
             if (!transition.wasGrayscaleOn && exclusionPrefs.isColorRestorePending() &&
                 !restoreExclusionColor(exclusionPrefs, grayscale)

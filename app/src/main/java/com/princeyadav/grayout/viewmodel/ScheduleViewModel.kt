@@ -93,15 +93,6 @@ class ScheduleViewModel(
             }
         }
     }
-
-    fun deleteSchedule(schedule: Schedule) {
-        viewModelScope.launch {
-            withContext(NonCancellable) {
-                repository.delete(schedule)
-                alarmManager.reschedule(repository, keepManualChoice = true)
-            }
-        }
-    }
 }
 
 class ScheduleViewModelFactory(

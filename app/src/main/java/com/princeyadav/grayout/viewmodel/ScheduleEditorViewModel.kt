@@ -123,20 +123,9 @@ class ScheduleEditorViewModel(
         _overlapError.value = null
     }
 
-    fun selectPreset(preset: String) {
+    fun selectPreset(days: Set<DayOfWeek>) {
         if (isBusy || !_isReady.value || _isDeleted.value) return
-        _selectedDays.value = when (preset) {
-            "Weekdays" -> setOf(
-                DayOfWeek.MONDAY,
-                DayOfWeek.TUESDAY,
-                DayOfWeek.WEDNESDAY,
-                DayOfWeek.THURSDAY,
-                DayOfWeek.FRIDAY,
-            )
-            "Weekends" -> setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
-            "Every day" -> DayOfWeek.entries.toSet()
-            else -> _selectedDays.value
-        }
+        _selectedDays.value = days
         _overlapError.value = null
     }
 

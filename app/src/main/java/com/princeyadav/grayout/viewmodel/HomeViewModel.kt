@@ -31,7 +31,7 @@ class HomeViewModel(
     private val grayscaleManager: GrayscaleController,
     private val enforcementPrefs: EnforcementPrefs,
     private val exclusionPrefs: ExclusionPrefs,
-    private val isBatteryOptimized: () -> Boolean,
+    private val isBatteryUnrestricted: () -> Boolean,
     private val loadExcludedIcons: (List<String>) -> Pair<List<Bitmap>, Int>,
     private val ioDispatcher: CoroutineDispatcher,
     private val usageAccessProbe: () -> Boolean,
@@ -115,7 +115,7 @@ class HomeViewModel(
             var count = 0
             if (!grayscaleManager.canWriteSecureSettings()) count++
             if (!usageAccessProbe()) count++
-            if (!isBatteryOptimized()) count++
+            if (!isBatteryUnrestricted()) count++
             _needsAttentionCount.value = count
         }
     }
@@ -152,7 +152,7 @@ class HomeViewModelFactory(
     private val grayscaleManager: GrayscaleController,
     private val enforcementPrefs: EnforcementPrefs,
     private val exclusionPrefs: ExclusionPrefs,
-    private val isBatteryOptimized: () -> Boolean,
+    private val isBatteryUnrestricted: () -> Boolean,
     private val loadExcludedIcons: (List<String>) -> Pair<List<Bitmap>, Int>,
     private val ioDispatcher: CoroutineDispatcher,
     private val usageAccessProbe: () -> Boolean,
@@ -165,7 +165,7 @@ class HomeViewModelFactory(
             grayscaleManager,
             enforcementPrefs,
             exclusionPrefs,
-            isBatteryOptimized,
+            isBatteryUnrestricted,
             loadExcludedIcons,
             ioDispatcher,
             usageAccessProbe,

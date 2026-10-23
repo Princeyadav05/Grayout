@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.model.formatTime12Hour
+import com.princeyadav.grayout.ui.components.DayLabels
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.HapticAction
 import com.princeyadav.grayout.ui.components.SchedulePermissionNotice
@@ -82,7 +83,7 @@ fun ScheduleEditorScreen(
     onToggleDay: (DayOfWeek) -> Unit,
     onSetStartTime: (Int, Int) -> Unit,
     onSetEndTime: (Int, Int) -> Unit,
-    onSelectPreset: (String) -> Unit,
+    onSelectPreset: (Set<DayOfWeek>) -> Unit,
     onSave: () -> Unit,
     onDelete: () -> Unit,
     onBack: () -> Unit,
@@ -462,22 +463,12 @@ private fun TimeCard(
 private fun DaysCard(
     selectedDays: Set<DayOfWeek>,
     onToggleDay: (DayOfWeek) -> Unit,
-    onSelectPreset: (String) -> Unit,
+    onSelectPreset: (Set<DayOfWeek>) -> Unit,
     enabled: Boolean,
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
-
-    val dayLabels = listOf(
-        DayOfWeek.MONDAY to "M",
-        DayOfWeek.TUESDAY to "T",
-        DayOfWeek.WEDNESDAY to "W",
-        DayOfWeek.THURSDAY to "T",
-        DayOfWeek.FRIDAY to "F",
-        DayOfWeek.SATURDAY to "S",
-        DayOfWeek.SUNDAY to "S",
-    )
 
     val weekdays = setOf(
         DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
@@ -505,7 +496,7 @@ private fun DaysCard(
                 horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
             ) {
                 val view = LocalView.current
-                dayLabels.forEach { (day, label) ->
+                DayLabels.forEach { (day, label) ->
                     val isSelected = day in selectedDays
                     val dayName = day.getDisplayName(TextStyle.FULL, Locale.getDefault())
 
@@ -567,7 +558,7 @@ private fun DaysCard(
                     PresetChip(
                         label = label,
                         isActive = selectedDays == preset,
-                        onClick = { onSelectPreset(label) },
+                        onClick = { onSelectPreset(preset) },
                         enabled = enabled,
                     )
                 }

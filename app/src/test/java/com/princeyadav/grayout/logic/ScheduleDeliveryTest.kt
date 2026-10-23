@@ -86,7 +86,7 @@ class ScheduleDeliveryTest {
     fun `touching boundaries retain the closing end regardless of row order`() {
         val later = schedule.copy(id = 2, startTimeHour = 10, endTimeHour = 11)
         for (rows in listOf(listOf(schedule, later), listOf(later, schedule))) {
-            val next = checkNotNull(nextScheduleEvent(rows, start.plusMinutes(30)))
+            val next = checkNotNull(nextScheduleEvent(rows, start.plusMinutes(30).toInstant(ZoneOffset.UTC), ZoneOffset.UTC))
             assertFalse(next.isStart)
             assertEquals(schedule.id, next.scheduleId)
             assertEquals(start, next.windowStart)

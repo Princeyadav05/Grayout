@@ -76,7 +76,6 @@ private fun installedVersionName(context: Context): String = try {
 object Routes {
     const val HOME = "home"
     const val SCHEDULES = "schedules"
-    const val SCHEDULE_EDITOR = "schedule_editor"
     const val SETTINGS = "settings"
     const val EXCLUSION_LIST = "exclusion_list"
 }
@@ -388,6 +387,8 @@ fun GrayoutNavGraph(
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                     viewModel.checkUsageAccess()
+                    // Also performs the initial load, keeping one refresh per resume.
+                    viewModel.refreshApps()
                 }
             }
 
@@ -406,7 +407,6 @@ fun GrayoutNavGraph(
                     }
                 },
                 onBack = { navController.popBackStack() },
-                onRefresh = viewModel::refreshApps,
             )
         }
     }

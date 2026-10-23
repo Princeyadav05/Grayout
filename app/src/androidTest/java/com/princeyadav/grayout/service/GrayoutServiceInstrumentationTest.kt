@@ -121,7 +121,7 @@ class GrayoutServiceInstrumentationTest {
         exclusions.setExcludedAppActive(true)
         Settings.Secure.putInt(context.contentResolver, ENABLED, 0)
         Settings.Secure.putInt(context.contentResolver, MODE, -1)
-        scheduleEnforcementAlarm(context, System.currentTimeMillis() + 5 * 60_000)
+        scheduleEnforcementAlarm(context, System.currentTimeMillis() + 5 * 60_000, 5)
         val originalAlarm = checkNotNull(enforcementAlarm())
 
         // A fresh service with no explicit user interval choice must retain the token,

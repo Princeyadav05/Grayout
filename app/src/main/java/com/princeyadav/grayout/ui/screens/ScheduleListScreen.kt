@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.model.Schedule
 import com.princeyadav.grayout.model.formatTime12Hour
+import com.princeyadav.grayout.ui.components.DayLabels
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
 import com.princeyadav.grayout.ui.components.HapticAction
@@ -46,7 +47,6 @@ import com.princeyadav.grayout.ui.components.SchedulePermissionNotice
 import com.princeyadav.grayout.ui.components.performHaptic
 import com.princeyadav.grayout.ui.theme.BrandAccent
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
-import java.time.DayOfWeek
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -288,7 +288,6 @@ private fun ScheduleCard(
 
                 DayDotsRow(
                     selectedDays = days,
-                    dotSize = 32.dp,
                     isEnabled = schedule.isEnabled,
                 )
             }
@@ -299,7 +298,6 @@ private fun ScheduleCard(
 @Composable
 private fun DayDotsRow(
     selectedDays: Set<String>,
-    dotSize: androidx.compose.ui.unit.Dp,
     isEnabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -307,17 +305,7 @@ private fun DayDotsRow(
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
 
-    val dayLabels = listOf(
-        DayOfWeek.MONDAY to "M",
-        DayOfWeek.TUESDAY to "T",
-        DayOfWeek.WEDNESDAY to "W",
-        DayOfWeek.THURSDAY to "T",
-        DayOfWeek.FRIDAY to "F",
-        DayOfWeek.SATURDAY to "S",
-        DayOfWeek.SUNDAY to "S",
-    )
-
-    val selectedNames = dayLabels
+    val selectedNames = DayLabels
         .filter { (day, _) -> day.name.take(3) in selectedDays }
         .map { (day, _) -> day.getDisplayName(TextStyle.SHORT, Locale.getDefault()) }
     val daysDescription =
@@ -327,14 +315,14 @@ private fun DayDotsRow(
         horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
         modifier = modifier.clearAndSetSemantics { contentDescription = daysDescription },
     ) {
-        dayLabels.forEach { (day, label) ->
+        DayLabels.forEach { (day, label) ->
             val dayKey = day.name.take(3)
             val isSelected = dayKey in selectedDays
 
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(dotSize)
+                    .size(32.dp)
                     .background(
                         if (isSelected) colors.text else Color.Transparent,
                         CircleShape,

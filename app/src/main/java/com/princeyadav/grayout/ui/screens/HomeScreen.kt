@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.R
+import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
 import com.princeyadav.grayout.ui.components.HapticAction
@@ -61,12 +62,12 @@ fun HomeScreen(
     onToggle: () -> Unit,
     onEnforcementIntervalChange: (Int) -> Unit,
     onNavigateToExclusions: () -> Unit,
-    onNavigateToSchedules: () -> Unit = {},
-    nextScheduleText: String = "No active schedule",
-    excludedAppIcons: List<Bitmap> = emptyList(),
-    excludedOverflowCount: Int = 0,
-    needsAttentionCount: Int = 0,
-    onAttentionClick: () -> Unit = {},
+    onNavigateToSchedules: () -> Unit,
+    nextScheduleText: String,
+    excludedAppIcons: List<Bitmap>,
+    excludedOverflowCount: Int,
+    needsAttentionCount: Int,
+    onAttentionClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val dimens = GrayoutTheme.dimens
@@ -122,10 +123,11 @@ fun HomeScreen(
 private fun AppHeader() {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
+    val dimens = GrayoutTheme.dimens
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
         modifier = Modifier.padding(vertical = 12.dp),
     ) {
         Image(
@@ -175,7 +177,7 @@ private fun NeedsAttentionStrip(
                     .size(6.dp)
                     .background(colors.danger, CircleShape),
             )
-            Spacer(modifier = Modifier.size(8.dp))
+            Spacer(modifier = Modifier.size(dimens.tightGap))
             Text(
                 text = message,
                 style = typography.bodyMedium,
@@ -206,108 +208,101 @@ private fun StatusHeroCard(
     val view = LocalView.current
 
     GrayoutCard(isActive = isGrayscaleOn, wash = true) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .background(
-                                if (isGrayscaleOn) colors.text else BrandAccent,
-                                CircleShape,
-                            ),
-                    )
+        Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .background(
+                            if (isGrayscaleOn) colors.text else BrandAccent,
+                            CircleShape,
+                        ),
+                )
+                Text(
+                    text = "STATUS",
+                    style = typography.labelSmall,
+                    color = BrandAccent.copy(alpha = 0.75f),
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = if (isGrayscaleOn) "Grayscale on" else "Grayscale off",
+                style = typography.headingLarge,
+                color = colors.text,
+            )
+
+            Spacer(modifier = Modifier.height(dimens.tightGap))
+
+            Text(
+                text = if (isGrayscaleOn) "Your screen is muted" else "Tap to mute your screen",
+                style = typography.bodyMedium,
+                color = colors.textMuted,
+            )
+
+            Spacer(modifier = Modifier.height(dimens.sectionGap))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(dimens.cardGap),
+            ) {
+                if (enforcementInterval > 0) {
                     Text(
-                        text = "STATUS",
-                        style = typography.labelSmall,
-                        color = BrandAccent.copy(alpha = 0.75f),
+                        text = "${enforcementInterval}m",
+                        style = typography.labelXSmall.copy(fontWeight = FontWeight.ExtraBold),
+                        color = colors.bg,
+                        modifier = Modifier
+                            .background(
+                                colors.text,
+                                RoundedCornerShape(dimens.radiusFull),
+                            )
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
-
                 Text(
-                    text = if (isGrayscaleOn) "Grayscale on" else "Grayscale off",
-                    style = typography.headingLarge,
+                    text = nextScheduleText,
+                    style = typography.monoSmall,
+                    color = colors.text,
+                    modifier = Modifier
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { onNextScheduleClick() },
+                )
+            }
+
+            Spacer(modifier = Modifier.height(dimens.sectionGap))
+
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = colors.border,
+            )
+
+            Spacer(modifier = Modifier.height(dimens.sectionGap))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "Grayscale",
+                    style = typography.bodyMedium,
                     color = colors.text,
                 )
-
-                Spacer(modifier = Modifier.height(dimens.tightGap))
-
-                Text(
-                    text = if (isGrayscaleOn) "Your screen is muted" else "Tap to mute your screen",
-                    style = typography.bodyMedium,
-                    color = colors.textMuted,
+                GrayoutToggle(
+                    checked = isGrayscaleOn,
+                    onCheckedChange = {
+                        view.performHaptic(HapticAction.Toggle)
+                        onToggle()
+                    },
+                    contentDescription = "Grayscale",
                 )
-
-                Spacer(modifier = Modifier.height(dimens.sectionGap))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(dimens.cardGap),
-                ) {
-                    if (enforcementInterval > 0) {
-                        Text(
-                            text = "${enforcementInterval}m",
-                            style = typography.labelXSmall.copy(fontWeight = FontWeight.ExtraBold),
-                            color = colors.bg,
-                            modifier = Modifier
-                                .background(
-                                    colors.text,
-                                    RoundedCornerShape(dimens.radiusFull),
-                                )
-                                .border(
-                                    1.dp,
-                                    Color.Transparent,
-                                    RoundedCornerShape(dimens.radiusFull),
-                                )
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
-                        )
-                    }
-
-                    Text(
-                        text = nextScheduleText,
-                        style = typography.monoSmall,
-                        color = colors.text,
-                        modifier = Modifier
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) { onNextScheduleClick() },
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(dimens.sectionGap))
-
-                HorizontalDivider(
-                    thickness = 1.dp,
-                    color = colors.border,
-                )
-
-                Spacer(modifier = Modifier.height(dimens.sectionGap))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        text = "Grayscale",
-                        style = typography.bodyMedium,
-                        color = colors.text,
-                    )
-                    GrayoutToggle(
-                        checked = isGrayscaleOn,
-                        onCheckedChange = {
-                            view.performHaptic(HapticAction.Toggle)
-                            onToggle()
-                        },
-                        contentDescription = "Grayscale",
-                    )
-                }
             }
         }
     }
@@ -348,17 +343,9 @@ private fun EnforcementCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                val options = listOf(
-                    0 to "Off",
-                    1 to "1m",
-                    5 to "5m",
-                    10 to "10m",
-                    15 to "15m",
-                    30 to "30m",
-                )
-                options.forEach { (value, label) ->
+                EnforcementPrefs.INTERVAL_OPTIONS.forEach { value ->
                     EnforcementChip(
-                        label = label,
+                        label = if (value == 0) "Off" else "${value}m",
                         isActive = enforcementInterval == value,
                         onClick = { onIntervalChange(value) },
                         modifier = Modifier.weight(1f),
@@ -492,11 +479,11 @@ private fun ExcludedAppsCard(
                     Spacer(modifier = Modifier.height(dimens.tightGap))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
                     ) {
                         excludedAppIcons.forEach { icon ->
                             Image(
-                                bitmap = icon.asImageBitmap(),
+                                bitmap = remember(icon) { icon.asImageBitmap() },
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(20.dp)

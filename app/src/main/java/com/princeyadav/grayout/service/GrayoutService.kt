@@ -391,8 +391,8 @@ class GrayoutService : Service() {
         const val CHANNEL_ID = "grayout_service"
         const val NOTIFICATION_ID = 1
         const val EXTRA_INTERVAL = "enforcement_interval_minutes"
-        // Schedule/boot intents also carry an interval; only UI/tile choices
-        // should reset a surviving countdown on the first service command.
+        // Only UI/tile intents carry an interval. Other starts read the saved one,
+        // so they can't reset a surviving countdown on the first service command.
         const val EXTRA_USER_INTERVAL_CHANGE = "user_interval_change"
         const val ACTION_ENFORCEMENT_TICK = "com.princeyadav.grayout.ENFORCEMENT_TICK"
         // internal so EnforcementAlarmReceiver (via scheduleEnforcementAlarm) can
@@ -438,16 +438,14 @@ fun reEnableOnExclusionEnd(
  * alarm when exact alarms are unavailable or revoked, mirroring the
  * countdown-alarm contract.
  */
-internal fun scheduleEnforcementAlarm(context: Context, triggerAtMillis: Long, intervalMinutes: Int? = null) {
+internal fun scheduleEnforcementAlarm(context: Context, triggerAtMillis: Long, intervalMinutes: Int) {
     scheduleEnforcementAlarmAtElapsed(context, SystemClock.elapsedRealtime() +
         (triggerAtMillis - System.currentTimeMillis()), intervalMinutes)
 }
 
-internal fun scheduleEnforcementAlarmAtElapsed(context: Context, elapsedTarget: Long, intervalMinutes: Int? = null) {
+internal fun scheduleEnforcementAlarmAtElapsed(context: Context, elapsedTarget: Long, intervalMinutes: Int) {
     synchronized(GrayscaleStateLock) {
-        val interval = intervalMinutes ?: EnforcementPrefs(context.getSharedPreferences(
-            EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)).getInterval()
-        val generation = context.enforcementAlarmState().save(elapsedTarget, context.bootCount(), interval)
+        val generation = context.enforcementAlarmState().save(elapsedTarget, context.bootCount(), intervalMinutes)
         val intent = Intent(context, EnforcementAlarmReceiver::class.java)
             .setAction(GrayoutService.ACTION_ENFORCEMENT_TICK)
             .putExtra(EnforcementAlarmReceiver.EXTRA_GENERATION, generation)
@@ -486,7 +484,7 @@ fun reconcileStrandedExclusion(
 ): Boolean = synchronized(GrayscaleStateLock) {
     if (!exclusionPrefs.isExcludedAppActive()) return@synchronized false
     val wasOn = exclusionPrefs.wasGrayscaleOnBeforeExclusion()
-    if (wasOn && !restoreExclusionGrayscale(exclusionPrefs, grayscale)) return@synchronized false
+    if (wasOn && !grayscale.setGrayscale(true)) return@synchronized false
     if (!wasOn && exclusionPrefs.isColorRestorePending() &&
         !restoreExclusionColor(exclusionPrefs, grayscale)
     ) return@synchronized false
@@ -526,7 +524,7 @@ fun preGrayOnScreenOff(
     ) {
         return@synchronized false
     }
-    if (!restoreExclusionGrayscale(exclusionPrefs, grayscale)) return@synchronized false
+    if (!grayscale.setGrayscale(true)) return@synchronized false
     exclusionPrefs.clearExclusionState()
     true
 }

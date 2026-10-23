@@ -30,12 +30,8 @@ class ScheduleReceiver : BroadcastReceiver() {
                 val handledStart = alarmManager.handleAlarm(repository, generation, legacyIsStart)
                 if (handledStart != null) {
                     val prefs = context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
-                    val interval = serviceIntervalExtraForScheduleEvent(handledStart, EnforcementPrefs(prefs).getInterval())
-                    if (interval != null) {
-                        context.startForegroundServiceSafely(
-                            Intent(context, GrayoutService::class.java)
-                                .putExtra(GrayoutService.EXTRA_INTERVAL, interval)
-                        )
+                    if (shouldStartServiceForScheduleEvent(handledStart, EnforcementPrefs(prefs).getInterval())) {
+                        context.startForegroundServiceSafely(Intent(context, GrayoutService::class.java))
                     }
                 }
             } finally {
@@ -45,15 +41,11 @@ class ScheduleReceiver : BroadcastReceiver() {
     }
 }
 
-internal fun serviceIntervalExtraForScheduleEvent(
+/** A start only needs the service when enforcement is on; an end always reconciles it. */
+internal fun shouldStartServiceForScheduleEvent(
     isStart: Boolean,
     persistedInterval: Int,
-): Int? {
-    return when {
-        isStart && persistedInterval <= 0 -> null
-        else -> persistedInterval
-    }
-}
+): Boolean = !isStart || persistedInterval > 0
 
 /**
  * Starts the foreground service, swallowing only the background-start rejection

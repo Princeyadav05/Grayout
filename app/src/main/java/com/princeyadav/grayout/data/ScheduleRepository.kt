@@ -32,8 +32,7 @@ class ScheduleRepository(private val dao: ScheduleDao) {
      * The first stored schedule whose window overlaps the candidate window in
      * real time, or null. Checks *all* schedules (enabled or not): the editor is
      * the only creation path, so refusing any geometric overlap here keeps the DB
-     * free of overlapping pairs, which in turn makes re-enabling a schedule safe
-     * without a separate toggle-time check.
+     * free of overlapping pairs.
      */
     suspend fun findOverlap(
         daysOfWeek: String,

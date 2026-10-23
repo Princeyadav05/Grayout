@@ -109,7 +109,6 @@ All motion constants live in the `GrayoutMotion` object in `Motion.kt`. These ar
 |------------------|-------------|--------------------------------------------------------------|
 | `Fast`           | 180 ms      | Chip flicks, pill state, press/hover, toggle thumb           |
 | `Slow`           | 320 ms      | Main state changes, card border tint, screen transitions    |
-| `BreathPeriodMs` | 4000 ms     | Full period of the hero breathing pulse                      |
 | `Easing`         | `FastOutSlowInEasing` | The single easing curve everywhere             |
 
 No spring physics, no bounce, no custom easings. If you need a duration, pick `Fast` or `Slow`.

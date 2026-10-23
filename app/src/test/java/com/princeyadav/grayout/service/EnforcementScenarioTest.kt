@@ -2,7 +2,7 @@ package com.princeyadav.grayout.service
 
 import com.princeyadav.grayout.fakes.FakeGrayscaleController
 import com.princeyadav.grayout.fakes.FakeSharedPreferences
-import com.princeyadav.grayout.scheduling.serviceIntervalExtraForScheduleEvent
+import com.princeyadav.grayout.scheduling.shouldStartServiceForScheduleEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -504,13 +504,9 @@ class EnforcementScenarioTest {
         grayscale.setGrayscale(false)
         assertFalse(grayscale.isGrayscaleEnabled())
 
-        // 2. Then send the receiver's interval extra to service.
-        val currentInterval = checkNotNull(
-            serviceIntervalExtraForScheduleEvent(
-                isStart = false,
-                persistedInterval = enforcementPrefs.getInterval(),
-            )
-        )
+        // 2. Then start the service, which reads the persisted interval.
+        val currentInterval = enforcementPrefs.getInterval()
+        assertTrue(shouldStartServiceForScheduleEvent(isStart = false, persistedInterval = currentInterval))
         assertEquals(5, currentInterval)
         assertTrue(shouldServiceRun(currentInterval, exclusionPrefs.getExcludedCount()))
 
@@ -530,12 +526,8 @@ class EnforcementScenarioTest {
 
         // Schedule ends: grayscale off first (already off), then persisted interval.
         grayscale.setGrayscale(false)
-        val interval = checkNotNull(
-            serviceIntervalExtraForScheduleEvent(
-                isStart = false,
-                persistedInterval = enforcementPrefs.getInterval(),
-            )
-        )
+        val interval = enforcementPrefs.getInterval()
+        assertTrue(shouldStartServiceForScheduleEvent(isStart = false, persistedInterval = interval))
         assertEquals(5, interval)
         assertTrue(shouldServiceRun(interval, exclusionPrefs.getExcludedCount()))
 

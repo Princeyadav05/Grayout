@@ -20,10 +20,7 @@ class BootReceiver : BroadcastReceiver() {
         val exclusionPrefs = ExclusionPrefs(prefs)
         val interval = enforcementPrefs.getInterval()
         if (shouldServiceRun(interval, exclusionPrefs.getExcludedCount())) {
-            context.startForegroundService(
-                Intent(context, GrayoutService::class.java)
-                    .putExtra(GrayoutService.EXTRA_INTERVAL, interval)
-            )
+            context.startForegroundService(Intent(context, GrayoutService::class.java))
         }
 
         val db = GrayoutDatabase.getInstance(context)

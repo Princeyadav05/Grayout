@@ -132,7 +132,7 @@ class ScheduleAlarmManager(
                 val target = if (armed != null) {
                     scheduleDeliveryTarget(armed.event(), enabledSchedules, now, zone,
                         Instant.ofEpochMilli(armed.startMillis), Instant.ofEpochMilli(armed.endMillis))
-                } else if (armed == null && generation == null && !state.isInitialized()) {
+                } else if (generation == null && !state.isInitialized()) {
                     legacyScheduleDeliveryTarget(legacyIsStart, enabledSchedules, now, zone)
                 } else null
                 val handledStart = if (target != null) {
@@ -215,12 +215,8 @@ class ScheduleAlarmManager(
         if (reconciliationState.read() != null) scheduleReconciliationRetry()
 
         if (isCurrentlyInSchedule) {
-            val enforcementPrefs = EnforcementPrefs(prefs)
-            val interval = enforcementPrefs.getInterval()
-            if (interval > 0) {
-                val serviceIntent = Intent(context, GrayoutService::class.java)
-                    .putExtra(GrayoutService.EXTRA_INTERVAL, interval)
-                context.startForegroundServiceSafely(serviceIntent)
+            if (EnforcementPrefs(prefs).getInterval() > 0) {
+                context.startForegroundServiceSafely(Intent(context, GrayoutService::class.java))
             }
         }
     }

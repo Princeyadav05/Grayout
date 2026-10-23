@@ -40,7 +40,7 @@ internal class EnforcementAlarmState(private val prefs: SharedPreferences) {
         return nowElapsedMs >= deadline
     }
 
-    fun save(deadlineElapsedMs: Long, bootCount: Int, intervalMinutes: Int = EnforcementPrefs(prefs).getInterval()): String {
+    fun save(deadlineElapsedMs: Long, bootCount: Int, intervalMinutes: Int): String {
         val generation = generation()?.takeIf { deadline(bootCount, intervalMinutes) == deadlineElapsedMs }
             ?: UUID.randomUUID().toString()
         // Permission revocation can kill the process immediately after registration.

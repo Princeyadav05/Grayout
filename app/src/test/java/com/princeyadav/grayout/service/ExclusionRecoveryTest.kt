@@ -82,15 +82,15 @@ class ExclusionRecoveryTest {
         grayscale.canWrite = false
         foreground.foregroundPackage = "outside"
         detector().tickOnce()
-        assertTrue(prefs.hasPendingDisplayWrite())
+        assertTrue(prefs.isExcludedAppActive())
 
         reconcileExclusionOnStart(ExclusionPrefs(storage), grayscale, true)
-        assertTrue(prefs.hasPendingDisplayWrite())
+        assertTrue(prefs.isExcludedAppActive())
         assertTrue(prefs.wasGrayscaleOnBeforeExclusion())
         grayscale.canWrite = true
         detector().tickOnce()
         assertTrue(grayscale.grayscaleEnabled)
-        assertFalse(prefs.hasPendingDisplayWrite())
+        assertFalse(prefs.isExcludedAppActive())
     }
 
     @Test
@@ -119,9 +119,14 @@ class ExclusionRecoveryTest {
         savedSession(wasOn = true)
         grayscale.canWrite = false
         reconcileExclusionOnStart(prefs, grayscale, false)
+        assertEquals(1, grayscale.setGrayscaleCallCount)
         assertTrue(prefs.isExcludedAppActive())
         assertTrue(prefs.wasGrayscaleOnBeforeExclusion())
-        assertTrue(prefs.hasPendingDisplayWrite())
+
+        grayscale.canWrite = true
+        reconcileExclusionOnStart(ExclusionPrefs(storage), grayscale, false)
+        assertTrue(grayscale.grayscaleEnabled)
+        assertFalse(prefs.isExcludedAppActive())
     }
 
     @Test
