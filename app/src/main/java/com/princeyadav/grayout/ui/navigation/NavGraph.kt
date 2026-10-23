@@ -41,7 +41,7 @@ import com.princeyadav.grayout.service.GrayscaleManager
 import com.princeyadav.grayout.service.GrayoutService
 import com.princeyadav.grayout.service.UsageAccess
 import com.princeyadav.grayout.ui.components.AdbCommandSheet
-import com.princeyadav.grayout.ui.rememberSchedulePermission
+import com.princeyadav.grayout.ui.rememberSecureSettingsPermission
 import com.princeyadav.grayout.ui.systemTimeChanges
 import com.princeyadav.grayout.ui.screens.ExclusionListScreen
 import com.princeyadav.grayout.ui.screens.HomeScreen
@@ -84,7 +84,6 @@ object Routes {
 fun GrayoutNavGraph(
     navController: NavHostController,
     homeViewModel: HomeViewModel,
-    isAdbPermissionGranted: Boolean,
     isBatteryUnrestricted: Boolean,
     onBatteryOptimizationClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -174,7 +173,7 @@ fun GrayoutNavGraph(
             val repository = remember { ScheduleRepository(db.scheduleDao()) }
             val scheduleAlarmManager = remember { ScheduleAlarmManager(context) }
             val grayscaleManager = remember { GrayscaleManager(context.applicationContext) }
-            val isPermissionGranted by rememberSchedulePermission()
+            val isPermissionGranted by rememberSecureSettingsPermission()
             var showPermissionSetup by remember { mutableStateOf(false) }
             if (showPermissionSetup) {
                 AdbCommandSheet(
@@ -223,7 +222,7 @@ fun GrayoutNavGraph(
             val repository = remember { ScheduleRepository(db.scheduleDao()) }
             val scheduleAlarmManager = remember { ScheduleAlarmManager(context) }
             val grayscaleManager = remember { GrayscaleManager(context.applicationContext) }
-            val isPermissionGranted by rememberSchedulePermission()
+            val isPermissionGranted by rememberSecureSettingsPermission()
             var showPermissionSetup by remember { mutableStateOf(false) }
             if (showPermissionSetup) {
                 AdbCommandSheet(
@@ -298,6 +297,7 @@ fun GrayoutNavGraph(
             var needsExactAlarms by remember { mutableStateOf(exactAlarmAccessNeeded()) }
             val isServiceRunning by homeViewModel.isServiceRunning.collectAsStateWithLifecycle()
             val versionName = remember(context) { installedVersionName(context) }
+            val isAdbPermissionGranted by rememberSecureSettingsPermission()
 
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {

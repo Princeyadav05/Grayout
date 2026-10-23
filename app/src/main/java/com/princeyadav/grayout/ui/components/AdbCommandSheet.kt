@@ -156,7 +156,7 @@ fun AdbCommandSheet(
                 text = if (isGranted) {
                     "Permission granted"
                 } else {
-                    "Waiting for grant. Re-open this screen after running."
+                    "Waiting for grant. This updates on its own."
                 },
                 style = typography.labelSmall,
                 color = if (isGranted) colors.text else colors.textMuted,
