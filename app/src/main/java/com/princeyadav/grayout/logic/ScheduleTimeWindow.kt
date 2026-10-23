@@ -37,11 +37,12 @@ internal fun nextScheduleEvent(
     // interior start in overlapping legacy/DST windows must not lose that end.
     val activeNow = schedules.any { isCurrentlyFiring(it, now, zone) }
     for (schedule in schedules.filter { it.isEnabled }) {
+        val days = schedule.daysOfWeekList
         val start = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
         val end = LocalTime.of(schedule.endTimeHour, schedule.endTimeMinute)
         for (offset in -1L..7L) {
             val date = today.plusDays(offset)
-            if (date.dayOfWeek !in schedule.daysOfWeekList) continue
+            if (date.dayOfWeek !in days) continue
             val from = date.atTime(start)
             val until = (if (start.isBefore(end)) date else date.plusDays(1)).atTime(end)
             val fromInstant = from.atZone(zone).toInstant()
@@ -67,10 +68,11 @@ internal fun nextScheduleEvent(
 internal fun isCurrentlyFiring(schedule: Schedule, now: Instant, zone: ZoneId): Boolean {
     if (!schedule.isEnabled) return false
     val today = now.atZone(zone).toLocalDate()
+    val days = schedule.daysOfWeekList
     val start = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
     val end = LocalTime.of(schedule.endTimeHour, schedule.endTimeMinute)
     return listOf(today.minusDays(1), today).any { date ->
-        if (date.dayOfWeek !in schedule.daysOfWeekList) false else {
+        if (date.dayOfWeek !in days) false else {
             val from = date.atTime(start).atZone(zone).toInstant()
             val until = (if (start.isBefore(end)) date else date.plusDays(1)).atTime(end).atZone(zone).toInstant()
             !now.isBefore(from) && now.isBefore(until)
