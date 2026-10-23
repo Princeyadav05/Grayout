@@ -58,12 +58,11 @@ class EnforcementCycleTile : TileService() {
     }
 }
 
-private val INTERVALS = intArrayOf(0, 1, 5, 10, 15, 30)
-
 private fun nextInterval(current: Int): Int {
-    val index = INTERVALS.indexOf(current)
-    return if (index == -1) INTERVALS[0]
-    else INTERVALS[(index + 1) % INTERVALS.size]
+    val options = EnforcementPrefs.INTERVAL_OPTIONS
+    val index = options.indexOf(current)
+    return if (index == -1) options[0]
+    else options[(index + 1) % options.size]
 }
 
 /**

@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.R
+import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
 import com.princeyadav.grayout.ui.components.HapticAction
@@ -348,17 +349,9 @@ private fun EnforcementCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                val options = listOf(
-                    0 to "Off",
-                    1 to "1m",
-                    5 to "5m",
-                    10 to "10m",
-                    15 to "15m",
-                    30 to "30m",
-                )
-                options.forEach { (value, label) ->
+                EnforcementPrefs.INTERVAL_OPTIONS.forEach { value ->
                     EnforcementChip(
-                        label = label,
+                        label = if (value == 0) "Off" else "${value}m",
                         isActive = enforcementInterval == value,
                         onClick = { onIntervalChange(value) },
                         modifier = Modifier.weight(1f),
