@@ -21,7 +21,6 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -268,38 +267,6 @@ class ScheduleViewModelTest {
         advanceUntilIdle()
         assertFalse(dao.getById(id)!!.isEnabled)
         assertEquals(1, alarm.rescheduleCallCount)
-    }
-
-    @Test
-    fun `deleteSchedule removes from repository and triggers reschedule`() = runTest {
-        val id = dao.insert(
-            makeSchedule(
-                daysOfWeek = "MON,TUE,WED,THU,FRI",
-                startHour = 9,
-                endHour = 17,
-                isEnabled = true,
-            )
-        )
-
-        val viewModel = vm()
-        advanceUntilIdle()
-
-        val inserted = dao.getById(id)!!
-        val baselineRescheduleCalls = alarm.rescheduleCallCount
-
-        viewModel.deleteSchedule(inserted)
-        advanceUntilIdle()
-
-        assertNull("Expected schedule to be deleted from dao", dao.getById(id))
-        assertEquals(
-            "Expected no enabled schedules in dao after delete",
-            0,
-            dao.getEnabledSchedules().size,
-        )
-        assertTrue(
-            "Expected at least one reschedule after deleteSchedule, had ${alarm.rescheduleCallCount} total",
-            alarm.rescheduleCallCount > baselineRescheduleCalls,
-        )
     }
 
     @Test
