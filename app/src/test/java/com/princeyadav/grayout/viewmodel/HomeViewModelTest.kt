@@ -40,6 +40,7 @@ class HomeViewModelTest {
     private lateinit var enforcementPrefs: EnforcementPrefs
     private lateinit var exclusionPrefs: ExclusionPrefs
     private var batteryUnrestricted = true // true = exempt/granted
+    private var usageAccess = true
     private val serviceRunning = MutableStateFlow(false)
     private val intervalCommands = mutableListOf<Int>()
     private var iconLoads = 0
@@ -53,6 +54,7 @@ class HomeViewModelTest {
     ): HomeViewModel {
         grayscale.canWrite = canWrite
         batteryUnrestricted = isBatteryUnrestricted
+        usageAccess = usageAccessGranted
         this.serviceRunning.value = serviceRunning
         return HomeViewModel(
             grayscaleManager = grayscale,
@@ -64,7 +66,7 @@ class HomeViewModelTest {
                 emptyList<android.graphics.Bitmap>() to 0
             },
             ioDispatcher = dispatcherRule.dispatcher,
-            usageAccessProbe = { usageAccessGranted },
+            usageAccessProbe = { usageAccess },
             serviceRunning = this.serviceRunning,
             onEnforcementIntervalChanged = intervalCommands::add,
             clock = clock,
@@ -183,6 +185,22 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertEquals(1, iconLoads)
+    }
+
+    @Test
+    fun `refreshExclusionStatus reads the current excluded count and usage access`() {
+        val homeViewModel = vm(usageAccessGranted = false)
+        homeViewModel.refreshExclusionStatus()
+        assertEquals(0, homeViewModel.excludedAppCount.value)
+        assertFalse(homeViewModel.isUsageAccessGranted.value)
+
+        exclusionPrefs.addExcludedPackage("com.example.one")
+        exclusionPrefs.addExcludedPackage("com.example.two")
+        usageAccess = true
+        homeViewModel.refreshExclusionStatus()
+
+        assertEquals(2, homeViewModel.excludedAppCount.value)
+        assertTrue(homeViewModel.isUsageAccessGranted.value)
     }
 
     @Test

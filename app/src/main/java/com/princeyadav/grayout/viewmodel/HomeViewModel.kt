@@ -58,6 +58,12 @@ class HomeViewModel(
     private val _needsAttentionCount = MutableStateFlow(0)
     val needsAttentionCount: StateFlow<Int> = _needsAttentionCount.asStateFlow()
 
+    private val _excludedAppCount = MutableStateFlow(0)
+    val excludedAppCount: StateFlow<Int> = _excludedAppCount.asStateFlow()
+
+    private val _isUsageAccessGranted = MutableStateFlow(false)
+    val isUsageAccessGranted: StateFlow<Boolean> = _isUsageAccessGranted.asStateFlow()
+
     /** Live service-running status for the Settings diagnostics row. */
     val isServiceRunning: StateFlow<Boolean> = serviceRunning
 
@@ -108,6 +114,12 @@ class HomeViewModel(
             _excludedAppIcons.value = icons
             _excludedOverflowCount.value = overflow
         }
+    }
+
+    /** Exclusion card status. Usage access is granted in system Settings, so Home re-reads it. */
+    fun refreshExclusionStatus() {
+        _excludedAppCount.value = exclusionPrefs.getExcludedCount()
+        _isUsageAccessGranted.value = usageAccessProbe()
     }
 
     fun refreshAttentionCount() {
