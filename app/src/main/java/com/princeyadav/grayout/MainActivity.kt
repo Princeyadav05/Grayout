@@ -63,7 +63,7 @@ class MainActivity : ComponentActivity() {
 
     private val homeViewModel: HomeViewModel by viewModels {
         HomeViewModelFactory(
-            grayscaleManager = GrayscaleManager(applicationContext),
+            grayscaleManager = grayscaleManager,
             enforcementPrefs = enforcementPrefs,
             exclusionPrefs = exclusionPrefs,
             isBatteryOptimized = {

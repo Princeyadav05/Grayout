@@ -1,10 +1,8 @@
 package com.princeyadav.grayout.service
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.service.quicksettings.Tile
@@ -27,24 +25,19 @@ class GrayscaleToggleTile : TileService() {
         // write failed because WRITE_SECURE_SETTINGS is missing, open the app (Home),
         // whose attention badge routes on to ADB setup. A rare non-permission write
         // failure just refreshes.
-        if (!wrote && !hasWritePermission()) {
+        if (!wrote && !manager.canWriteSecureSettings()) {
             launchSetup()
             return
         }
         updateTile()
     }
 
-    // Opening Quick Settings only needs the grant status to pick the tile state.
-    private fun hasWritePermission(): Boolean =
-        checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) ==
-            PackageManager.PERMISSION_GRANTED
-
     private fun updateTile() {
         val tile = qsTile ?: return
         val manager = GrayscaleManager(this)
         // Kept STATE_INACTIVE (not STATE_UNAVAILABLE) when permission is missing so the
         // tile stays clickable and onClick can route to setup; the subtitle is the cue.
-        val canWrite = hasWritePermission()
+        val canWrite = manager.canWriteSecureSettings()
         val isEnabled = canWrite && manager.isGrayscaleEnabled()
         tile.state = if (isEnabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.label = "Grayscale"
