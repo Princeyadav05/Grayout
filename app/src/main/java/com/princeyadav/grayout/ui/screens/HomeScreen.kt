@@ -62,12 +62,12 @@ fun HomeScreen(
     onToggle: () -> Unit,
     onEnforcementIntervalChange: (Int) -> Unit,
     onNavigateToExclusions: () -> Unit,
-    onNavigateToSchedules: () -> Unit = {},
-    nextScheduleText: String = "No active schedule",
-    excludedAppIcons: List<Bitmap> = emptyList(),
-    excludedOverflowCount: Int = 0,
-    needsAttentionCount: Int = 0,
-    onAttentionClick: () -> Unit = {},
+    onNavigateToSchedules: () -> Unit,
+    nextScheduleText: String,
+    excludedAppIcons: List<Bitmap>,
+    excludedOverflowCount: Int,
+    needsAttentionCount: Int,
+    onAttentionClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val dimens = GrayoutTheme.dimens
@@ -207,108 +207,101 @@ private fun StatusHeroCard(
     val view = LocalView.current
 
     GrayoutCard(isActive = isGrayscaleOn, wash = true) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .background(
-                                if (isGrayscaleOn) colors.text else BrandAccent,
-                                CircleShape,
-                            ),
-                    )
+        Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .background(
+                            if (isGrayscaleOn) colors.text else BrandAccent,
+                            CircleShape,
+                        ),
+                )
+                Text(
+                    text = "STATUS",
+                    style = typography.labelSmall,
+                    color = BrandAccent.copy(alpha = 0.75f),
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = if (isGrayscaleOn) "Grayscale on" else "Grayscale off",
+                style = typography.headingLarge,
+                color = colors.text,
+            )
+
+            Spacer(modifier = Modifier.height(dimens.tightGap))
+
+            Text(
+                text = if (isGrayscaleOn) "Your screen is muted" else "Tap to mute your screen",
+                style = typography.bodyMedium,
+                color = colors.textMuted,
+            )
+
+            Spacer(modifier = Modifier.height(dimens.sectionGap))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(dimens.cardGap),
+            ) {
+                if (enforcementInterval > 0) {
                     Text(
-                        text = "STATUS",
-                        style = typography.labelSmall,
-                        color = BrandAccent.copy(alpha = 0.75f),
+                        text = "${enforcementInterval}m",
+                        style = typography.labelXSmall.copy(fontWeight = FontWeight.ExtraBold),
+                        color = colors.bg,
+                        modifier = Modifier
+                            .background(
+                                colors.text,
+                                RoundedCornerShape(dimens.radiusFull),
+                            )
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
-
                 Text(
-                    text = if (isGrayscaleOn) "Grayscale on" else "Grayscale off",
-                    style = typography.headingLarge,
+                    text = nextScheduleText,
+                    style = typography.monoSmall,
+                    color = colors.text,
+                    modifier = Modifier
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { onNextScheduleClick() },
+                )
+            }
+
+            Spacer(modifier = Modifier.height(dimens.sectionGap))
+
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = colors.border,
+            )
+
+            Spacer(modifier = Modifier.height(dimens.sectionGap))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "Grayscale",
+                    style = typography.bodyMedium,
                     color = colors.text,
                 )
-
-                Spacer(modifier = Modifier.height(dimens.tightGap))
-
-                Text(
-                    text = if (isGrayscaleOn) "Your screen is muted" else "Tap to mute your screen",
-                    style = typography.bodyMedium,
-                    color = colors.textMuted,
+                GrayoutToggle(
+                    checked = isGrayscaleOn,
+                    onCheckedChange = {
+                        view.performHaptic(HapticAction.Toggle)
+                        onToggle()
+                    },
+                    contentDescription = "Grayscale",
                 )
-
-                Spacer(modifier = Modifier.height(dimens.sectionGap))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(dimens.cardGap),
-                ) {
-                    if (enforcementInterval > 0) {
-                        Text(
-                            text = "${enforcementInterval}m",
-                            style = typography.labelXSmall.copy(fontWeight = FontWeight.ExtraBold),
-                            color = colors.bg,
-                            modifier = Modifier
-                                .background(
-                                    colors.text,
-                                    RoundedCornerShape(dimens.radiusFull),
-                                )
-                                .border(
-                                    1.dp,
-                                    Color.Transparent,
-                                    RoundedCornerShape(dimens.radiusFull),
-                                )
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
-                        )
-                    }
-
-                    Text(
-                        text = nextScheduleText,
-                        style = typography.monoSmall,
-                        color = colors.text,
-                        modifier = Modifier
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) { onNextScheduleClick() },
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(dimens.sectionGap))
-
-                HorizontalDivider(
-                    thickness = 1.dp,
-                    color = colors.border,
-                )
-
-                Spacer(modifier = Modifier.height(dimens.sectionGap))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        text = "Grayscale",
-                        style = typography.bodyMedium,
-                        color = colors.text,
-                    )
-                    GrayoutToggle(
-                        checked = isGrayscaleOn,
-                        onCheckedChange = {
-                            view.performHaptic(HapticAction.Toggle)
-                            onToggle()
-                        },
-                        contentDescription = "Grayscale",
-                    )
-                }
             }
         }
     }
@@ -489,7 +482,7 @@ private fun ExcludedAppsCard(
                     ) {
                         excludedAppIcons.forEach { icon ->
                             Image(
-                                bitmap = icon.asImageBitmap(),
+                                bitmap = remember(icon) { icon.asImageBitmap() },
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(20.dp)
