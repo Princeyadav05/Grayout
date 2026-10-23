@@ -486,7 +486,7 @@ fun reconcileStrandedExclusion(
 ): Boolean = synchronized(GrayscaleStateLock) {
     if (!exclusionPrefs.isExcludedAppActive()) return@synchronized false
     val wasOn = exclusionPrefs.wasGrayscaleOnBeforeExclusion()
-    if (wasOn && !restoreExclusionGrayscale(exclusionPrefs, grayscale)) return@synchronized false
+    if (wasOn && !grayscale.setGrayscale(true)) return@synchronized false
     if (!wasOn && exclusionPrefs.isColorRestorePending() &&
         !restoreExclusionColor(exclusionPrefs, grayscale)
     ) return@synchronized false
@@ -526,7 +526,7 @@ fun preGrayOnScreenOff(
     ) {
         return@synchronized false
     }
-    if (!restoreExclusionGrayscale(exclusionPrefs, grayscale)) return@synchronized false
+    if (!grayscale.setGrayscale(true)) return@synchronized false
     exclusionPrefs.clearExclusionState()
     true
 }

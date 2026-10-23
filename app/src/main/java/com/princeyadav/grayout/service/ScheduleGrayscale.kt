@@ -26,7 +26,7 @@ fun applyScheduleGrayscale(
             // schedule target so the device wakes in the correct state, then let
             // the detector capture that state on the next screen-on entry.
             val success = if (enabled) {
-                restoreExclusionGrayscale(exclusionPrefs, grayscale)
+                grayscale.setGrayscale(true)
             } else {
                 restoreExclusionColor(exclusionPrefs, grayscale)
             }
@@ -46,16 +46,5 @@ internal fun restoreExclusionColor(
     exclusionPrefs.setColorRestorePending(true)
     val success = grayscale.setGrayscale(false)
     if (success) exclusionPrefs.setColorRestorePending(false)
-    return success
-}
-
-/** A failed on-write is also recovery evidence, including on a screen-on cold start. */
-internal fun restoreExclusionGrayscale(
-    exclusionPrefs: ExclusionPrefs,
-    grayscale: GrayscaleController,
-): Boolean {
-    exclusionPrefs.setGrayscaleRestorePending(true)
-    val success = grayscale.setGrayscale(true)
-    if (success) exclusionPrefs.setGrayscaleRestorePending(false)
     return success
 }

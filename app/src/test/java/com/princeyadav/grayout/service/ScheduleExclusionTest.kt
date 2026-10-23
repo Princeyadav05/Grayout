@@ -284,7 +284,6 @@ class ScheduleExclusionTest {
         assertFalse(applyScheduleGrayscale(true, exclusions, grayscale) { false })
         assertTrue(exclusions.isExcludedAppActive())
         assertTrue(exclusions.wasGrayscaleOnBeforeExclusion())
-        assertTrue(ExclusionPrefs(prefs).hasPendingDisplayWrite())
 
         grayscale.canWrite = true
         detector().tickOnce()
@@ -292,7 +291,7 @@ class ScheduleExclusionTest {
         assertTrue(exclusions.wasGrayscaleOnBeforeExclusion())
         exit()
         assertTrue(grayscale.grayscaleEnabled)
-        assertFalse(exclusions.hasPendingDisplayWrite())
+        assertFalse(exclusions.isExcludedAppActive())
     }
 
     @Test
@@ -301,14 +300,14 @@ class ScheduleExclusionTest {
         grayscale.setGrayscale(true)
         grayscale.canWrite = false
         assertFalse(applyScheduleGrayscale(false, exclusions, grayscale) { false })
-        assertTrue(exclusions.hasPendingDisplayWrite())
+        assertTrue(exclusions.isColorRestorePending())
         assertFalse(exclusions.wasGrayscaleOnBeforeExclusion())
 
         grayscale.canWrite = true
         reconcileStrandedExclusion(ExclusionPrefs(prefs), grayscale)
         assertFalse(grayscale.grayscaleEnabled)
         assertFalse(exclusions.isExcludedAppActive())
-        assertFalse(exclusions.hasPendingDisplayWrite())
+        assertFalse(exclusions.isColorRestorePending())
     }
 
     @Test
