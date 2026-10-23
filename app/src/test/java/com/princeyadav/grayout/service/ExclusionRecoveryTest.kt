@@ -119,8 +119,14 @@ class ExclusionRecoveryTest {
         savedSession(wasOn = true)
         grayscale.canWrite = false
         reconcileExclusionOnStart(prefs, grayscale, false)
+        assertEquals(1, grayscale.setGrayscaleCallCount)
         assertTrue(prefs.isExcludedAppActive())
         assertTrue(prefs.wasGrayscaleOnBeforeExclusion())
+
+        grayscale.canWrite = true
+        reconcileExclusionOnStart(ExclusionPrefs(storage), grayscale, false)
+        assertTrue(grayscale.grayscaleEnabled)
+        assertFalse(prefs.isExcludedAppActive())
     }
 
     @Test
