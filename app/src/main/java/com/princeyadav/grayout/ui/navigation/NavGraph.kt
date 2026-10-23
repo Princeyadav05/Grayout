@@ -12,6 +12,7 @@ import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -100,10 +101,15 @@ fun GrayoutNavGraph(
             val lifecycleOwnerHome = LocalLifecycleOwner.current
             val isGrayscaleOn by homeViewModel.isGrayscaleOn.collectAsStateWithLifecycle()
 
-            // Read before collecting so Home's first frame shows current values.
-            remember { homeViewModel.refreshExclusionStatus() }
-            val excludedAppCount by homeViewModel.excludedAppCount.collectAsStateWithLifecycle()
-            val isUsageAccessGrantedHome by homeViewModel.isUsageAccessGranted.collectAsStateWithLifecycle()
+            val exclusionPrefsHome = remember {
+                ExclusionPrefs(
+                    context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                )
+            }
+            var excludedAppCount by remember { mutableIntStateOf(exclusionPrefsHome.getExcludedCount()) }
+            var isUsageAccessGrantedHome by remember {
+                mutableStateOf(UsageAccess.isGranted(context))
+            }
 
             val db = remember { GrayoutDatabase.getInstance(context) }
             val scheduleRepository = remember { ScheduleRepository(db.scheduleDao()) }
@@ -114,7 +120,8 @@ fun GrayoutNavGraph(
 
             LaunchedEffect(lifecycleOwnerHome) {
                 lifecycleOwnerHome.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                    homeViewModel.refreshExclusionStatus()
+                    excludedAppCount = exclusionPrefsHome.getExcludedCount()
+                    isUsageAccessGrantedHome = UsageAccess.isGranted(context)
                     homeViewModel.refreshExcludedAppIcons()
                     homeViewModel.refreshAttentionCount()
                     homeViewModel.observeNextSchedule(
