@@ -38,7 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.model.Schedule
-import com.princeyadav.grayout.model.formatTime12Hour
+import com.princeyadav.grayout.model.formatTime
+import com.princeyadav.grayout.ui.rememberIs24HourFormat
 import com.princeyadav.grayout.ui.components.DayLabels
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
@@ -64,6 +65,7 @@ fun ScheduleListScreen(
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
+    val is24Hour = rememberIs24HourFormat()
 
     LazyColumn(
         modifier = modifier
@@ -159,6 +161,7 @@ fun ScheduleListScreen(
         items(schedules, key = { it.id }) { schedule ->
             ScheduleCard(
                 schedule = schedule,
+                is24Hour = is24Hour,
                 isFiringNow = isPermissionGranted && schedule.id in firingScheduleIds,
                 needsPermission = !isPermissionGranted && schedule.isEnabled,
                 onEdit = { onEditSchedule(schedule.id) },
@@ -177,6 +180,7 @@ fun ScheduleListScreen(
 @Composable
 private fun ScheduleCard(
     schedule: Schedule,
+    is24Hour: Boolean,
     isFiringNow: Boolean,
     needsPermission: Boolean,
     onEdit: () -> Unit,
@@ -279,7 +283,7 @@ private fun ScheduleCard(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "${formatTime12Hour(schedule.startTimeHour, schedule.startTimeMinute)} \u2192 ${formatTime12Hour(schedule.endTimeHour, schedule.endTimeMinute)}",
+                    text = "${formatTime(schedule.startTimeHour, schedule.startTimeMinute, is24Hour)} \u2192 ${formatTime(schedule.endTimeHour, schedule.endTimeMinute, is24Hour)}",
                     style = typography.monoSmall,
                     color = if (schedule.isEnabled) colors.text else colors.textMuted,
                 )

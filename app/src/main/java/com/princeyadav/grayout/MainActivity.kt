@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.text.format.DateFormat
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -95,6 +96,7 @@ class MainActivity : ComponentActivity() {
                         .putExtra(GrayoutService.EXTRA_USER_INTERVAL_CHANGE, true)
                 )
             },
+            is24HourFormat = { DateFormat.is24HourFormat(applicationContext) },
         )
     }
 

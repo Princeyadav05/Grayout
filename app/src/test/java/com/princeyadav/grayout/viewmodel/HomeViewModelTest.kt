@@ -50,6 +50,7 @@ class HomeViewModelTest {
         isBatteryUnrestricted: Boolean = true,
         serviceRunning: Boolean = false,
         clock: () -> Clock = { Clock.systemDefaultZone() },
+        is24HourFormat: () -> Boolean = { false },
     ): HomeViewModel {
         grayscale.canWrite = canWrite
         batteryUnrestricted = isBatteryUnrestricted
@@ -68,6 +69,7 @@ class HomeViewModelTest {
             serviceRunning = this.serviceRunning,
             onEnforcementIntervalChanged = intervalCommands::add,
             clock = clock,
+            is24HourFormat = is24HourFormat,
         )
     }
 
@@ -280,6 +282,30 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertFalse(homeViewModel.isServiceRunning.value)
+    }
+
+    @Test
+    fun `next start follows the device 24-hour setting on each refresh`() = runTest {
+        val dao = FakeScheduleDao()
+        dao.insert(schedule(startHour = 14, endHour = 15))
+        var is24Hour = true
+        val timeChanges = MutableSharedFlow<Unit>()
+        val start = Instant.parse("2026-04-13T08:59:00Z")
+        val home = vm(
+            clock = { Clock.fixed(start.plusMillis(testScheduler.currentTime), ZoneOffset.UTC) },
+            is24HourFormat = { is24Hour },
+        )
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            home.observeNextSchedule(ScheduleRepository(dao), timeChanges)
+        }
+        runCurrent()
+        assertEquals("14:00", home.nextScheduleText.value)
+
+        // Android broadcasts a time change when the 12/24-hour setting changes.
+        is24Hour = false
+        timeChanges.emit(Unit)
+        runCurrent()
+        assertEquals("2:00 PM", home.nextScheduleText.value)
     }
 
     @Test
