@@ -380,6 +380,8 @@ fun GrayoutNavGraph(
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                     viewModel.checkUsageAccess()
+                    // Also performs the initial load, keeping one refresh per resume.
+                    viewModel.refreshApps()
                 }
             }
 
@@ -398,7 +400,6 @@ fun GrayoutNavGraph(
                     }
                 },
                 onBack = { navController.popBackStack() },
-                onRefresh = viewModel::refreshApps,
             )
         }
     }
