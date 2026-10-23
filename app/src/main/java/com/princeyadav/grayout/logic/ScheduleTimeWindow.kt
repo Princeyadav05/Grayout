@@ -16,24 +16,6 @@ import java.time.ZoneId
  * silently missed the other. Extracted per spec §5.2.
  */
 
-internal fun isCurrentlyFiring(schedule: Schedule, now: LocalDateTime): Boolean {
-    if (!schedule.isEnabled) return false
-    val days = schedule.daysOfWeekList
-    val start = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
-    val end = LocalTime.of(schedule.endTimeHour, schedule.endTimeMinute)
-    val current = now.toLocalTime()
-
-    if (start.isBefore(end)) {
-        return now.dayOfWeek in days && isTimeWithinWindow(start, end, current)
-    }
-
-    return when {
-        !current.isBefore(start) -> now.dayOfWeek in days
-        current.isBefore(end) -> now.minusDays(1).dayOfWeek in days
-        else -> false
-    }
-}
-
 internal data class ScheduleEvent(
     val dateTime: LocalDateTime,
     val isStart: Boolean,
@@ -41,40 +23,6 @@ internal data class ScheduleEvent(
     val windowStart: LocalDateTime,
     val windowEnd: LocalDateTime,
 )
-
-internal fun nextScheduleEvent(
-    schedules: List<Schedule>,
-    now: LocalDateTime,
-): ScheduleEvent? {
-    val today = now.toLocalDate()
-    var nextEvent: ScheduleEvent? = null
-    val activeNow = schedules.any { isCurrentlyFiring(it, now) }
-
-    for (schedule in schedules) {
-        if (!schedule.isEnabled) continue
-
-        val days = schedule.daysOfWeekList
-        val start = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
-        val end = LocalTime.of(schedule.endTimeHour, schedule.endTimeMinute)
-
-        for (dayOffset in -1L..7L) {
-            val startDate = today.plusDays(dayOffset)
-            if (startDate.dayOfWeek !in days) continue
-
-            val startDateTime = LocalDateTime.of(startDate, start)
-            val endDate = if (start.isBefore(end)) startDate else startDate.plusDays(1)
-            val endDateTime = LocalDateTime.of(endDate, end)
-            if (!activeNow) {
-                nextEvent = nextSoonerEvent(nextEvent,
-                    ScheduleEvent(startDateTime, true, schedule.id, startDateTime, endDateTime), now)
-            }
-            nextEvent = nextSoonerEvent(nextEvent,
-                ScheduleEvent(endDateTime, false, schedule.id, startDateTime, endDateTime), now)
-        }
-    }
-
-    return nextEvent
-}
 
 /** Alarm scheduling compares resolved instants, including repeated/gap local times. */
 internal fun nextScheduleEvent(
@@ -131,40 +79,6 @@ internal fun isCurrentlyFiring(schedule: Schedule, now: Instant, zone: ZoneId): 
 }
 
 /**
- * The soonest future window-start across [schedules], or null if none is upcoming.
- *
- * Starts are day-anchored (a window always starts on one of its own days), so a
- * plain 0..7 forward scan is correct here — unlike the end-of-window math in
- * [nextScheduleEvent], no yesterday offset is needed. Kept in logic/ so the Home
- * screen's "next schedule" text and any other caller share one implementation.
- */
-internal fun nextScheduleStart(
-    schedules: List<Schedule>,
-    now: LocalDateTime,
-): LocalDateTime? {
-    val today = now.toLocalDate()
-    var soonest: LocalDateTime? = null
-
-    for (schedule in schedules) {
-        if (!schedule.isEnabled) continue
-        val days = schedule.daysOfWeekList
-        val start = LocalTime.of(schedule.startTimeHour, schedule.startTimeMinute)
-
-        for (dayOffset in 0L..7L) {
-            val startDate = today.plusDays(dayOffset)
-            if (startDate.dayOfWeek !in days) continue
-            val startDateTime = LocalDateTime.of(startDate, start)
-            if (startDateTime.isAfter(now)) {
-                if (soonest == null || startDateTime.isBefore(soonest)) soonest = startDateTime
-                break
-            }
-        }
-    }
-
-    return soonest
-}
-
-/**
  * Future starts compared as resolved instants, matching alarm gap/overlap rules.
  * Return the configured local time for display; callers resolve that same value
  * in [zone] for the timer. A repeated local start only fires on its first offset.
@@ -199,30 +113,4 @@ internal fun nextScheduleStart(
         }
     }
     return soonest
-}
-
-private fun nextSoonerEvent(
-    currentNext: ScheduleEvent?,
-    candidate: ScheduleEvent,
-    now: LocalDateTime,
-): ScheduleEvent? {
-    if (!candidate.dateTime.isAfter(now)) return currentNext
-    if (currentNext == null || candidate.dateTime.isBefore(currentNext.dateTime)) return candidate
-    // Keep the closing boundary. Its delivery catches up to an active next window,
-    // or turns gray off if both windows have ended before Android delivers it.
-    if (candidate.dateTime == currentNext.dateTime && !candidate.isStart && currentNext.isStart) return candidate
-    return currentNext
-}
-
-/**
- * Returns true if [current] falls within the window [start, end).
- * Handles midnight-crossing windows (where end is before start).
- */
-internal fun isTimeWithinWindow(start: LocalTime, end: LocalTime, current: LocalTime): Boolean {
-    return if (start.isBefore(end)) {
-        !current.isBefore(start) && current.isBefore(end)
-    } else {
-        // Window crosses midnight, e.g. 22:00 to 02:00
-        !current.isBefore(start) || current.isBefore(end)
-    }
 }

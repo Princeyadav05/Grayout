@@ -10,7 +10,9 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneOffset.UTC
 
+/** Exercises the shipped Instant/ZoneId functions in a fixed UTC zone. */
 class ScheduleTimeWindowTest {
 
     // 2026-04-13 is a Monday — use it as a stable anchor for day-of-week math.
@@ -45,35 +47,35 @@ class ScheduleTimeWindowTest {
     fun `isCurrentlyFiring returns false when schedule is disabled`() {
         val s = schedule(isEnabled = false)
         val now = at(DayOfWeek.MONDAY, 12, 0)
-        assertFalse(isCurrentlyFiring(s, now))
+        assertFalse(isCurrentlyFiring(s, now.toInstant(UTC), UTC))
     }
 
     @Test
     fun `isCurrentlyFiring returns false when current day not in schedule days`() {
         val s = schedule(daysOfWeek = "MON,TUE,WED,THU,FRI")
         val now = at(DayOfWeek.SATURDAY, 12, 0)
-        assertFalse(isCurrentlyFiring(s, now))
+        assertFalse(isCurrentlyFiring(s, now.toInstant(UTC), UTC))
     }
 
     @Test
     fun `isCurrentlyFiring returns true when current time within same-day window`() {
         val s = schedule(startHour = 9, endHour = 17)
         val now = at(DayOfWeek.MONDAY, 12, 0)
-        assertTrue(isCurrentlyFiring(s, now))
+        assertTrue(isCurrentlyFiring(s, now.toInstant(UTC), UTC))
     }
 
     @Test
     fun `isCurrentlyFiring returns false when current time before same-day window start`() {
         val s = schedule(startHour = 9, endHour = 17)
         val now = at(DayOfWeek.MONDAY, 8, 30)
-        assertFalse(isCurrentlyFiring(s, now))
+        assertFalse(isCurrentlyFiring(s, now.toInstant(UTC), UTC))
     }
 
     @Test
     fun `isCurrentlyFiring returns false when current time at same-day window end (end exclusive)`() {
         val s = schedule(startHour = 9, endHour = 17)
         val now = at(DayOfWeek.MONDAY, 17, 0)
-        assertFalse(isCurrentlyFiring(s, now))
+        assertFalse(isCurrentlyFiring(s, now.toInstant(UTC), UTC))
     }
 
     @Test
@@ -83,7 +85,7 @@ class ScheduleTimeWindowTest {
             startHour = 22, endHour = 2,
         )
         val now = at(DayOfWeek.MONDAY, 23, 0)
-        assertTrue(isCurrentlyFiring(s, now))
+        assertTrue(isCurrentlyFiring(s, now.toInstant(UTC), UTC))
     }
 
     @Test
@@ -93,7 +95,7 @@ class ScheduleTimeWindowTest {
             startHour = 22, endHour = 2,
         )
         val now = at(DayOfWeek.MONDAY, 1, 30)
-        assertTrue(isCurrentlyFiring(s, now))
+        assertTrue(isCurrentlyFiring(s, now.toInstant(UTC), UTC))
     }
 
     @Test
@@ -103,7 +105,7 @@ class ScheduleTimeWindowTest {
             startHour = 22, endHour = 2,
         )
         val now = at(DayOfWeek.TUESDAY, 1, 0)
-        assertTrue(isCurrentlyFiring(s, now))
+        assertTrue(isCurrentlyFiring(s, now.toInstant(UTC), UTC))
     }
 
     @Test
@@ -113,14 +115,14 @@ class ScheduleTimeWindowTest {
             startHour = 22, endHour = 2,
         )
         val now = at(DayOfWeek.MONDAY, 10, 0)
-        assertFalse(isCurrentlyFiring(s, now))
+        assertFalse(isCurrentlyFiring(s, now.toInstant(UTC), UTC))
     }
 
     @Test
     fun `nextScheduleStart returns today's later start`() {
         val s = schedule(daysOfWeek = "MON", startHour = 14)
         val now = at(DayOfWeek.MONDAY, 9, 0)
-        assertEquals(at(DayOfWeek.MONDAY, 14, 0), nextScheduleStart(listOf(s), now))
+        assertEquals(at(DayOfWeek.MONDAY, 14, 0), nextScheduleStart(listOf(s), now.toInstant(UTC), UTC))
     }
 
     @Test
@@ -130,7 +132,7 @@ class ScheduleTimeWindowTest {
         // Next MON is 7 days out from the anchor Monday.
         assertEquals(
             LocalDateTime.of(mondayDate.plusDays(7), LocalTime.of(9, 0)),
-            nextScheduleStart(listOf(s), now),
+            nextScheduleStart(listOf(s), now.toInstant(UTC), UTC),
         )
     }
 
@@ -141,13 +143,13 @@ class ScheduleTimeWindowTest {
         val now = at(DayOfWeek.MONDAY, 12, 0)
         assertEquals(
             at(DayOfWeek.MONDAY, 18, 0),
-            nextScheduleStart(listOf(enabled, disabledEarlier), now),
+            nextScheduleStart(listOf(enabled, disabledEarlier), now.toInstant(UTC), UTC),
         )
     }
 
     @Test
     fun `nextScheduleStart returns null when no schedules`() {
-        assertNull(nextScheduleStart(emptyList(), at(DayOfWeek.MONDAY, 12, 0)))
+        assertNull(nextScheduleStart(emptyList(), at(DayOfWeek.MONDAY, 12, 0).toInstant(UTC), UTC))
     }
 
     @Test
@@ -158,7 +160,7 @@ class ScheduleTimeWindowTest {
         )
         val now = at(DayOfWeek.TUESDAY, 1, 0)
 
-        val event = checkNotNull(nextScheduleEvent(listOf(s), now))
+        val event = checkNotNull(nextScheduleEvent(listOf(s), now.toInstant(UTC), UTC))
 
         assertEquals(LocalDateTime.of(mondayDate.plusDays(1), LocalTime.of(2, 0)), event.dateTime)
         assertFalse(event.isStart)

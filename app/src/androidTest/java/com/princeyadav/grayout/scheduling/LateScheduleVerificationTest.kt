@@ -112,7 +112,7 @@ class LateScheduleVerificationTest {
         val start = now.minusMinutes(30)
         val end = now.minusMinutes(15)
         val schedule = insertWindow(start, end)
-        assertFalse(isCurrentlyFiring(schedule, LocalDateTime.now()))
+        assertFalse(isCurrentlyFiring(schedule, Instant.now(), ZoneId.systemDefault()))
         assertFalse(grayscale.isGrayscaleEnabled())
         assertEquals(0, EnforcementPrefs(prefs).getInterval())
 
@@ -137,7 +137,7 @@ class LateScheduleVerificationTest {
         val start = now.minusMinutes(15)
         val end = now.plusMinutes(15)
         val schedule = insertWindow(start, end)
-        assertTrue(isCurrentlyFiring(schedule, LocalDateTime.now()))
+        assertTrue(isCurrentlyFiring(schedule, Instant.now(), ZoneId.systemDefault()))
         assertFalse(grayscale.isGrayscaleEnabled())
 
         ScheduleAlarmManager(context, fixedClock(start.minusSeconds(1)))
