@@ -35,8 +35,7 @@ class SystemScheduleReceiver : BroadcastReceiver() {
                     val prefs = context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
                     val interval = EnforcementPrefs(prefs).getInterval()
                     if (shouldServiceRun(interval, ExclusionPrefs(prefs).getExcludedCount())) {
-                        context.startForegroundServiceSafely(Intent(context, GrayoutService::class.java)
-                            .putExtra(GrayoutService.EXTRA_INTERVAL, interval))
+                        context.startForegroundServiceSafely(Intent(context, GrayoutService::class.java))
                     }
                 }
             } finally {

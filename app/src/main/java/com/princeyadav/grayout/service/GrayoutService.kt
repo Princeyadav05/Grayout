@@ -391,8 +391,8 @@ class GrayoutService : Service() {
         const val CHANNEL_ID = "grayout_service"
         const val NOTIFICATION_ID = 1
         const val EXTRA_INTERVAL = "enforcement_interval_minutes"
-        // Schedule/boot intents also carry an interval; only UI/tile choices
-        // should reset a surviving countdown on the first service command.
+        // Only UI/tile intents carry an interval. Other starts read the saved one,
+        // so they can't reset a surviving countdown on the first service command.
         const val EXTRA_USER_INTERVAL_CHANGE = "user_interval_change"
         const val ACTION_ENFORCEMENT_TICK = "com.princeyadav.grayout.ENFORCEMENT_TICK"
         // internal so EnforcementAlarmReceiver (via scheduleEnforcementAlarm) can

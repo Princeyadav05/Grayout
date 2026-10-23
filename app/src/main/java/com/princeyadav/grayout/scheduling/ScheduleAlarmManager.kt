@@ -215,12 +215,8 @@ class ScheduleAlarmManager(
         if (reconciliationState.read() != null) scheduleReconciliationRetry()
 
         if (isCurrentlyInSchedule) {
-            val enforcementPrefs = EnforcementPrefs(prefs)
-            val interval = enforcementPrefs.getInterval()
-            if (interval > 0) {
-                val serviceIntent = Intent(context, GrayoutService::class.java)
-                    .putExtra(GrayoutService.EXTRA_INTERVAL, interval)
-                context.startForegroundServiceSafely(serviceIntent)
+            if (EnforcementPrefs(prefs).getInterval() > 0) {
+                context.startForegroundServiceSafely(Intent(context, GrayoutService::class.java))
             }
         }
     }
