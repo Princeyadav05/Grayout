@@ -211,7 +211,7 @@ class SystemScheduleRecoveryTest {
     @Test fun exactAlarmRecoveryUsesSameElapsedDeadlineAndRecreatesCanceledOsRegistration() {
         EnforcementPrefs(prefs).setInterval(5)
         val deadline = SystemClock.elapsedRealtime() + 5 * 60_000L
-        scheduleEnforcementAlarmAtElapsed(context, deadline)
+        scheduleEnforcementAlarmAtElapsed(context, deadline, 5)
         val intent = Intent(context, EnforcementAlarmReceiver::class.java).setAction(GrayoutService.ACTION_ENFORCEMENT_TICK)
         val token = checkNotNull(PendingIntent.getBroadcast(context, 2001, intent,
             PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE))
@@ -225,7 +225,7 @@ class SystemScheduleRecoveryTest {
 
     @Test fun expiredEnforcementRecoveryActuallyFiresWithoutStartingANewFullInterval() {
         EnforcementPrefs(prefs).setInterval(5)
-        context.enforcementAlarmState().save(SystemClock.elapsedRealtime() - 1_000, context.bootCount())
+        context.enforcementAlarmState().save(SystemClock.elapsedRealtime() - 1_000, context.bootCount(), 5)
         restoreEnforcementAlarm(context)
         await { gray.isGrayscaleEnabled() && context.enforcementAlarmState().deadline(context.bootCount()) == null }
     }
@@ -233,7 +233,7 @@ class SystemScheduleRecoveryTest {
     @Test fun coldServiceRecreatesCanceledCountdownAtItsOriginalFutureDeadline() {
         EnforcementPrefs(prefs).setInterval(5)
         val deadline = SystemClock.elapsedRealtime() + 5 * 60_000L
-        scheduleEnforcementAlarmAtElapsed(context, deadline)
+        scheduleEnforcementAlarmAtElapsed(context, deadline, 5)
         cancel(EnforcementAlarmReceiver::class.java, 2001, GrayoutService.ACTION_ENFORCEMENT_TICK)
         context.startForegroundService(Intent(context, GrayoutService::class.java))
         await { GrayoutService.isRunning.value && enforcementToken() != null }
@@ -243,7 +243,7 @@ class SystemScheduleRecoveryTest {
 
     @Test fun coldServiceRecreatesExpiredCountdownForImmediateDelivery() {
         EnforcementPrefs(prefs).setInterval(5)
-        context.enforcementAlarmState().save(SystemClock.elapsedRealtime() - 1_000, context.bootCount())
+        context.enforcementAlarmState().save(SystemClock.elapsedRealtime() - 1_000, context.bootCount(), 5)
         context.startForegroundService(Intent(context, GrayoutService::class.java))
         await { gray.isGrayscaleEnabled() }
         instrumentation.waitForIdleSync()
@@ -253,7 +253,7 @@ class SystemScheduleRecoveryTest {
     @Test fun userIntervalChangeCannotBeOverwrittenByAnOlderConcurrentRestore() {
         EnforcementPrefs(prefs).setInterval(5)
         val oldDeadline = SystemClock.elapsedRealtime() + 5 * 60_000L
-        scheduleEnforcementAlarmAtElapsed(context, oldDeadline)
+        scheduleEnforcementAlarmAtElapsed(context, oldDeadline, 5)
         val read = CountDownLatch(1)
         val release = CountDownLatch(1)
         val captured = AtomicBoolean(false)
@@ -305,7 +305,7 @@ class SystemScheduleRecoveryTest {
     @Test fun changedPreferenceBeforeImplicitStartupCannotKeepAnOldIntervalCountdown() {
         EnforcementPrefs(prefs).setInterval(5)
         val oldDeadline = SystemClock.elapsedRealtime() + 5 * 60_000L
-        scheduleEnforcementAlarmAtElapsed(context, oldDeadline)
+        scheduleEnforcementAlarmAtElapsed(context, oldDeadline, 5)
         val oldToken = checkNotNull(enforcementToken())
         // The process can die after preferences change but before the explicit
         // command reaches the service. An implicit launch must reject the old timer.
@@ -333,7 +333,7 @@ class SystemScheduleRecoveryTest {
     @Test fun regrantRejectsDeadlineFromADifferentIntervalAndItsStaleToken() {
         EnforcementPrefs(prefs).setInterval(5)
         val oldDeadline = SystemClock.elapsedRealtime() + 5 * 60_000L
-        scheduleEnforcementAlarmAtElapsed(context, oldDeadline)
+        scheduleEnforcementAlarmAtElapsed(context, oldDeadline, 5)
         val oldToken = checkNotNull(enforcementToken())
         EnforcementPrefs(prefs).setInterval(15)
         restoreEnforcementAlarm(context)

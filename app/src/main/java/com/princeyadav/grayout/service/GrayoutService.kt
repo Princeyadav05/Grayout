@@ -438,16 +438,14 @@ fun reEnableOnExclusionEnd(
  * alarm when exact alarms are unavailable or revoked, mirroring the
  * countdown-alarm contract.
  */
-internal fun scheduleEnforcementAlarm(context: Context, triggerAtMillis: Long, intervalMinutes: Int? = null) {
+internal fun scheduleEnforcementAlarm(context: Context, triggerAtMillis: Long, intervalMinutes: Int) {
     scheduleEnforcementAlarmAtElapsed(context, SystemClock.elapsedRealtime() +
         (triggerAtMillis - System.currentTimeMillis()), intervalMinutes)
 }
 
-internal fun scheduleEnforcementAlarmAtElapsed(context: Context, elapsedTarget: Long, intervalMinutes: Int? = null) {
+internal fun scheduleEnforcementAlarmAtElapsed(context: Context, elapsedTarget: Long, intervalMinutes: Int) {
     synchronized(GrayscaleStateLock) {
-        val interval = intervalMinutes ?: EnforcementPrefs(context.getSharedPreferences(
-            EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)).getInterval()
-        val generation = context.enforcementAlarmState().save(elapsedTarget, context.bootCount(), interval)
+        val generation = context.enforcementAlarmState().save(elapsedTarget, context.bootCount(), intervalMinutes)
         val intent = Intent(context, EnforcementAlarmReceiver::class.java)
             .setAction(GrayoutService.ACTION_ENFORCEMENT_TICK)
             .putExtra(EnforcementAlarmReceiver.EXTRA_GENERATION, generation)
