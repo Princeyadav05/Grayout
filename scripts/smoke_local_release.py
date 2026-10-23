@@ -187,9 +187,14 @@ def run(args):
             return result
         # Exclusions read UsageStats. Earlier clock shifts can leave its in-memory
         # buckets future-dated, which hides every recent event from all builds.
-        recent = device.shell("dumpsys", "usagestats").split("In-memory daily stats")[0]
-        assert PACKAGE in recent, ("UsageStats shows no recent events (future-dated buckets). "
-                                   "Relaunch the emulator with -wipe-data.")
+        # Events are recorded asynchronously, so give the launches a moment to land.
+        def recent_usage():
+            dump = device.shell("dumpsys", "usagestats")
+            # Android 8 has no recent-events section; skip the check there.
+            return ("Last 24 hour events" not in dump or
+                    PACKAGE in dump.split("In-memory daily stats")[0])
+        wait_for(recent_usage, "No recent UsageStats events, likely stale future-dated buckets. "
+                               "Relaunch the emulator with -wipe-data.", seconds=10)
 
         device.set_time(8, 55)
         device.tap("Grayscale", "content-desc")
