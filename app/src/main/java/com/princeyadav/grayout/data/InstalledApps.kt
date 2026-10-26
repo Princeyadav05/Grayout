@@ -4,11 +4,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.net.toUri
 import com.princeyadav.grayout.model.AppCategory
 import com.princeyadav.grayout.model.AppInfo
 
@@ -25,7 +25,7 @@ fun loadInstalledApps(context: Context): List<AppInfo> {
         pm.handlers(Intent(MediaStore.INTENT_ACTION_VIDEO_CAMERA))
     val gallery = pm.handlers(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_GALLERY))
     val maps = pm.handlers(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MAPS)) +
-        pm.handlers(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0")))
+        pm.handlers(Intent(Intent.ACTION_VIEW, "geo:0,0".toUri()))
 
     return pm.getInstalledApplications(0)
         .filter { info ->
