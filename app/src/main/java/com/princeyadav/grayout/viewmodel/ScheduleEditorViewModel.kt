@@ -190,6 +190,7 @@ class ScheduleEditorViewModel(
                 // insert a second schedule. Leaving the screen must not cancel
                 // between the commit and its alarms.
                 withContext(NonCancellable) {
+                    alarmManager.invalidateCoverage()
                     editingScheduleId = repository.save(schedule)
                     editingIsEnabled = isEnabled
                     didPersist = true
@@ -219,6 +220,7 @@ class ScheduleEditorViewModel(
             try {
                 withContext(NonCancellable) {
                     if (!_isDeleted.value) {
+                        alarmManager.invalidateCoverage()
                         repository.getById(editingScheduleId)?.let { repository.delete(it) }
                         _isDeleted.value = true
                     }

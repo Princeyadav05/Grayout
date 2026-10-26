@@ -43,6 +43,8 @@ class ScheduleAlarmManager(
     private val state = ScheduleAlarmState(prefs)
     private val reconciliationState = ScheduleReconciliationState(prefs)
 
+    override fun invalidateCoverage() = prefs.clearScheduleCoverage()
+
     override suspend fun reschedule(
         repository: ScheduleRepository,
         keepManualChoice: Boolean,

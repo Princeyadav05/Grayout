@@ -91,6 +91,10 @@ internal fun SharedPreferences.saveScheduleCoverage(schedules: List<Schedule>) {
     edit().putString(KEY_COVERAGE, encodeCoverage(schedules)).commit()
 }
 
+internal fun SharedPreferences.clearScheduleCoverage() {
+    edit().remove(KEY_COVERAGE).commit()
+}
+
 /** Whether any schedule is enabled at all, for the "waiting" notification copy. */
 internal fun Context.hasScheduleCoverage(): Boolean =
     decodeCoverage(getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_COVERAGE, null))

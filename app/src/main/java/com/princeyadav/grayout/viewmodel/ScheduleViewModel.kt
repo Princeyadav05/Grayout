@@ -93,6 +93,7 @@ class ScheduleViewModel(
             }
             // Leaving the screen must not cancel between the commit and its alarms.
             withContext(NonCancellable) {
+                alarmManager.invalidateCoverage()
                 repository.setEnabled(schedule.id, !schedule.isEnabled)
                 alarmManager.reschedule(repository, keepManualChoice = true)
             }
