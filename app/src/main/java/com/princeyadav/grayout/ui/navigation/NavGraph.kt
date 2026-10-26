@@ -361,6 +361,10 @@ fun GrayoutNavGraph(
 
             val excludedApps by viewModel.excludedApps.collectAsStateWithLifecycle(emptyList())
             val allOtherApps by viewModel.allOtherApps.collectAsStateWithLifecycle(emptyList())
+            val categoryApps by viewModel.filteredApps.collectAsStateWithLifecycle()
+            val categoryCounts by viewModel.categoryCounts.collectAsStateWithLifecycle()
+            val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
+            val pendingUndo by viewModel.pendingUndo.collectAsStateWithLifecycle()
             val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
             val isUsageAccessGranted by viewModel.isUsageAccessGranted.collectAsStateWithLifecycle()
 
@@ -375,9 +379,17 @@ fun GrayoutNavGraph(
             ExclusionListScreen(
                 excludedApps = excludedApps,
                 allOtherApps = allOtherApps,
+                categoryApps = categoryApps,
+                categoryCounts = categoryCounts,
+                selectedCategory = selectedCategory,
+                pendingUndo = pendingUndo,
                 searchQuery = searchQuery,
                 isUsageAccessGranted = isUsageAccessGranted,
                 onToggle = viewModel::toggleExclusion,
+                onSelectCategory = viewModel::selectCategory,
+                onExcludeAll = viewModel::excludeAllVisible,
+                onUndo = viewModel::undoBulkExclusion,
+                onUndoDismissed = viewModel::clearPendingUndo,
                 onSearchQueryChange = viewModel::setSearchQuery,
                 onOpenUsageAccessSettings = {
                     try {

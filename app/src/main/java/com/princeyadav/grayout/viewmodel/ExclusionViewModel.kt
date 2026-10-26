@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.princeyadav.grayout.model.AppCategory
 import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.service.ExclusionPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,10 +34,29 @@ class ExclusionViewModel(
     private val _isUsageAccessGranted = MutableStateFlow(true)
     val isUsageAccessGranted: StateFlow<Boolean> = _isUsageAccessGranted.asStateFlow()
 
-    val filteredApps: StateFlow<List<AppInfo>> = combine(_apps, _searchQuery) { apps, query ->
-        if (query.isBlank()) apps
-        else apps.filter { it.appName.contains(query, ignoreCase = true) }
+    private val _selectedCategory = MutableStateFlow<AppCategory?>(null)
+
+    /** The selected chip, or null for All (also when the category no longer has any app). */
+    val selectedCategory: StateFlow<AppCategory?> = combine(_apps, _selectedCategory, ::effectiveCategory)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /** Categories with at least one installed app, in chip order, with their app count. */
+    val categoryCounts: StateFlow<Map<AppCategory, Int>> = _apps
+        .map { apps ->
+            AppCategory.entries
+                .associateWith { category -> apps.count { category in it.categories } }
+                .filterValues { it > 0 }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val filteredApps: StateFlow<List<AppInfo>> = combine(_apps, _searchQuery, _selectedCategory) { apps, query, selected ->
+        visibleApps(apps, query, effectiveCategory(apps, selected))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _pendingUndo = MutableStateFlow<BulkExclusion?>(null)
+
+    /** Apps added by the last Exclude all, while its Undo is still offered. */
+    val pendingUndo: StateFlow<BulkExclusion?> = _pendingUndo.asStateFlow()
 
     val excludedApps: StateFlow<List<AppInfo>> = filteredApps
         .map { apps -> apps.filter { it.isExcluded } }
@@ -75,6 +95,42 @@ class ExclusionViewModel(
         onExclusionListChanged()
     }
 
+    fun selectCategory(category: AppCategory?) {
+        _selectedCategory.value = category
+    }
+
+    /**
+     * Excludes every app the selected chip and search currently show, in one write.
+     * Reads the source state rather than [filteredApps], which is stale without a collector.
+     */
+    fun excludeAllVisible() {
+        val apps = _apps.value
+        val category = effectiveCategory(apps, _selectedCategory.value) ?: return
+        val toAdd = visibleApps(apps, _searchQuery.value, category)
+            .filterNot { it.isExcluded }
+            .mapTo(HashSet()) { it.packageName }
+        if (toAdd.isEmpty()) return
+        writeExcluded(exclusionPrefs.getExcludedPackages() + toAdd)
+        _pendingUndo.value = BulkExclusion(toAdd)
+    }
+
+    /** Reverts [op] only if it is still the latest bulk action, so a stale snackbar is a no-op. */
+    fun undoBulkExclusion(op: BulkExclusion) {
+        if (_pendingUndo.value !== op) return
+        _pendingUndo.value = null
+        writeExcluded(exclusionPrefs.getExcludedPackages() - op.packages)
+    }
+
+    fun clearPendingUndo(op: BulkExclusion) {
+        if (_pendingUndo.value === op) _pendingUndo.value = null
+    }
+
+    private fun writeExcluded(packages: Set<String>) {
+        exclusionPrefs.setExcludedPackages(packages)
+        _apps.value = _apps.value.map { it.copy(isExcluded = it.packageName in packages) }
+        onExclusionListChanged()
+    }
+
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
     }
@@ -83,6 +139,23 @@ class ExclusionViewModel(
         _isUsageAccessGranted.value = usageAccessProbe()
     }
 }
+
+/**
+ * Packages added by one Exclude all. Identity equality on purpose: each tap is a new
+ * operation, so the screen's snackbar effect restarts even for an identical set.
+ */
+class BulkExclusion(val packages: Set<String>)
+
+/** [selected] when at least one app is in it, otherwise null (All). */
+internal fun effectiveCategory(apps: List<AppInfo>, selected: AppCategory?): AppCategory? =
+    selected?.takeIf { category -> apps.any { category in it.categories } }
+
+/** Apps matching the search [query] and, when set, [category]. */
+internal fun visibleApps(apps: List<AppInfo>, query: String, category: AppCategory?): List<AppInfo> =
+    apps.filter { app ->
+        (query.isBlank() || app.appName.contains(query, ignoreCase = true)) &&
+            (category == null || category in app.categories)
+    }
 
 class ExclusionViewModelFactory(
     private val exclusionPrefs: ExclusionPrefs,
