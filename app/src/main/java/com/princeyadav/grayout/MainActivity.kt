@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
+import android.text.format.DateFormat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -26,7 +27,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.princeyadav.grayout.service.EnforcementPrefs
@@ -42,8 +42,6 @@ import com.princeyadav.grayout.ui.theme.GrayoutTheme
 import com.princeyadav.grayout.viewmodel.HomeViewModel
 import com.princeyadav.grayout.viewmodel.HomeViewModelFactory
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
@@ -98,6 +96,7 @@ class MainActivity : ComponentActivity() {
                         .putExtra(GrayoutService.EXTRA_USER_INTERVAL_CHANGE, true)
                 )
             },
+            is24HourFormat = { DateFormat.is24HourFormat(applicationContext) },
         )
     }
 
@@ -107,18 +106,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private var isAdbPermissionGranted by mutableStateOf(false)
     private var isBatteryUnrestricted by mutableStateOf(false)
 
     private fun refreshSystemChecks() {
         homeViewModel.refreshSystemState()
-        lifecycleScope.launch {
-            val canWrite = withContext(Dispatchers.IO) { grayscaleManager.canWriteSecureSettings() }
-            isAdbPermissionGranted = canWrite
-
-            val powerManager = getSystemService(PowerManager::class.java)
-            isBatteryUnrestricted = powerManager.isIgnoringBatteryOptimizations(packageName)
-        }
+        isBatteryUnrestricted = getSystemService(PowerManager::class.java)
+            .isIgnoringBatteryOptimizations(packageName)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -167,7 +160,6 @@ class MainActivity : ComponentActivity() {
                     GrayoutNavGraph(
                         navController = navController,
                         homeViewModel = homeViewModel,
-                        isAdbPermissionGranted = isAdbPermissionGranted,
                         isBatteryUnrestricted = isBatteryUnrestricted,
                         onBatteryOptimizationClick = {
                             val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {

@@ -57,7 +57,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.princeyadav.grayout.model.formatTime12Hour
+import com.princeyadav.grayout.model.formatTime
+import com.princeyadav.grayout.ui.rememberIs24HourFormat
 import com.princeyadav.grayout.ui.components.DayLabels
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.HapticAction
@@ -100,6 +101,7 @@ fun ScheduleEditorScreen(
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
     val context = LocalContext.current
+    val is24Hour = rememberIs24HourFormat()
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val canDelete = isReady && !isLoading && !isSaving
     val isEditable = canDelete && !isDeleted
@@ -171,6 +173,7 @@ fun ScheduleEditorScreen(
             startMinute = startMinute,
             endHour = endHour,
             endMinute = endMinute,
+            is24Hour = is24Hour,
             enabled = isEditable,
             onStartTimeClick = {
                 TimePickerDialog(
@@ -179,7 +182,7 @@ fun ScheduleEditorScreen(
                     { _, h, m -> onSetStartTime(h, m) },
                     startHour,
                     startMinute,
-                    android.text.format.DateFormat.is24HourFormat(context),
+                    is24Hour,
                 ).show()
             },
             onEndTimeClick = {
@@ -189,7 +192,7 @@ fun ScheduleEditorScreen(
                     { _, h, m -> onSetEndTime(h, m) },
                     endHour,
                     endMinute,
-                    android.text.format.DateFormat.is24HourFormat(context),
+                    is24Hour,
                 ).show()
             },
         )
@@ -371,6 +374,7 @@ private fun TimeCard(
     startMinute: Int,
     endHour: Int,
     endMinute: Int,
+    is24Hour: Boolean,
     onStartTimeClick: () -> Unit,
     onEndTimeClick: () -> Unit,
     enabled: Boolean,
@@ -408,7 +412,7 @@ private fun TimeCard(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = formatTime12Hour(startHour, startMinute),
+                        text = formatTime(startHour, startMinute, is24Hour),
                         style = typography.mono,
                         color = colors.text,
                         modifier = Modifier
@@ -440,7 +444,7 @@ private fun TimeCard(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = formatTime12Hour(endHour, endMinute),
+                        text = formatTime(endHour, endMinute, is24Hour),
                         style = typography.mono,
                         color = colors.text,
                         modifier = Modifier
