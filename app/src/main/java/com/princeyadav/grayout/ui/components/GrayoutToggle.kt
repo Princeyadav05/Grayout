@@ -36,7 +36,7 @@ fun GrayoutToggle(
     val colors = GrayoutTheme.colors
 
     val trackColor by animateColorAsState(
-        targetValue = if (checked) colors.text else colors.off,
+        targetValue = if (checked) colors.accent else colors.off,
         animationSpec = tween(
             durationMillis = GrayoutMotion.Fast,
             easing = GrayoutMotion.Easing,

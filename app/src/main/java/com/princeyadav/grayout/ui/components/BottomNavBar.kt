@@ -64,6 +64,7 @@ fun BottomNavBar(
     modifier: Modifier = Modifier,
 ) {
     val colors = GrayoutTheme.colors
+    val dimens = GrayoutTheme.dimens
 
     Column(
         modifier = modifier
@@ -77,7 +78,7 @@ fun BottomNavBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(colors.bg)
-                .padding(top = 12.dp, bottom = 28.dp),
+                .padding(vertical = dimens.navBarPadV),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             tabs.forEach { tab ->
@@ -103,7 +104,7 @@ private fun NavTabItem(
     val typography = GrayoutTheme.typography
 
     val pillColor by animateColorAsState(
-        targetValue = if (isActive) colors.text else Color.Transparent,
+        targetValue = if (isActive) colors.accent.copy(alpha = 0.2f) else Color.Transparent,
         animationSpec = tween(
             durationMillis = GrayoutMotion.Fast,
             easing = GrayoutMotion.Easing,
@@ -111,7 +112,7 @@ private fun NavTabItem(
         label = "pillColor",
     )
     val iconTint by animateColorAsState(
-        targetValue = if (isActive) colors.bg else colors.textMuted,
+        targetValue = if (isActive) colors.accent else colors.textMuted,
         animationSpec = tween(
             durationMillis = GrayoutMotion.Fast,
             easing = GrayoutMotion.Easing,

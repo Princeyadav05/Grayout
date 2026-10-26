@@ -155,7 +155,7 @@ No spring physics, no bounce, no custom easings. If you need a duration, pick `F
 - This replaces the older freestanding app header and is the only place the wordmark appears in-app.
 
 ### `GrayoutToggle`
-- Track: `text` when on, `off` when off.
+- Track: `accent` (lavender) when on, `off` when off.
 - Thumb: `bg` when on, `offText` when off.
 - Animates on `GrayoutMotion.Fast`. Haptic tick on press.
 
@@ -164,8 +164,9 @@ No spring physics, no bounce, no custom easings. If you need a duration, pick `F
 - When on: fills with `text`. When off: fills with `off`.
 
 ### Bottom navigation
-- 3 tabs: Home, Schedule, Settings.
-- Active: icon and label in `text`. Inactive: `textMuted`.
+- 3 tabs: Home, Schedules, Settings.
+- Active: icon in `accent` on an `accent` 0.2 alpha pill, label in `text` ExtraBold. Inactive: icon and label in `textMuted`.
+- Row padding is `navBarPadV` top and bottom, plus the system navigation-bar inset.
 - Bar background: `bg`. Top border: 1dp `border`.
 - Labels use `labelXSmall`.
 
