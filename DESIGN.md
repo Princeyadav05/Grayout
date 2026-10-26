@@ -100,6 +100,7 @@ All in `Dimens.kt` on `GrayoutTheme.dimens`.
 | `dotSize`      | 10dp   | Schedule color dot                                   |
 | `stripHeight`  | 28dp   | Height of the Today strip on Schedules               |
 | `iconSm`       | 16dp   | Inline problem icon (warning) next to text           |
+| `stepSize`     | 24dp   | Numbered step circle in the setup guide              |
 
 **Rule:** never hardcode `.dp` values for spacing or radii. Use tokens.
 
@@ -186,6 +187,13 @@ No spring physics, no bounce, no custom easings. If you need a duration, pick `F
 - Bottom of the screen, `screenPad` horizontal inset: `surface` background, 1dp `borderActive`, `radiusSm` corners.
 - Message in `bodyMedium` `text`; action (`Undo`) in `bodyMedium` ExtraBold `text` with a 48dp touch target.
 - Short duration. Polite live region so TalkBack announces it.
+
+### Setup guide (ADB command sheet)
+- `ModalBottomSheet` titled "One-time setup", three steps: turn on Developer options, turn on USB debugging, run the command.
+- Step circles are `stepSize`: done = filled `text` circle with a `bg` number; current = 1dp `accent` outline with an `accent` number; upcoming = 1dp `border` outline with a `textMuted` number. **Finished steps never show a tick.**
+- Steps advance on their own: the sheet polls Developer options, USB debugging, and the grant while visible.
+- Actions are outlined pills (1dp `borderActive`, `labelSmall` ExtraBold) inside a `minTouch` target: "Open About phone", "Open Developer options", "Copy", "Share". The primary action ("Try grayscale") is a filled `text` pill.
+- Footer status is a polite live region: "Permission granted" in `success`, or "Waiting for the grant" in `textMuted`.
 
 ### Buttons
 - Primary (Save): `text` background, `bg` label, `radius` corners, 16dp vertical padding.

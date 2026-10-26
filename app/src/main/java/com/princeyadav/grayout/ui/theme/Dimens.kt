@@ -21,6 +21,7 @@ data class GrayoutDimens(
     val dotSize: Dp = 10.dp,
     val stripHeight: Dp = 28.dp,
     val iconSm: Dp = 16.dp,
+    val stepSize: Dp = 24.dp,
 )
 
 val LocalGrayoutDimens = staticCompositionLocalOf { GrayoutDimens() }

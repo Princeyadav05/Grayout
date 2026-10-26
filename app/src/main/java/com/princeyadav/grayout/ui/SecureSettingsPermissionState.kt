@@ -1,5 +1,7 @@
 package com.princeyadav.grayout.ui
 
+import android.content.Context
+import android.provider.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.produceState
@@ -27,4 +29,30 @@ fun rememberSecureSettingsPermission(): State<Boolean> {
             }
         }
     }
+}
+
+/** Developer options and USB debugging switches, for the setup guide. Reads only; polled while visible. */
+data class AdbToggles(val developerOptionsOn: Boolean, val usbDebuggingOn: Boolean)
+
+@Composable
+fun rememberAdbToggles(): State<AdbToggles> {
+    val context = LocalContext.current.applicationContext
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val initial = remember(lifecycleOwner, context) { readAdbToggles(context) }
+    return produceState(initial, lifecycleOwner, context) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                value = readAdbToggles(context)
+                delay(1_000)
+            }
+        }
+    }
+}
+
+private fun readAdbToggles(context: Context): AdbToggles {
+    val resolver = context.contentResolver
+    return AdbToggles(
+        developerOptionsOn = Settings.Global.getInt(resolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0) == 1,
+        usbDebuggingOn = Settings.Global.getInt(resolver, Settings.Global.ADB_ENABLED, 0) == 1,
+    )
 }

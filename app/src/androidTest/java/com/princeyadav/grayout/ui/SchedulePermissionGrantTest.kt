@@ -49,7 +49,7 @@ class SchedulePermissionGrantTest {
                         .fetchSemanticsNodes().isNotEmpty()
                 }
                 composeRule.onNodeWithText("Set up permission").performScrollTo().performClick()
-                composeRule.onNodeWithText("Grant via ADB").assertIsDisplayed()
+                composeRule.onNodeWithText("One-time setup").assertIsDisplayed()
                 permissionRule.setGranted(true)
                 composeRule.waitUntil(5_000) {
                     composeRule.onAllNodes(hasText("Permission granted")).fetchSemanticsNodes().isNotEmpty()

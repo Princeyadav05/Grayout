@@ -27,7 +27,7 @@ class SettingsPermissionGrantTest {
             composeRule.onNodeWithText("Settings").performClick()
             composeRule.onNodeWithText("Required for grayscale toggle").performScrollTo().assertIsDisplayed()
             composeRule.onNodeWithText("ADB permission").performScrollTo().performClick()
-            composeRule.onNodeWithText("Grant via ADB").assertIsDisplayed()
+            composeRule.onNodeWithText("One-time setup").assertIsDisplayed()
 
             permissionRule.setGranted(true)
             composeRule.waitUntil(5_000) {
