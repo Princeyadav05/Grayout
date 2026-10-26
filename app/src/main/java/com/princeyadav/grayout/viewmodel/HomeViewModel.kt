@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.princeyadav.grayout.data.ScheduleRepository
-import com.princeyadav.grayout.logic.nextScheduleStart
+import com.princeyadav.grayout.logic.nextScheduleLineChange
+import com.princeyadav.grayout.logic.scheduleColorIndex
+import com.princeyadav.grayout.logic.scheduleLine
 import com.princeyadav.grayout.model.formatTime
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
@@ -26,6 +28,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.Duration
+import java.time.format.TextStyle
+import java.util.Locale
 
 class HomeViewModel(
     private val grayscaleManager: GrayscaleController,
@@ -33,7 +37,6 @@ class HomeViewModel(
     private val exclusionPrefs: ExclusionPrefs,
     private val loadExcludedIcons: (List<String>) -> Pair<List<Bitmap>, Int>,
     private val ioDispatcher: CoroutineDispatcher,
-    private val usageAccessProbe: () -> Boolean,
     serviceRunning: StateFlow<Boolean>,
     private val onEnforcementIntervalChanged: (Int) -> Unit = {},
     private val clock: () -> Clock = { Clock.systemDefaultZone() },
@@ -46,17 +49,15 @@ class HomeViewModel(
     private val _enforcementInterval = MutableStateFlow(0)
     val enforcementInterval: StateFlow<Int> = _enforcementInterval.asStateFlow()
 
-    private val _nextScheduleText = MutableStateFlow("No active schedule")
-    val nextScheduleText: StateFlow<String> = _nextScheduleText.asStateFlow()
+    /** The schedule line on Home's status card; null when nothing is running or upcoming. */
+    private val _scheduleLine = MutableStateFlow<HomeScheduleLine?>(null)
+    val scheduleLine: StateFlow<HomeScheduleLine?> = _scheduleLine.asStateFlow()
 
     private val _excludedAppIcons = MutableStateFlow<List<Bitmap>>(emptyList())
     val excludedAppIcons: StateFlow<List<Bitmap>> = _excludedAppIcons.asStateFlow()
 
     private val _excludedOverflowCount = MutableStateFlow(0)
     val excludedOverflowCount: StateFlow<Int> = _excludedOverflowCount.asStateFlow()
-
-    private val _needsAttentionCount = MutableStateFlow(0)
-    val needsAttentionCount: StateFlow<Int> = _needsAttentionCount.asStateFlow()
 
     /** Live service-running status for the Settings diagnostics row. */
     val isServiceRunning: StateFlow<Boolean> = serviceRunning
@@ -122,16 +123,6 @@ class HomeViewModel(
         }
     }
 
-    fun refreshAttentionCount() {
-        viewModelScope.launch(ioDispatcher) {
-            // Only what blocks a feature the user set up. Battery and unused usage access live in Settings.
-            var count = 0
-            if (!grayscaleManager.canWriteSecureSettings()) count++
-            if (exclusionPrefs.getExcludedCount() > 0 && !usageAccessProbe()) count++
-            _needsAttentionCount.value = count
-        }
-    }
-
     /** Collect while Home is resumed; cancellation releases the query and boundary timer. */
     suspend fun observeNextSchedule(
         repository: ScheduleRepository,
@@ -145,20 +136,36 @@ class HomeViewModel(
                 val reading = clock()
                 val now = reading.instant()
                 val zone = reading.zone
-                val next = nextScheduleStart(schedules, now, zone)
-                _nextScheduleText.value = if (next == null) {
-                    "No active schedule"
-                } else {
-                    formatTime(next.hour, next.minute, is24HourFormat())
+                _scheduleLine.value = scheduleLine(schedules, now, zone)?.let { line ->
+                    val today = now.atZone(zone).toLocalDate()
+                    HomeScheduleLine(
+                        name = line.name,
+                        colorIndex = scheduleColorIndex(line.scheduleId),
+                        time = formatTime(line.at.hour, line.at.minute, is24HourFormat()),
+                        isActive = line.isActive,
+                        dayPrefix = if (!line.isActive && line.at.toLocalDate() != today) {
+                            line.at.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
+                        } else {
+                            null
+                        },
+                    )
                 }
-                if (next == null) break
-                val nextInstant = next.atZone(zone).toInstant()
-                delay(Duration.between(now, nextInstant).toMillis().coerceAtLeast(1L))
+                val next = nextScheduleLineChange(schedules, now, zone) ?: break
+                delay(Duration.between(now, next).toMillis().coerceAtLeast(1L))
             }
         }
     }
 
 }
+
+/** [time] is the end when [isActive], else the next start; [dayPrefix] ("Tue") when not today. */
+data class HomeScheduleLine(
+    val name: String,
+    val colorIndex: Int,
+    val time: String,
+    val isActive: Boolean,
+    val dayPrefix: String?,
+)
 
 class HomeViewModelFactory(
     private val grayscaleManager: GrayscaleController,
@@ -166,7 +173,6 @@ class HomeViewModelFactory(
     private val exclusionPrefs: ExclusionPrefs,
     private val loadExcludedIcons: (List<String>) -> Pair<List<Bitmap>, Int>,
     private val ioDispatcher: CoroutineDispatcher,
-    private val usageAccessProbe: () -> Boolean,
     private val serviceRunning: StateFlow<Boolean>,
     private val onEnforcementIntervalChanged: (Int) -> Unit,
     private val is24HourFormat: () -> Boolean,
@@ -179,7 +185,6 @@ class HomeViewModelFactory(
             exclusionPrefs,
             loadExcludedIcons,
             ioDispatcher,
-            usageAccessProbe,
             serviceRunning,
             onEnforcementIntervalChanged,
             is24HourFormat = is24HourFormat,

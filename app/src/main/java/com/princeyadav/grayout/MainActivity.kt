@@ -33,7 +33,6 @@ import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
 import com.princeyadav.grayout.service.GrayscaleManager
 import com.princeyadav.grayout.service.GrayoutService
-import com.princeyadav.grayout.service.UsageAccess
 import com.princeyadav.grayout.ui.components.BottomNavBar
 import com.princeyadav.grayout.ui.navigation.GrayoutNavGraph
 import com.princeyadav.grayout.ui.navigation.Routes
@@ -84,7 +83,6 @@ class MainActivity : ComponentActivity() {
                 icons to (installedCount - icons.size).coerceAtLeast(0)
             },
             ioDispatcher = Dispatchers.IO,
-            usageAccessProbe = { UsageAccess.isGranted(applicationContext) },
             serviceRunning = GrayoutService.isRunning,
             onEnforcementIntervalChanged = { interval ->
                 applicationContext.startForegroundService(

@@ -69,10 +69,10 @@ Styles are defined on `GrayoutTheme.typography`.
 | `titleMedium`   | Plus Jakarta Sans| 18sp | Bold       | Schedule name, stat values                 |
 | `bodyLarge`     | Plus Jakarta Sans| 16sp | Regular    | Input text                                 |
 | `bodyMedium`    | Plus Jakarta Sans| 14sp | SemiBold   | **The one body style.** Row labels, subtitles, chip labels |
-| `labelSmall`    | Plus Jakarta Sans| 12sp | Regular    | Eyebrow / section headers (`STATUS`, `ENFORCEMENT`), muted captions. `0.5sp` tracking. |
+| `labelSmall`    | Plus Jakarta Sans| 12sp | Regular    | Eyebrow / section headers (`STATUS`, `AUTOMATIC RESTORE`), muted captions. `0.5sp` tracking. |
 | `labelXSmall`   | Plus Jakarta Sans| 11sp | SemiBold   | Pill text, day-letter text, nav labels     |
-| `mono`          | JetBrains Mono   | 22sp | Bold       | Full-size time display (pickers)           |
-| `monoSmall`     | JetBrains Mono   | 14sp | Medium     | Next-schedule chip on hero, schedule times |
+| `mono`          | JetBrains Mono   | 22sp | Bold       | Automatic restore value, time pickers      |
+| `monoSmall`     | JetBrains Mono   | 14sp | Medium     | Schedule times                             |
 
 Headings use `-0.5sp` letter spacing. `labelSmall` uses `+0.5sp`.
 
@@ -89,7 +89,7 @@ All in `Dimens.kt` on `GrayoutTheme.dimens`.
 | `screenPad`    | 20dp   | Horizontal padding on every screen                   |
 | `cardPad`      | 16dp   | Default card internal padding                        |
 | `cardPadLarge` | 24dp   | Reserved for tall hero cards                         |
-| `cardGap`      | 12dp   | Gap between cards, gap inside the hero pill row      |
+| `cardGap`      | 12dp   | Gap between cards                                    |
 | `sectionGap`   | 16dp   | Gap between sections inside a card                   |
 | `tightGap`     | 8dp    | The one "small gap" token. Replaces the old `itemGap`, `chipGap`, and `dayDotGap` — use this for any inside-a-component small gap. |
 | `radius`       | 16dp   | Cards                                                |
@@ -126,30 +126,20 @@ No spring physics, no bounce, no custom easings. If you need a duration, pick `F
 - Background: `surface`. Corner: `dimens.radius` (16dp).
 - Border: 1dp `border` by default, animates to 2dp `borderActive` when `isActive = true`. The animation uses `GrayoutMotion.Slow`.
 - No elevation, no shadow. Depth is borders only.
-- `wash = true` opts into the hero accent wash. Default is false. Only the Status Hero and the Schedules empty-state card pass `wash = true`.
+- `wash = true` opts into the hero accent wash. Default is false. Only the Home Status/Setup card and the Schedules empty-state card pass `wash = true`.
 
 ### Eyebrow label
 - A small uppercase text using `typography.labelSmall`, colored `BrandAccent.copy(alpha = 0.75f)`.
-- Used at the top of sections inside a card (`STATUS`, `ENFORCEMENT`, `EXCLUSIONS`) and for section headers on the exclusions screen.
+- Used at the top of sections inside a card (`STATUS`, `AUTOMATIC RESTORE`, `KEPT IN COLOR`, `SETUP`) and for section headers on the exclusions screen.
 - Optionally paired with a 6dp dot to its left.
 
-### Status hero card (home)
-- One unified card that combines status + pills + toggle. There is no separate 120dp circle anymore.
-- Top edge has a vertical gradient wash: `BrandAccent` at 0.08 alpha at the top, fading to `Color.Transparent` by 40% of the card height. This wash also appears on the Schedules empty-state card; it appears nowhere else.
-- Contents, top to bottom:
-  1. Eyebrow row: a 6dp dot (`BrandAccent` when off, `text` when on) + the `STATUS` label.
-  2. `Grayscale on` / `Grayscale off` in `headingLarge`, colored `text`.
-  3. A `bodyMedium` subtitle in `textMuted` ("Your screen is muted" / "Tap to mute your screen"), or an error line in `text` if the last toggle failed.
-  4. A row with the enforcement interval pill (`1m`, `5m`, `10m`, `15m`, `30m` — hidden when enforcement is off) and the next-schedule summary in `monoSmall`.
-  5. A divider, then the `Grayscale` label + `GrayoutToggle` row.
-- When grayscale is on, the card passes `isActive = true` to `GrayoutCard`, which brightens the border.
-
-### Enforcement pills
-- Six pills in a single row, equal width (`Modifier.weight(1f)`): `Off`, `1m`, `5m`, `10m`, `15m`, `30m`.
-- Shape: `radiusFull`. Min height 48dp (touch target).
-- Active: background `text`, text color `bg`, no border, `bodyMedium` at `ExtraBold` weight.
-- Inactive: transparent background, text `textMuted`, 1dp `border` border, `bodyMedium` at `SemiBold`.
-- State changes animate over `GrayoutMotion.Fast`.
+### Home cards
+Three cards, each fact shown once:
+- **Status** (`STATUS` eyebrow, accent wash, `isActive` when grayscale is on): "Grayscale on/off" in `headingLarge` with the switch on the same row. A hairline divider, then the schedule row: schedule color dot, a `labelSmall` "Schedule" caption, and "Daily focus, until 11:00 PM" (running, with the lavender "Now" pill) / "Next: Work, Tue 9:00 AM" / "No upcoming schedules". The row opens Schedules (`onClickLabel = "Open schedules"`).
+  - Before the grayscale permission is granted the card is replaced by the **Setup** card: "One-time setup", one sentence, and a filled "Show the command" pill that opens the setup guide.
+  - If a write fails while the permission is granted, an inline row under the switch shows the warning icon + "Couldn't turn on grayscale" in `danger` + an underlined "Try again". Polite live region.
+- **Automatic restore**: the current value in `mono` ("5 min" / "Off") with an outlined "Change" pill, plus one `labelSmall` helper line. "Change" opens a bottom sheet with a radio list (Off, 1, 5, 10, 15, 30 min); radios use `accent`.
+- **Kept in color**: "3 apps" / "No apps yet", up to three app icons, "+N", chevron. When apps are kept in color but usage access is off: warning icon + "Paused: usage access is off" in `warning` + "Fix".
 
 ### Wordmark (home header)
 - A compact lockup: the ring mark (`ic_grayout_foreground`) tinted with `BrandAccent`, 24dp, next to the text "Grayout" in `headingSmall`.
@@ -173,8 +163,8 @@ No spring physics, no bounce, no custom easings. If you need a duration, pick `F
 
 ### Category chips (exclusions)
 - A horizontally scrolling row under the search field: `All`, then one chip per category (`Camera`, `Photos`, `Maps`) that has at least one installed app. The row is hidden when no category has apps.
-- Active and inactive colors match the enforcement pills (`text` fill / `bg` label / ExtraBold vs transparent / `textMuted` / 1dp `border`), animated on `GrayoutMotion.Fast`.
-- Unlike the enforcement pills, chips are wrap-content: the painted pill uses `cardGap` horizontal and `tightGap` vertical padding, centered inside a 48dp-tall touch target.
+- Active: `text` fill, `bg` label, ExtraBold. Inactive: transparent, `textMuted` label, 1dp `border`. Animated on `GrayoutMotion.Fast`.
+- Chips are wrap-content: the painted pill uses `cardGap` horizontal and `tightGap` vertical padding, centered inside a 48dp-tall touch target.
 - Label in `bodyMedium`; app count after it in `labelXSmall`, `textMuted` (inactive) or opaque `bg` (active), `tightGap` apart.
 - Radio semantics: the row is a `selectableGroup`, each chip is `selectable` with `Role.RadioButton`.
 

@@ -71,6 +71,14 @@ private fun installedVersionName(context: Context): String = try {
     "unknown"
 }
 
+private fun openUsageAccessSettings(context: Context) {
+    try {
+        context.startActivity(Intent(AndroidSettings.ACTION_USAGE_ACCESS_SETTINGS))
+    } catch (_: ActivityNotFoundException) {
+        context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
+    }
+}
+
 object Routes {
     const val HOME = "home"
     const val SCHEDULES = "schedules"
@@ -110,17 +118,15 @@ fun GrayoutNavGraph(
 
             val db = remember { GrayoutDatabase.getInstance(context) }
             val scheduleRepository = remember { ScheduleRepository(db.scheduleDao()) }
-            val nextScheduleText by homeViewModel.nextScheduleText.collectAsStateWithLifecycle()
+            val scheduleLine by homeViewModel.scheduleLine.collectAsStateWithLifecycle()
             val excludedAppIcons by homeViewModel.excludedAppIcons.collectAsStateWithLifecycle()
             val excludedOverflowCount by homeViewModel.excludedOverflowCount.collectAsStateWithLifecycle()
-            val needsAttentionCount by homeViewModel.needsAttentionCount.collectAsStateWithLifecycle()
 
             LaunchedEffect(lifecycleOwnerHome) {
                 lifecycleOwnerHome.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                     excludedAppCount = exclusionPrefsHome.getExcludedCount()
                     isUsageAccessGrantedHome = UsageAccess.isGranted(context)
                     homeViewModel.refreshExcludedAppIcons()
-                    homeViewModel.refreshAttentionCount()
                     homeViewModel.observeNextSchedule(
                         scheduleRepository, context.applicationContext.systemTimeChanges(),
                     )
@@ -156,20 +162,13 @@ fun GrayoutNavGraph(
                         launchSingleTop = true
                     }
                 },
-                nextScheduleText = nextScheduleText,
+                scheduleLine = scheduleLine,
                 excludedAppIcons = excludedAppIcons,
                 excludedOverflowCount = excludedOverflowCount,
-                needsAttentionCount = needsAttentionCount,
-                onAttentionClick = {
-                    navController.navigate(Routes.SETTINGS) {
-                        popUpTo(Routes.HOME) { saveState = true }
-                        restoreState = true
-                        launchSingleTop = true
-                    }
-                },
                 isPermissionGranted = isPermissionGrantedHome,
                 toggleFailedTarget = toggleFailedTarget,
                 onShowSetup = { showSetup = true },
+                onFixUsageAccess = { openUsageAccessSettings(context) },
             )
         }
         composable(Routes.SCHEDULES) {
@@ -320,13 +319,7 @@ fun GrayoutNavGraph(
                 isBatteryUnrestricted = isBatteryUnrestricted,
                 needsExactAlarmAccess = needsExactAlarms,
                 onBatteryOptimizationClick = onBatteryOptimizationClick,
-                onUsageAccessClick = {
-                    try {
-                        context.startActivity(Intent(AndroidSettings.ACTION_USAGE_ACCESS_SETTINGS))
-                    } catch (_: ActivityNotFoundException) {
-                        context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
-                    }
-                },
+                onUsageAccessClick = { openUsageAccessSettings(context) },
                 onExactAlarmAccessClick = {
                     // Granting re-arms schedules through SystemScheduleReceiver.
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -398,13 +391,7 @@ fun GrayoutNavGraph(
                 onUndo = viewModel::undoBulkExclusion,
                 onUndoDismissed = viewModel::clearPendingUndo,
                 onSearchQueryChange = viewModel::setSearchQuery,
-                onOpenUsageAccessSettings = {
-                    try {
-                        context.startActivity(Intent(AndroidSettings.ACTION_USAGE_ACCESS_SETTINGS))
-                    } catch (_: ActivityNotFoundException) {
-                        context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
-                    }
-                },
+                onOpenUsageAccessSettings = { openUsageAccessSettings(context) },
                 onBack = { navController.popBackStack() },
             )
         }

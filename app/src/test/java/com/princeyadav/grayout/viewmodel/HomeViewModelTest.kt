@@ -45,7 +45,6 @@ class HomeViewModelTest {
 
     private fun vm(
         canWrite: Boolean = true,
-        usageAccessGranted: Boolean = true,
         serviceRunning: Boolean = false,
         clock: () -> Clock = { Clock.systemDefaultZone() },
         is24HourFormat: () -> Boolean = { false },
@@ -61,7 +60,6 @@ class HomeViewModelTest {
                 emptyList<android.graphics.Bitmap>() to 0
             },
             ioDispatcher = dispatcherRule.dispatcher,
-            usageAccessProbe = { usageAccessGranted },
             serviceRunning = this.serviceRunning,
             onEnforcementIntervalChanged = intervalCommands::add,
             clock = clock,
@@ -216,42 +214,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `refreshAttentionCount counts ADB and usage access only when apps are excluded`() = runTest {
-        exclusionPrefs.setExcludedPackages(setOf("com.example.maps"))
-        val homeViewModel = vm(canWrite = false, usageAccessGranted = false)
-        advanceUntilIdle()
-
-        homeViewModel.refreshAttentionCount()
-        advanceUntilIdle()
-
-        assertEquals(2, homeViewModel.needsAttentionCount.value)
-    }
-
-    @Test
-    fun `refreshAttentionCount ignores usage access when nothing is excluded`() = runTest {
-        val homeViewModel = vm(canWrite = true, usageAccessGranted = false)
-        advanceUntilIdle()
-
-        homeViewModel.refreshAttentionCount()
-        advanceUntilIdle()
-
-        assertEquals(0, homeViewModel.needsAttentionCount.value)
-    }
-
-    @Test
-    fun `refreshAttentionCount returns 0 when all permissions granted`() = runTest {
-        exclusionPrefs.setExcludedPackages(setOf("com.example.maps"))
-        val homeViewModel = vm(canWrite = true, usageAccessGranted = true)
-        advanceUntilIdle()
-
-        homeViewModel.refreshAttentionCount()
-        advanceUntilIdle()
-
-        assertEquals(0, homeViewModel.needsAttentionCount.value)
-    }
-
-    @Test
-    fun `next schedule observer shows No active schedule when no enabled schedules`() = runTest {
+    fun `schedule line is empty when no enabled schedules`() = runTest {
         val homeViewModel = vm()
         advanceUntilIdle()
 
@@ -261,7 +224,7 @@ class HomeViewModelTest {
         }
         runCurrent()
 
-        assertEquals("No active schedule", homeViewModel.nextScheduleText.value)
+        assertEquals(null, homeViewModel.scheduleLine.value)
     }
 
     @Test
@@ -302,13 +265,13 @@ class HomeViewModelTest {
             home.observeNextSchedule(ScheduleRepository(dao), timeChanges)
         }
         runCurrent()
-        assertEquals("14:00", home.nextScheduleText.value)
+        assertEquals("14:00", home.lineText())
 
         // Android broadcasts a time change when the 12/24-hour setting changes.
         is24Hour = false
         timeChanges.emit(Unit)
         runCurrent()
-        assertEquals("2:00 PM", home.nextScheduleText.value)
+        assertEquals("2:00 PM", home.lineText())
     }
 
     @Test
@@ -330,19 +293,22 @@ class HomeViewModelTest {
             home.observeNextSchedule(ScheduleRepository(countingDao))
         }
         runCurrent()
-        assertEquals("9:00 AM", home.nextScheduleText.value)
+        assertEquals("9:00 AM", home.lineText())
 
-        advanceTimeBy(60_000)
+        advanceTimeBy(60_000) // 09:00, the first window is running.
         runCurrent()
-        assertEquals("2:00 PM", home.nextScheduleText.value)
-        advanceTimeBy(5 * 3_600_000)
+        assertEquals("until 10:00 AM", home.lineText())
+        advanceTimeBy(3_600_000) // 10:00, it ended.
         runCurrent()
-        assertEquals("9:00 AM", home.nextScheduleText.value)
+        assertEquals("2:00 PM", home.lineText())
+        advanceTimeBy(5 * 3_600_000) // 15:00, both passed: next Monday.
+        runCurrent()
+        assertEquals("Mon 9:00 AM", home.lineText())
         assertEquals(1, querySubscriptions)
     }
 
     @Test
-    fun `Home data edits replace the timer and disable or delete clears the text`() = runTest {
+    fun `Home data edits replace the timer and delete clears the line`() = runTest {
         val dao = FakeScheduleDao()
         val id = dao.insert(schedule(startHour = 9, endHour = 10))
         val laterId = dao.insert(schedule(startHour = 14, endHour = 15))
@@ -354,21 +320,21 @@ class HomeViewModelTest {
         runCurrent()
         dao.update(dao.getById(id)!!.copy(startTimeMinute = 30))
         runCurrent()
-        assertEquals("9:30 AM", home.nextScheduleText.value)
+        assertEquals("9:30 AM", home.lineText())
 
         advanceTimeBy(60_000)
         runCurrent()
-        assertEquals("9:30 AM", home.nextScheduleText.value)
-        advanceTimeBy(30 * 60_000)
+        assertEquals("9:30 AM", home.lineText())
+        advanceTimeBy(30 * 60_000) // 09:30, the edited window is running.
         runCurrent()
-        assertEquals("2:00 PM", home.nextScheduleText.value)
+        assertEquals("until 10:00 AM", home.lineText())
 
         dao.setEnabled(laterId, false)
         runCurrent()
-        assertEquals("9:30 AM", home.nextScheduleText.value)
+        assertEquals("until 10:00 AM", home.lineText())
         dao.delete(dao.getById(id)!!)
         runCurrent()
-        assertEquals("No active schedule", home.nextScheduleText.value)
+        assertEquals(null, home.lineText())
     }
 
     @Test
@@ -391,28 +357,28 @@ class HomeViewModelTest {
             home.observeNextSchedule(ScheduleRepository(countingDao), changes)
         }
         runCurrent()
-        assertEquals("9:00 AM", home.nextScheduleText.value)
+        assertEquals("9:00 AM", home.lineText())
 
         base = Instant.parse("2026-04-13T13:59:00Z")
         changes.emit(Unit)
         runCurrent()
-        assertEquals("2:00 PM", home.nextScheduleText.value)
+        assertEquals("2:00 PM", home.lineText())
         advanceTimeBy(60_000)
         runCurrent()
-        assertEquals("9:00 AM", home.nextScheduleText.value)
+        assertEquals("until 3:00 PM", home.lineText())
 
         base = Instant.parse("2026-04-13T08:00:00Z")
         changes.emit(Unit)
         runCurrent()
-        assertEquals("9:00 AM", home.nextScheduleText.value)
+        assertEquals("9:00 AM", home.lineText())
         zone = ZoneOffset.ofHours(2)
         changes.emit(Unit)
         runCurrent()
-        assertEquals("2:00 PM", home.nextScheduleText.value)
+        assertEquals("2:00 PM", home.lineText())
         zone = ZoneOffset.ofHours(-2)
         changes.emit(Unit)
         runCurrent()
-        assertEquals("9:00 AM", home.nextScheduleText.value)
+        assertEquals("9:00 AM", home.lineText())
         assertEquals(1, subscriptions)
     }
 
@@ -429,18 +395,18 @@ class HomeViewModelTest {
             home.observeNextSchedule(ScheduleRepository(dao), changes)
         }
         runCurrent()
-        assertEquals("1:30 AM", home.nextScheduleText.value)
-        advanceTimeBy(60_000)
+        assertEquals("1:30 AM", home.lineText())
+        advanceTimeBy(60_000) // 01:30 EDT, running.
         runCurrent()
-        assertEquals("3:00 AM", home.nextScheduleText.value)
+        assertEquals("until 2:00 AM", home.lineText())
 
-        advanceTimeBy(45 * 60_000) // 01:15 on the second offset.
+        advanceTimeBy(45 * 60_000) // 01:15 on the second offset, still inside the window.
         changes.emit(Unit)
         runCurrent()
-        assertEquals("3:00 AM", home.nextScheduleText.value)
-        advanceTimeBy(105 * 60_000)
+        assertEquals("until 2:00 AM", home.lineText())
+        advanceTimeBy(45 * 60_000) // 02:00 EST, window over.
         runCurrent()
-        assertEquals("1:30 AM", home.nextScheduleText.value) // Next Sunday.
+        assertEquals("3:00 AM", home.lineText())
     }
 
     @Test
@@ -455,10 +421,10 @@ class HomeViewModelTest {
             home.observeNextSchedule(ScheduleRepository(dao))
         }
         runCurrent()
-        assertEquals("2:30 AM", home.nextScheduleText.value)
-        advanceTimeBy(60_000)
+        assertEquals("2:30 AM", home.lineText())
+        advanceTimeBy(60_000) // 2:30 falls in the gap and resolves to 3:30 EDT.
         runCurrent()
-        assertEquals("5:00 AM", home.nextScheduleText.value)
+        assertEquals("until 4:00 AM", home.lineText())
     }
 
     @Test
@@ -506,7 +472,12 @@ class HomeViewModelTest {
             home.observeNextSchedule(repository, changes)
         }
         runCurrent()
-        assertEquals("2:00 PM", home.nextScheduleText.value)
+        assertEquals("until 10:00 AM", home.lineText())
+    }
+
+    /** "until 10:00 AM" while running, "Mon 9:00 AM" for another day, "9:00 AM" later today. */
+    private fun HomeViewModel.lineText(): String? = scheduleLine.value?.let {
+        (if (it.isActive) "until " else "") + (it.dayPrefix?.let { day -> "$day " } ?: "") + it.time
     }
 
     private fun schedule(
