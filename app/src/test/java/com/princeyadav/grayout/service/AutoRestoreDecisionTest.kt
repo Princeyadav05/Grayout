@@ -42,4 +42,12 @@ class AutoRestoreDecisionTest {
         prefs.setOnlyDuringSchedules(true)
         assertEquals(true, prefs.isOnlyDuringSchedules())
     }
+
+    @Test
+    fun elapsedDeadlinesConvertToWallTimeAndOverdueMeansNow() {
+        // Deadline 5 min after "now" on the monotonic clock lands 5 min after wall-clock now.
+        assertEquals(1_000_300_000L, restoreWallMillis(elapsedDeadline = 600_000L, nowElapsed = 300_000L, nowWall = 1_000_000_000L))
+        // An overdue deadline fires immediately, so coverage is checked at now.
+        assertEquals(1_000_000_000L, restoreWallMillis(elapsedDeadline = 100_000L, nowElapsed = 300_000L, nowWall = 1_000_000_000L))
+    }
 }

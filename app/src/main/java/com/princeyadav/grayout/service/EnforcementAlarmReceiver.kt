@@ -201,8 +201,11 @@ internal fun Context.autoRestoreAllowedAt(wallMillis: Long): Boolean =
         inScheduleWindowAt(wallMillis)
 
 /** Wall-clock instant of an elapsed-realtime alarm deadline. Overdue deadlines fire now, so they read as now. */
-internal fun restoreWallMillis(elapsedDeadline: Long): Long =
-    System.currentTimeMillis() + (elapsedDeadline - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+internal fun restoreWallMillis(
+    elapsedDeadline: Long,
+    nowElapsed: Long = SystemClock.elapsedRealtime(),
+    nowWall: Long = System.currentTimeMillis(),
+): Long = nowWall + (elapsedDeadline - nowElapsed).coerceAtLeast(0L)
 
 /**
  * Delay before retrying a grayscale write that did not stick. A transient failure
