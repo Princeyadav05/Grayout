@@ -150,9 +150,10 @@ Three cards, each fact shown once:
 - Thumb: `bg` when on, `offText` when off.
 - Animates on `GrayoutMotion.Fast`. Haptic tick on press.
 
-### `StatusDot`
-- 8dp circle. Used in rows (e.g. "Service status") to indicate liveness.
-- When on: fills with `text`. When off: fills with `off`.
+### Status value and problem rows (Settings)
+- `StatusValue(text, isProblem)`: healthy is a plain word ("Granted", "Unrestricted") in `success`; a problem is the Material warning icon (`iconSm`) + the word in `warning`.
+- Problem rows add a `labelSmall` subtitle that says why it matters ("Needed to keep apps in color") and open the fix on tap. Healthy rows have no icon and no subtitle.
+- Settings has two cards: PERMISSIONS (grayscale permission, usage access, alarms & reminders when needed, battery) and ABOUT ("Grayout 1.4.0", "Running in the background").
 
 ### Bottom navigation
 - 3 tabs: Home, Schedules, Settings.

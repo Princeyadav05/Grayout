@@ -311,7 +311,6 @@ fun GrayoutNavGraph(
             }
 
             SettingsScreen(
-                enforcementInterval = enforcementInterval,
                 isServiceRunning = isServiceRunning,
                 versionName = versionName,
                 isAdbPermissionGranted = isAdbPermissionGranted,

@@ -53,7 +53,7 @@ class SystemBarsLayoutTest {
                 assertTrue("$label must clear side navigation insets", bounds.left >= safeLeft && bounds.right <= safeRight)
             }
             composeRule.onNodeWithText("Settings").performClick()
-            composeRule.onNodeWithText("SERVICE").assertIsDisplayed()
+            composeRule.onNodeWithText("PERMISSIONS").assertIsDisplayed()
         }
     }
 }

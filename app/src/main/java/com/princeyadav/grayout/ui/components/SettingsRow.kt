@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -65,5 +69,33 @@ fun SettingsRow(
                 modifier = Modifier.clearAndSetSemantics {},
             )
         }
+    }
+}
+
+/**
+ * A row's status word. Healthy is a plain word in `success`; a problem adds the warning icon and
+ * uses `warning`. Never a tick: color backs up the word, it never replaces it.
+ */
+@Composable
+fun StatusValue(text: String, isProblem: Boolean) {
+    val colors = GrayoutTheme.colors
+    val dimens = GrayoutTheme.dimens
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (isProblem) {
+            Icon(
+                imageVector = Icons.Filled.Warning,
+                contentDescription = null,
+                tint = colors.warning,
+                modifier = Modifier.size(dimens.iconSm),
+            )
+        }
+        Text(
+            text = text,
+            style = GrayoutTheme.typography.bodyMedium,
+            color = if (isProblem) colors.warning else colors.success,
+        )
     }
 }
