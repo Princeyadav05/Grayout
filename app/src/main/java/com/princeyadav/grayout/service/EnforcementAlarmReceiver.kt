@@ -10,6 +10,7 @@ import androidx.core.app.NotificationCompat
 import com.princeyadav.grayout.MainActivity
 import com.princeyadav.grayout.R
 import com.princeyadav.grayout.scheduling.inScheduleWindowAt
+import com.princeyadav.grayout.scheduling.startForegroundServiceSafely
 
 /**
  * Receives the enforcement countdown alarm and re-applies grayscale.
@@ -39,14 +40,16 @@ class EnforcementAlarmReceiver : BroadcastReceiver() {
                         scheduleEnforcementAlarmAtElapsed(context, it, interval)
                     } else {
                         cancelEnforcementCountdown(context)
+                        refreshServiceNotification(context)
                     }
                 }
                 return
             }
             val grayscale = GrayscaleManager(context)
+            val inWindow = context.inScheduleWindowAt(System.currentTimeMillis())
             val result = applyEnforcementTick(
                 enforcementPrefs, ExclusionPrefs(prefs), grayscale,
-                restoreMomentInWindow = context.inScheduleWindowAt(System.currentTimeMillis()),
+                restoreMomentInWindow = inWindow,
             )
             // The alarm that fired is spent, but its non-one-shot PendingIntent token
             // survives, and hasPendingEnforcementAlarm() (used by the service's re-arm
@@ -57,12 +60,21 @@ class EnforcementAlarmReceiver : BroadcastReceiver() {
             when (result) {
                 EnforcementTickResult.WriteFailed ->
                     onWriteFailed(context, enforcementPrefs.getInterval(), grayscale)
-                else -> cancelEnforcementAlarm(context)
+                else -> {
+                    cancelEnforcementAlarm(context)
+                    // A late (inexact/Doze) delivery past the window end: let the service
+                    // replace its "comes back around" countdown with the waiting text.
+                    if (enforcementPrefs.isOnlyDuringSchedules() && !inWindow) refreshServiceNotification(context)
+                }
             }
         }
     }
 
     private fun cancelEnforcementAlarm(context: Context) = cancelEnforcementCountdown(context)
+
+    /** The service owns the notification; a plain start makes it re-evaluate (branch C). */
+    private fun refreshServiceNotification(context: Context) =
+        context.startForegroundServiceSafely(Intent(context, GrayoutService::class.java))
 
     companion object {
         internal const val EXTRA_GENERATION = "enforcement_generation"
@@ -94,6 +106,7 @@ class EnforcementAlarmReceiver : BroadcastReceiver() {
                 scheduleEnforcementAlarm(context, retryAt, intervalMinutes)
             } else {
                 cancelEnforcementCountdown(context)
+                if (canWrite) refreshServiceNotification(context)
             }
         }
         if (!canWrite) postPermissionLost(context)

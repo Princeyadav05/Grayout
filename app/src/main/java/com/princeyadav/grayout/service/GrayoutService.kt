@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat
 import com.princeyadav.grayout.GrayoutApp
 import com.princeyadav.grayout.MainActivity
 import com.princeyadav.grayout.R
+import com.princeyadav.grayout.scheduling.hasScheduleCoverage
 import com.princeyadav.grayout.ui.theme.BrandAccentArgb
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -234,6 +235,10 @@ class GrayoutService : Service() {
                 } else if (alarmState.hasRecord() || (alarmState.isInitialized() && hasPendingEnforcementAlarm())) {
                     cancelEnforcementAlarm()
                     countdownTargetElapsedMs = 0L
+                } else {
+                    // Every arm persists a deadline, so none means a receiver cancelled it
+                    // (e.g. a schedule-only restore landing outside a window).
+                    countdownTargetElapsedMs = 0L
                 }
             }
             val now = SystemClock.elapsedRealtime()
@@ -290,7 +295,8 @@ class GrayoutService : Service() {
         if (hasActiveCountdown) {
             startForeground(NOTIFICATION_ID, buildNotification(currentInterval, countdownTargetElapsedMs))
         } else {
-            startForeground(NOTIFICATION_ID, buildNotification(currentInterval))
+            val waiting = !restoreAllowed && currentInterval > 0 && !grayscaleManager.isGrayscaleEnabled()
+            startForeground(NOTIFICATION_ID, buildNotification(currentInterval, waiting = waiting))
         }
     }
 
@@ -345,8 +351,10 @@ class GrayoutService : Service() {
             builder.setContentText("Grayscale comes back around $targetTime")
                 .setShowWhen(false)
         } else if (waiting) {
-            builder.setContentText("Grayscale comes back with the next schedule")
-                .setShowWhen(false)
+            builder.setContentText(
+                if (hasScheduleCoverage()) "Grayscale comes back with the next schedule"
+                else "Waiting for a schedule. None are turned on.",
+            ).setShowWhen(false)
         } else if (exclusionOnly) {
             builder.setContentText("Keeping chosen apps in color")
                 .setShowWhen(false)

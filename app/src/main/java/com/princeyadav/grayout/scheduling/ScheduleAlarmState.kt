@@ -91,6 +91,11 @@ internal fun SharedPreferences.saveScheduleCoverage(schedules: List<Schedule>) {
     edit().putString(KEY_COVERAGE, encodeCoverage(schedules)).commit()
 }
 
+/** Whether any schedule is enabled at all, for the "waiting" notification copy. */
+internal fun Context.hasScheduleCoverage(): Boolean =
+    decodeCoverage(getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_COVERAGE, null))
+        .isNotEmpty()
+
 /** Whether an enabled schedule window covers [wallMillis], in the device's current zone. */
 internal fun Context.inScheduleWindowAt(wallMillis: Long): Boolean {
     val prefs = getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
