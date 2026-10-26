@@ -55,24 +55,24 @@ The `MaterialTheme` color scheme in `Theme.kt` is wired from these same tokens s
 
 ## Typography
 
-Two font families, loaded via Google Fonts:
-- **Plus Jakarta Sans** — weights 400 / 500 / 600 / 700 / 800
-- **JetBrains Mono** — weights 500 / 700
+Two font families, bundled as TTFs in `res/font` (SIL Open Font License, see `licenses/Geist-OFL.txt`):
+- **Geist** — weights 400 / 500 / 600 / 700 / 800
+- **Geist Mono** — weights 500 / 700
 
 Styles are defined on `GrayoutTheme.typography`.
 
 | Style           | Font             | Size | Weight     | Usage                                      |
 |-----------------|------------------|------|------------|--------------------------------------------|
-| `headingLarge`  | Plus Jakarta Sans| 28sp | Bold       | Hero state label (`Grayscale on` / `off`)  |
-| `headingMedium` | Plus Jakarta Sans| 24sp | Bold       | Screen titles                              |
-| `headingSmall`  | Plus Jakarta Sans| 20sp | Bold       | Wordmark text, editor titles               |
-| `titleMedium`   | Plus Jakarta Sans| 18sp | Bold       | Schedule name, stat values                 |
-| `bodyLarge`     | Plus Jakarta Sans| 16sp | Regular    | Input text                                 |
-| `bodyMedium`    | Plus Jakarta Sans| 14sp | SemiBold   | **The one body style.** Row labels, subtitles, chip labels |
-| `labelSmall`    | Plus Jakarta Sans| 12sp | Regular    | Eyebrow / section headers (`STATUS`, `AUTOMATIC RESTORE`), muted captions. `0.5sp` tracking. |
-| `labelXSmall`   | Plus Jakarta Sans| 11sp | SemiBold   | Pill text, day-letter text, nav labels     |
-| `mono`          | JetBrains Mono   | 22sp | Bold       | Automatic restore value, time pickers      |
-| `monoSmall`     | JetBrains Mono   | 14sp | Medium     | Schedule times                             |
+| `headingLarge`  | Geist            | 28sp | Bold       | Hero state label (`Grayscale on` / `off`)  |
+| `headingMedium` | Geist            | 24sp | Bold       | Screen titles                              |
+| `headingSmall`  | Geist            | 20sp | Bold       | Wordmark text, editor titles               |
+| `titleMedium`   | Geist            | 18sp | Bold       | Schedule name, stat values                 |
+| `bodyLarge`     | Geist            | 16sp | Regular    | Input text                                 |
+| `bodyMedium`    | Geist            | 14sp | SemiBold   | **The one body style.** Row labels, subtitles, chip labels |
+| `labelSmall`    | Geist            | 12sp | Regular    | Eyebrow / section headers (`STATUS`, `AUTOMATIC RESTORE`), muted captions. `0.5sp` tracking. |
+| `labelXSmall`   | Geist            | 11sp | SemiBold   | Pill text, day-letter text, nav labels     |
+| `mono`          | Geist Mono       | 22sp | Bold       | Automatic restore value, time pickers      |
+| `monoSmall`     | Geist Mono       | 14sp | Medium     | Schedule times                             |
 
 Headings use `-0.5sp` letter spacing. `labelSmall` uses `+0.5sp`.
 
