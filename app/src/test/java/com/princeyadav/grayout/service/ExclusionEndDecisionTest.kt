@@ -63,4 +63,16 @@ class ExclusionEndDecisionTest {
 
         assertEquals(1, retries)
     }
+
+    @Test
+    fun `schedule-only restore outside a window leaves grayscale off on exclusion end`() {
+        assertFalse(
+            shouldReEnableOnExclusionEnd(
+                interval = 5,
+                reEnablePending = false,
+                grayscaleEnabled = false,
+                restoreAllowed = false,
+            )
+        )
+    }
 }

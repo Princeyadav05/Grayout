@@ -43,12 +43,15 @@ class ScheduleAlarmManager(
     private val state = ScheduleAlarmState(prefs)
     private val reconciliationState = ScheduleReconciliationState(prefs)
 
+    override fun invalidateCoverage() = prefs.clearScheduleCoverage()
+
     override suspend fun reschedule(
         repository: ScheduleRepository,
         keepManualChoice: Boolean,
     ): Unit = withContext(Dispatchers.IO) {
         scheduleOperationMutex.withLock {
             val enabledSchedules = repository.getEnabledSchedules()
+            prefs.saveScheduleCoverage(enabledSchedules)
             val pending = reconciliationState.read()
             // Read before a configuration change clears it: unless the display has
             // changed since (as in reconcileSystemChange), the failed write is still owed.
@@ -70,6 +73,7 @@ class ScheduleAlarmManager(
     ): Unit = withContext(Dispatchers.IO) {
         scheduleOperationMutex.withLock {
             val schedules = repository.getEnabledSchedules()
+            prefs.saveScheduleCoverage(schedules)
             val pending = reconciliationState.read()
             if (retryOnly && pending == null) return@withLock
             val armed = state.read()
@@ -99,6 +103,11 @@ class ScheduleAlarmManager(
             }
             if (!decision.rearmed) replaceNextAlarm(schedules, decision.at, decision.zone)
             if (reconciliationState.read() != null) scheduleReconciliationRetry()
+            // Clock, zone and update changes can move coverage without any grayscale write.
+            val restore = EnforcementPrefs(prefs)
+            if (restore.getInterval() > 0 && restore.isOnlyDuringSchedules()) {
+                context.startForegroundServiceSafely(Intent(context, GrayoutService::class.java))
+            }
         }
     }
 
@@ -214,10 +223,10 @@ class ScheduleAlarmManager(
 
         if (reconciliationState.read() != null) scheduleReconciliationRetry()
 
-        if (isCurrentlyInSchedule) {
-            if (EnforcementPrefs(prefs).getInterval() > 0) {
-                context.startForegroundServiceSafely(Intent(context, GrayoutService::class.java))
-            }
+        val restore = EnforcementPrefs(prefs)
+        // Schedule-only restore must re-check a pending countdown whenever coverage may have changed.
+        if (restore.getInterval() > 0 && (isCurrentlyInSchedule || restore.isOnlyDuringSchedules())) {
+            context.startForegroundServiceSafely(Intent(context, GrayoutService::class.java))
         }
     }
 

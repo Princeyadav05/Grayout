@@ -8,7 +8,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings as AndroidSettings
-import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -18,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -71,6 +73,46 @@ private fun installedVersionName(context: Context): String = try {
     "unknown"
 }
 
+private fun exactAlarmAccessNeeded(context: Context) = needsExactAlarmAccess(
+    Build.VERSION.SDK_INT,
+    Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+        context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms(),
+)
+
+/** Granting re-arms schedules through SystemScheduleReceiver. */
+private fun openExactAlarmSettings(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+    try {
+        context.startActivity(
+            Intent(
+                AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                Uri.fromParts("package", context.packageName, null),
+            )
+        )
+    } catch (_: ActivityNotFoundException) {
+        context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
+    }
+}
+
+private fun openNotificationSettings(context: Context) {
+    try {
+        context.startActivity(
+            Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(AndroidSettings.EXTRA_APP_PACKAGE, context.packageName),
+        )
+    } catch (_: ActivityNotFoundException) {
+        context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
+    }
+}
+
+private fun openUsageAccessSettings(context: Context) {
+    try {
+        context.startActivity(Intent(AndroidSettings.ACTION_USAGE_ACCESS_SETTINGS))
+    } catch (_: ActivityNotFoundException) {
+        context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
+    }
+}
+
 object Routes {
     const val HOME = "home"
     const val SCHEDULES = "schedules"
@@ -110,31 +152,38 @@ fun GrayoutNavGraph(
 
             val db = remember { GrayoutDatabase.getInstance(context) }
             val scheduleRepository = remember { ScheduleRepository(db.scheduleDao()) }
-            val nextScheduleText by homeViewModel.nextScheduleText.collectAsStateWithLifecycle()
+            val scheduleLine by homeViewModel.scheduleLine.collectAsStateWithLifecycle()
             val excludedAppIcons by homeViewModel.excludedAppIcons.collectAsStateWithLifecycle()
             val excludedOverflowCount by homeViewModel.excludedOverflowCount.collectAsStateWithLifecycle()
-            val needsAttentionCount by homeViewModel.needsAttentionCount.collectAsStateWithLifecycle()
 
             LaunchedEffect(lifecycleOwnerHome) {
                 lifecycleOwnerHome.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                     excludedAppCount = exclusionPrefsHome.getExcludedCount()
                     isUsageAccessGrantedHome = UsageAccess.isGranted(context)
                     homeViewModel.refreshExcludedAppIcons()
-                    homeViewModel.refreshAttentionCount()
                     homeViewModel.observeNextSchedule(
                         scheduleRepository, context.applicationContext.systemTimeChanges(),
                     )
                 }
             }
 
+            val isPermissionGrantedHome by rememberSecureSettingsPermission()
+            val toggleFailedTarget by homeViewModel.toggleFailedTarget.collectAsStateWithLifecycle()
+            var showSetup by remember { mutableStateOf(false) }
+            val showNotificationPrompt by homeViewModel.showNotificationPrompt.collectAsStateWithLifecycle()
+            val onlyDuringSchedules by homeViewModel.onlyDuringSchedules.collectAsStateWithLifecycle()
+            val notificationPermission = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission(),
+            ) { homeViewModel.dismissNotificationPrompt() }
             LaunchedEffect(homeViewModel) {
-                homeViewModel.navigateToSetup.collect {
-                    navController.navigate(Routes.SETTINGS) {
-                        popUpTo(Routes.HOME) { saveState = true }
-                        restoreState = true
-                        launchSingleTop = true
-                    }
-                }
+                homeViewModel.setupRequests.collect { showSetup = true }
+            }
+            if (showSetup) {
+                AdbCommandSheet(
+                    isGranted = isPermissionGrantedHome,
+                    onDismiss = { showSetup = false },
+                    onTryGrayscale = homeViewModel::turnGrayscaleOn,
+                )
             }
 
             HomeScreen(
@@ -152,17 +201,30 @@ fun GrayoutNavGraph(
                         launchSingleTop = true
                     }
                 },
-                nextScheduleText = nextScheduleText,
+                scheduleLine = scheduleLine,
                 excludedAppIcons = excludedAppIcons,
                 excludedOverflowCount = excludedOverflowCount,
-                needsAttentionCount = needsAttentionCount,
-                onAttentionClick = {
-                    navController.navigate(Routes.SETTINGS) {
-                        popUpTo(Routes.HOME) { saveState = true }
-                        restoreState = true
-                        launchSingleTop = true
+                isPermissionGranted = isPermissionGrantedHome,
+                toggleFailedTarget = toggleFailedTarget,
+                onShowSetup = { showSetup = true },
+                onRetryToggle = homeViewModel::retryFailedToggle,
+                onFixUsageAccess = { openUsageAccessSettings(context) },
+                onlyDuringSchedules = onlyDuringSchedules,
+                onOnlyDuringSchedulesChange = homeViewModel::setOnlyDuringSchedules,
+                showNotificationPrompt = showNotificationPrompt,
+                onAllowNotifications = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+                        PackageManager.PERMISSION_GRANTED
+                    ) {
+                        notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        // Granted but switched off in system settings: send the user there.
+                        openNotificationSettings(context)
+                        homeViewModel.dismissNotificationPrompt()
                     }
                 },
+                onDismissNotificationPrompt = homeViewModel::dismissNotificationPrompt,
             )
         }
         composable(Routes.SCHEDULES) {
@@ -194,9 +256,12 @@ fun GrayoutNavGraph(
                 }
             }
 
-            LaunchedEffect(viewModel) {
-                viewModel.enableConflict.collect { message ->
-                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            val today by viewModel.today.collectAsStateWithLifecycle()
+            val enableError by viewModel.enableError.collectAsStateWithLifecycle()
+            var needsExactAlarms by remember { mutableStateOf(exactAlarmAccessNeeded(context)) }
+            LaunchedEffect(lifecycleOwner) {
+                lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                    needsExactAlarms = exactAlarmAccessNeeded(context)
                 }
             }
 
@@ -208,6 +273,10 @@ fun GrayoutNavGraph(
                 onAddSchedule = { navController.navigate("schedule_editor?id=0") },
                 onEditSchedule = { id -> navController.navigate("schedule_editor?id=$id") },
                 onToggleEnabled = viewModel::toggleEnabled,
+                today = today,
+                enableError = enableError,
+                needsExactAlarms = needsExactAlarms,
+                onAllowExactAlarms = { openExactAlarmSettings(context) },
             )
         }
         composable(
@@ -287,12 +356,10 @@ fun GrayoutNavGraph(
             var isUsageAccessGranted by remember {
                 mutableStateOf(UsageAccess.isGranted(context))
             }
-            fun exactAlarmAccessNeeded() = needsExactAlarmAccess(
-                Build.VERSION.SDK_INT,
-                Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-                    context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms(),
-            )
-            var needsExactAlarms by remember { mutableStateOf(exactAlarmAccessNeeded()) }
+            var needsExactAlarms by remember { mutableStateOf(exactAlarmAccessNeeded(context)) }
+            var notificationsOn by remember {
+                mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled())
+            }
             val isServiceRunning by homeViewModel.isServiceRunning.collectAsStateWithLifecycle()
             val versionName = remember(context) { installedVersionName(context) }
             val isAdbPermissionGranted by rememberSecureSettingsPermission()
@@ -300,41 +367,23 @@ fun GrayoutNavGraph(
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                     isUsageAccessGranted = UsageAccess.isGranted(context)
-                    needsExactAlarms = exactAlarmAccessNeeded()
+                    needsExactAlarms = exactAlarmAccessNeeded(context)
+                    notificationsOn = NotificationManagerCompat.from(context).areNotificationsEnabled()
                 }
             }
 
             SettingsScreen(
-                enforcementInterval = enforcementInterval,
                 isServiceRunning = isServiceRunning,
                 versionName = versionName,
                 isAdbPermissionGranted = isAdbPermissionGranted,
                 isUsageAccessGranted = isUsageAccessGranted,
                 isBatteryUnrestricted = isBatteryUnrestricted,
                 needsExactAlarmAccess = needsExactAlarms,
+                notificationsOn = notificationsOn,
+                onNotificationsClick = { openNotificationSettings(context) },
                 onBatteryOptimizationClick = onBatteryOptimizationClick,
-                onUsageAccessClick = {
-                    try {
-                        context.startActivity(Intent(AndroidSettings.ACTION_USAGE_ACCESS_SETTINGS))
-                    } catch (_: ActivityNotFoundException) {
-                        context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
-                    }
-                },
-                onExactAlarmAccessClick = {
-                    // Granting re-arms schedules through SystemScheduleReceiver.
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        try {
-                            context.startActivity(
-                                Intent(
-                                    AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                                    Uri.fromParts("package", context.packageName, null),
-                                )
-                            )
-                        } catch (_: ActivityNotFoundException) {
-                            context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
-                        }
-                    }
-                },
+                onUsageAccessClick = { openUsageAccessSettings(context) },
+                onExactAlarmAccessClick = { openExactAlarmSettings(context) },
             )
         }
         composable(Routes.EXCLUSION_LIST) {
@@ -391,13 +440,7 @@ fun GrayoutNavGraph(
                 onUndo = viewModel::undoBulkExclusion,
                 onUndoDismissed = viewModel::clearPendingUndo,
                 onSearchQueryChange = viewModel::setSearchQuery,
-                onOpenUsageAccessSettings = {
-                    try {
-                        context.startActivity(Intent(AndroidSettings.ACTION_USAGE_ACCESS_SETTINGS))
-                    } catch (_: ActivityNotFoundException) {
-                        context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
-                    }
-                },
+                onOpenUsageAccessSettings = { openUsageAccessSettings(context) },
                 onBack = { navController.popBackStack() },
             )
         }

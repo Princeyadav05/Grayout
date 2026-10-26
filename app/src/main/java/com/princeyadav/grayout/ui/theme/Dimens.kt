@@ -13,9 +13,16 @@ data class GrayoutDimens(
     val cardGap: Dp = 12.dp,
     val sectionGap: Dp = 16.dp,
     val tightGap: Dp = 8.dp,
+    val microGap: Dp = 4.dp,
     val radius: Dp = 16.dp,
     val radiusSm: Dp = 10.dp,
     val radiusFull: Dp = 999.dp,
+    val minTouch: Dp = 48.dp,
+    val navBarPadV: Dp = 12.dp,
+    val dotSize: Dp = 10.dp,
+    val stripHeight: Dp = 28.dp,
+    val iconSm: Dp = 16.dp,
+    val stepSize: Dp = 24.dp,
 )
 
 val LocalGrayoutDimens = staticCompositionLocalOf { GrayoutDimens() }

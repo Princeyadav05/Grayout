@@ -21,19 +21,20 @@ import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.ui.components.AdbCommandSheet
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.SettingsRow
-import com.princeyadav.grayout.ui.components.StatusDot
+import com.princeyadav.grayout.ui.components.StatusValue
 import com.princeyadav.grayout.ui.theme.BrandAccent
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 
 @Composable
 fun SettingsScreen(
-    enforcementInterval: Int,
     isServiceRunning: Boolean,
     versionName: String,
     isAdbPermissionGranted: Boolean,
     isUsageAccessGranted: Boolean,
     isBatteryUnrestricted: Boolean,
     needsExactAlarmAccess: Boolean,
+    notificationsOn: Boolean,
+    onNotificationsClick: () -> Unit,
     onBatteryOptimizationClick: () -> Unit,
     onUsageAccessClick: () -> Unit,
     onExactAlarmAccessClick: () -> Unit,
@@ -59,18 +60,13 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(dimens.sectionGap))
 
-        ServiceCard(
-            enforcementInterval = enforcementInterval,
-            isServiceRunning = isServiceRunning,
-        )
-
-        Spacer(modifier = Modifier.height(dimens.cardGap))
-
-        SetupCard(
+        PermissionsCard(
             isAdbPermissionGranted = isAdbPermissionGranted,
             isUsageAccessGranted = isUsageAccessGranted,
             isBatteryUnrestricted = isBatteryUnrestricted,
             needsExactAlarmAccess = needsExactAlarmAccess,
+            notificationsOn = notificationsOn,
+            onNotificationsClick = onNotificationsClick,
             onBatteryOptimizationClick = onBatteryOptimizationClick,
             onUsageAccessClick = onUsageAccessClick,
             onExactAlarmAccessClick = onExactAlarmAccessClick,
@@ -78,7 +74,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
 
-        AboutCard(versionName = versionName)
+        AboutCard(versionName = versionName, isServiceRunning = isServiceRunning)
 
         Spacer(modifier = Modifier.height(dimens.sectionGap))
 
@@ -99,42 +95,18 @@ private fun SectionHeader(title: String) {
     Text(
         text = title,
         style = GrayoutTheme.typography.labelSmall,
-        color = BrandAccent,
+        color = BrandAccent.copy(alpha = 0.75f),
     )
 }
 
 @Composable
-private fun ServiceCard(enforcementInterval: Int, isServiceRunning: Boolean) {
-    val colors = GrayoutTheme.colors
-    val dimens = GrayoutTheme.dimens
-
-    GrayoutCard {
-        Column(modifier = Modifier.padding(dimens.cardPad)) {
-            SectionHeader("SERVICE")
-
-            SettingsRow(
-                label = "Enforcement status",
-                subtitle = if (enforcementInterval > 0) "Every ${enforcementInterval}m" else "Off",
-                trailing = { StatusDot(isActive = enforcementInterval > 0) },
-            )
-
-            HorizontalDivider(thickness = 1.dp, color = colors.border)
-
-            SettingsRow(
-                label = "Service status",
-                subtitle = if (isServiceRunning) "Running" else "Stopped",
-                trailing = { StatusDot(isActive = isServiceRunning) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun SetupCard(
+private fun PermissionsCard(
     isAdbPermissionGranted: Boolean,
     isUsageAccessGranted: Boolean,
     isBatteryUnrestricted: Boolean,
     needsExactAlarmAccess: Boolean,
+    notificationsOn: Boolean,
+    onNotificationsClick: () -> Unit,
     onBatteryOptimizationClick: () -> Unit,
     onUsageAccessClick: () -> Unit,
     onExactAlarmAccessClick: () -> Unit,
@@ -146,17 +118,16 @@ private fun SetupCard(
 
     GrayoutCard {
         Column(modifier = Modifier.padding(dimens.cardPad)) {
-            SectionHeader("SETUP")
+            SectionHeader("PERMISSIONS")
 
             SettingsRow(
-                label = "ADB permission",
-                subtitle = if (isAdbPermissionGranted) null else "Required for grayscale toggle",
+                label = "Grayscale permission",
+                subtitle = if (isAdbPermissionGranted) null else "Needed to turn grayscale on and off",
                 onClick = { showAdbSheet = true },
                 trailing = {
-                    Text(
+                    StatusValue(
                         text = if (isAdbPermissionGranted) "Granted" else "Not granted",
-                        style = GrayoutTheme.typography.bodyMedium,
-                        color = if (isAdbPermissionGranted) colors.success else colors.danger,
+                        isProblem = !isAdbPermissionGranted,
                     )
                 },
             )
@@ -165,13 +136,12 @@ private fun SetupCard(
 
             SettingsRow(
                 label = "Usage access",
-                subtitle = if (isUsageAccessGranted) null else "Required for per-app exclusions",
+                subtitle = if (isUsageAccessGranted) null else "Needed to keep apps in color",
                 onClick = if (!isUsageAccessGranted) onUsageAccessClick else null,
                 trailing = {
-                    Text(
+                    StatusValue(
                         text = if (isUsageAccessGranted) "Granted" else "Not granted",
-                        style = GrayoutTheme.typography.bodyMedium,
-                        color = if (isUsageAccessGranted) colors.success else colors.danger,
+                        isProblem = !isUsageAccessGranted,
                     )
                 },
             )
@@ -181,29 +151,38 @@ private fun SetupCard(
 
                 SettingsRow(
                     label = "Alarms & reminders",
-                    subtitle = "Required for on-time schedules",
+                    subtitle = "Needed for on-time schedules",
                     onClick = onExactAlarmAccessClick,
-                    trailing = {
-                        Text(
-                            text = "Not granted",
-                            style = GrayoutTheme.typography.bodyMedium,
-                            color = colors.danger,
-                        )
-                    },
+                    trailing = { StatusValue(text = "Not granted", isProblem = true) },
                 )
             }
 
             HorizontalDivider(thickness = 1.dp, color = colors.border)
 
+            // Optional, so "Off" is neutral rather than a problem.
             SettingsRow(
-                label = "Battery optimization",
-                subtitle = "Disable battery optimization for reliable enforcement",
+                label = "Notifications",
+                subtitle = if (notificationsOn) null else "Turn on to see when grayscale comes back",
+                onClick = onNotificationsClick,
+                trailing = {
+                    if (notificationsOn) {
+                        StatusValue(text = "On", isProblem = false)
+                    } else {
+                        Text(text = "Off", style = GrayoutTheme.typography.bodyMedium, color = colors.textMuted)
+                    }
+                },
+            )
+
+            HorizontalDivider(thickness = 1.dp, color = colors.border)
+
+            SettingsRow(
+                label = "Battery",
+                subtitle = if (isBatteryUnrestricted) null else "Keeps automatic restore on time",
                 onClick = if (!isBatteryUnrestricted) onBatteryOptimizationClick else null,
                 trailing = {
-                    Text(
+                    StatusValue(
                         text = if (isBatteryUnrestricted) "Unrestricted" else "Restricted",
-                        style = GrayoutTheme.typography.bodyMedium,
-                        color = if (isBatteryUnrestricted) colors.success else colors.danger,
+                        isProblem = !isBatteryUnrestricted,
                     )
                 },
             )
@@ -219,8 +198,7 @@ private fun SetupCard(
 }
 
 @Composable
-private fun AboutCard(versionName: String) {
-    val colors = GrayoutTheme.colors
+private fun AboutCard(versionName: String, isServiceRunning: Boolean) {
     val dimens = GrayoutTheme.dimens
 
     GrayoutCard {
@@ -228,15 +206,8 @@ private fun AboutCard(versionName: String) {
             SectionHeader("ABOUT")
 
             SettingsRow(
-                label = "Version",
-                subtitle = versionName,
-            )
-
-            HorizontalDivider(thickness = 1.dp, color = colors.border)
-
-            SettingsRow(
-                label = "Package",
-                subtitle = "com.princeyadav.grayout",
+                label = "Grayout $versionName",
+                subtitle = if (isServiceRunning) "Running in the background" else "Not running",
             )
         }
     }

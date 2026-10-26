@@ -1,6 +1,13 @@
 package com.princeyadav.grayout.scheduling
 
+import android.content.Context
 import android.content.SharedPreferences
+import com.princeyadav.grayout.logic.decodeCoverage
+import com.princeyadav.grayout.logic.encodeCoverage
+import com.princeyadav.grayout.logic.isCovered
+import com.princeyadav.grayout.model.Schedule
+import com.princeyadav.grayout.service.EnforcementPrefs
+import java.time.Instant
 import com.princeyadav.grayout.logic.ScheduleEvent
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -75,4 +82,26 @@ internal class ScheduleAlarmState(private val prefs: SharedPreferences) {
         private const val LOCAL_END = "schedule_alarm_local_end"
         private const val ZONE = "schedule_alarm_zone"
     }
+}
+
+private const val KEY_COVERAGE = "schedule_coverage_snapshot"
+
+/** Written by every reschedule/reconcile, before alarms are armed. See logic/ScheduleCoverage.kt. */
+internal fun SharedPreferences.saveScheduleCoverage(schedules: List<Schedule>) {
+    edit().putString(KEY_COVERAGE, encodeCoverage(schedules)).commit()
+}
+
+internal fun SharedPreferences.clearScheduleCoverage() {
+    edit().remove(KEY_COVERAGE).commit()
+}
+
+/** Whether any schedule is enabled at all, for the "waiting" notification copy. */
+internal fun Context.hasScheduleCoverage(): Boolean =
+    decodeCoverage(getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE).getString(KEY_COVERAGE, null))
+        .isNotEmpty()
+
+/** Whether an enabled schedule window covers [wallMillis], in the device's current zone. */
+internal fun Context.inScheduleWindowAt(wallMillis: Long): Boolean {
+    val prefs = getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)
+    return isCovered(decodeCoverage(prefs.getString(KEY_COVERAGE, null)), Instant.ofEpochMilli(wallMillis), ZoneId.systemDefault())
 }

@@ -89,13 +89,20 @@ internal fun restoreEnforcementAlarm(context: Context) = synchronized(GrayscaleS
     val saved = state.deadline(context.bootCount(), interval)
     if (saved != null) {
         // Past deadlines are deliberately immediate. Wall-clock changes do not extend them.
-        scheduleEnforcementAlarmAtElapsed(context, saved, interval)
+        if (context.autoRestoreAllowedAt(restoreWallMillis(saved))) {
+            scheduleEnforcementAlarmAtElapsed(context, saved, interval)
+        } else {
+            cancelEnforcementCountdown(context)
+        }
     } else {
         // A different boot/interval or an old record without interval provenance
         // cannot justify an early alarm. Remove its token as well as its metadata.
         if (state.hasRecord()) cancelEnforcementCountdown(context)
-        if (!ExclusionPrefs(prefs).isExcludedAppActive() && !GrayscaleManager(context).isGrayscaleEnabled()) {
-            scheduleEnforcementAlarmAtElapsed(context, SystemClock.elapsedRealtime() + interval * 60_000L, interval)
+        val target = SystemClock.elapsedRealtime() + interval * 60_000L
+        if (!ExclusionPrefs(prefs).isExcludedAppActive() && !GrayscaleManager(context).isGrayscaleEnabled() &&
+            context.autoRestoreAllowedAt(restoreWallMillis(target))
+        ) {
+            scheduleEnforcementAlarmAtElapsed(context, target, interval)
         }
     }
 }

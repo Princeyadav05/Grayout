@@ -39,37 +39,35 @@ class HomeViewModelTest {
     private lateinit var grayscale: FakeGrayscaleController
     private lateinit var enforcementPrefs: EnforcementPrefs
     private lateinit var exclusionPrefs: ExclusionPrefs
-    private var batteryUnrestricted = true // true = exempt/granted
     private val serviceRunning = MutableStateFlow(false)
     private val intervalCommands = mutableListOf<Int>()
+    private var restoreSettingChanges = 0
     private var iconLoads = 0
 
     private fun vm(
         canWrite: Boolean = true,
-        usageAccessGranted: Boolean = true,
-        isBatteryUnrestricted: Boolean = true,
         serviceRunning: Boolean = false,
         clock: () -> Clock = { Clock.systemDefaultZone() },
         is24HourFormat: () -> Boolean = { false },
+        notificationsAllowed: Boolean = true,
     ): HomeViewModel {
         grayscale.canWrite = canWrite
-        batteryUnrestricted = isBatteryUnrestricted
         this.serviceRunning.value = serviceRunning
         return HomeViewModel(
             grayscaleManager = grayscale,
             enforcementPrefs = enforcementPrefs,
             exclusionPrefs = exclusionPrefs,
-            isBatteryUnrestricted = { batteryUnrestricted },
             loadExcludedIcons = { _ ->
                 iconLoads++
                 emptyList<android.graphics.Bitmap>() to 0
             },
             ioDispatcher = dispatcherRule.dispatcher,
-            usageAccessProbe = { usageAccessGranted },
             serviceRunning = this.serviceRunning,
             onEnforcementIntervalChanged = intervalCommands::add,
             clock = clock,
             is24HourFormat = is24HourFormat,
+            notificationsAllowed = { notificationsAllowed },
+            onRestoreSettingsChanged = { restoreSettingChanges++ },
         )
     }
 
@@ -95,16 +93,92 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `toggleGrayscale emits navigateToSetup and leaves state unchanged when ADB not granted`() = runTest {
+    fun `toggleGrayscale requests setup and leaves state unchanged when ADB not granted`() = runTest {
         val homeViewModel = vm(canWrite = false)
         advanceUntilIdle()
 
-        homeViewModel.navigateToSetup.test {
+        homeViewModel.setupRequests.test {
             homeViewModel.toggleGrayscale()
             advanceUntilIdle()
             awaitItem() // asserts one emission
         }
         assertFalse(homeViewModel.isGrayscaleOn.value)
+        assertEquals(null, homeViewModel.toggleFailedTarget.value)
+    }
+
+    @Test
+    fun `failed write with permission granted shows an inline error instead of setup`() = runTest {
+        val homeViewModel = vm(canWrite = true)
+        grayscale.failWrites = true
+        advanceUntilIdle()
+
+        homeViewModel.setupRequests.test {
+            homeViewModel.toggleGrayscale()
+            advanceUntilIdle()
+            expectNoEvents()
+        }
+        assertEquals(true, homeViewModel.toggleFailedTarget.value)
+        assertFalse(homeViewModel.isGrayscaleOn.value)
+    }
+
+    @Test
+    fun `error clears when something else reaches the failed target`() = runTest {
+        val homeViewModel = vm(canWrite = true)
+        grayscale.failWrites = true
+        homeViewModel.toggleGrayscale()
+        advanceUntilIdle()
+        assertEquals(true, homeViewModel.toggleFailedTarget.value)
+
+        grayscale.grayscaleEnabled = true // e.g. a schedule start or a restore tick
+        homeViewModel.refreshGrayscaleStateFromSystem()
+
+        assertEquals(null, homeViewModel.toggleFailedTarget.value)
+        assertTrue(homeViewModel.isGrayscaleOn.value)
+    }
+
+    @Test
+    fun `retry aims at the failed target, not the opposite of the current state`() = runTest {
+        val homeViewModel = vm(canWrite = true)
+        grayscale.failWrites = true
+        homeViewModel.toggleGrayscale() // tried to turn ON
+        advanceUntilIdle()
+
+        grayscale.failWrites = false
+        homeViewModel.retryFailedToggle()
+        advanceUntilIdle()
+        homeViewModel.retryFailedToggle() // no error left: a second tap does nothing
+        advanceUntilIdle()
+
+        assertTrue(grayscale.grayscaleEnabled)
+        assertEquals(null, homeViewModel.toggleFailedTarget.value)
+    }
+
+    @Test
+    fun `turnGrayscaleOn never turns grayscale off`() = runTest {
+        val homeViewModel = vm(canWrite = true)
+        grayscale.grayscaleEnabled = true
+        homeViewModel.refreshGrayscaleStateFromSystem()
+
+        homeViewModel.turnGrayscaleOn()
+        advanceUntilIdle()
+
+        assertTrue(grayscale.grayscaleEnabled)
+    }
+
+    @Test
+    fun `successful retry clears the inline error`() = runTest {
+        val homeViewModel = vm(canWrite = true)
+        grayscale.failWrites = true
+        homeViewModel.toggleGrayscale()
+        advanceUntilIdle()
+        assertEquals(true, homeViewModel.toggleFailedTarget.value)
+
+        grayscale.failWrites = false
+        homeViewModel.toggleGrayscale()
+        advanceUntilIdle()
+
+        assertEquals(null, homeViewModel.toggleFailedTarget.value)
+        assertTrue(homeViewModel.isGrayscaleOn.value)
     }
 
     @Test
@@ -134,11 +208,11 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `setEnforcementInterval five emits navigateToSetup and does not persist when ADB not granted`() = runTest {
+    fun `setEnforcementInterval five requests setup and does not persist when ADB not granted`() = runTest {
         val homeViewModel = vm(canWrite = false)
         advanceUntilIdle()
 
-        homeViewModel.navigateToSetup.test {
+        homeViewModel.setupRequests.test {
             homeViewModel.setEnforcementInterval(5)
             advanceUntilIdle()
             awaitItem() // asserts one emission
@@ -146,6 +220,47 @@ class HomeViewModelTest {
         assertEquals(0, enforcementPrefs.getInterval())
         assertEquals(0, homeViewModel.enforcementInterval.value)
         assertTrue(intervalCommands.isEmpty())
+    }
+
+    @Test
+    fun `only during schedules persists and tells the service to re-check`() = runTest {
+        val home = vm()
+        assertFalse(home.onlyDuringSchedules.value)
+
+        home.setOnlyDuringSchedules(true)
+
+        assertTrue(home.onlyDuringSchedules.value)
+        assertTrue(enforcementPrefs.isOnlyDuringSchedules())
+        assertEquals(1, restoreSettingChanges)
+        assertTrue(vm().onlyDuringSchedules.value) // A fresh screen reads the saved choice.
+    }
+
+    @Test
+    fun `turning restore on asks for notifications once when they are off`() = runTest {
+        val home = vm(notificationsAllowed = false)
+
+        home.setEnforcementInterval(5)
+        assertTrue(home.showNotificationPrompt.value)
+
+        home.dismissNotificationPrompt()
+        assertFalse(home.showNotificationPrompt.value)
+        home.setEnforcementInterval(0)
+        home.setEnforcementInterval(5)
+        assertFalse(home.showNotificationPrompt.value) // Answered once, never again.
+        assertTrue(enforcementPrefs.isNotificationPromptDone())
+    }
+
+    @Test
+    fun `changing an active interval or having notifications on never prompts`() = runTest {
+        enforcementPrefs.setInterval(5)
+        val off = vm(notificationsAllowed = false)
+        off.setEnforcementInterval(10)
+        assertFalse(off.showNotificationPrompt.value)
+
+        val on = vm(notificationsAllowed = true)
+        on.setEnforcementInterval(0)
+        on.setEnforcementInterval(5)
+        assertFalse(on.showNotificationPrompt.value)
     }
 
     @Test
@@ -188,67 +303,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `refreshAttentionCount returns 3 when ADB, usage access, and battery all missing`() = runTest {
-        val homeViewModel = vm(
-            canWrite = false,
-            usageAccessGranted = false,
-            isBatteryUnrestricted = false,
-        )
-        advanceUntilIdle()
-
-        homeViewModel.refreshAttentionCount()
-        advanceUntilIdle()
-
-        assertEquals(3, homeViewModel.needsAttentionCount.value)
-    }
-
-    @Test
-    fun `refreshAttentionCount returns 0 when all permissions granted`() = runTest {
-        val homeViewModel = vm(
-            canWrite = true,
-            usageAccessGranted = true,
-            isBatteryUnrestricted = true,
-        )
-        advanceUntilIdle()
-
-        homeViewModel.refreshAttentionCount()
-        advanceUntilIdle()
-
-        assertEquals(0, homeViewModel.needsAttentionCount.value)
-    }
-
-    @Test
-    fun `refreshAttentionCount returns 1 when only battery optimization is restricted`() = runTest {
-        val homeViewModel = vm(
-            canWrite = true,
-            usageAccessGranted = true,
-            isBatteryUnrestricted = false,
-        )
-        advanceUntilIdle()
-
-        homeViewModel.refreshAttentionCount()
-        advanceUntilIdle()
-
-        assertEquals(1, homeViewModel.needsAttentionCount.value)
-    }
-
-    @Test
-    fun `refreshAttentionCount returns 1 when only usage access missing`() = runTest {
-        val homeViewModel = vm(
-            canWrite = true,
-            usageAccessGranted = false,
-            isBatteryUnrestricted = true,
-        )
-        advanceUntilIdle()
-
-        homeViewModel.refreshAttentionCount()
-        advanceUntilIdle()
-
-        assertEquals(1, homeViewModel.needsAttentionCount.value)
-    }
-
-    @Test
-    fun `next schedule observer shows No active schedule when no enabled schedules`() = runTest {
+    fun `schedule line is empty when no enabled schedules`() = runTest {
         val homeViewModel = vm()
         advanceUntilIdle()
 
@@ -258,7 +313,7 @@ class HomeViewModelTest {
         }
         runCurrent()
 
-        assertEquals("No active schedule", homeViewModel.nextScheduleText.value)
+        assertEquals(null, homeViewModel.scheduleLine.value)
     }
 
     @Test
@@ -299,13 +354,13 @@ class HomeViewModelTest {
             home.observeNextSchedule(ScheduleRepository(dao), timeChanges)
         }
         runCurrent()
-        assertEquals("14:00", home.nextScheduleText.value)
+        assertEquals("14:00", home.lineText())
 
         // Android broadcasts a time change when the 12/24-hour setting changes.
         is24Hour = false
         timeChanges.emit(Unit)
         runCurrent()
-        assertEquals("2:00 PM", home.nextScheduleText.value)
+        assertEquals("2:00 PM", home.lineText())
     }
 
     @Test
@@ -327,19 +382,22 @@ class HomeViewModelTest {
             home.observeNextSchedule(ScheduleRepository(countingDao))
         }
         runCurrent()
-        assertEquals("9:00 AM", home.nextScheduleText.value)
+        assertEquals("9:00 AM", home.lineText())
 
-        advanceTimeBy(60_000)
+        advanceTimeBy(60_000) // 09:00, the first window is running.
         runCurrent()
-        assertEquals("2:00 PM", home.nextScheduleText.value)
-        advanceTimeBy(5 * 3_600_000)
+        assertEquals("until 10:00 AM", home.lineText())
+        advanceTimeBy(3_600_000) // 10:00, it ended.
         runCurrent()
-        assertEquals("9:00 AM", home.nextScheduleText.value)
+        assertEquals("2:00 PM", home.lineText())
+        advanceTimeBy(5 * 3_600_000) // 15:00, both passed: next Monday.
+        runCurrent()
+        assertEquals("Mon 9:00 AM", home.lineText())
         assertEquals(1, querySubscriptions)
     }
 
     @Test
-    fun `Home data edits replace the timer and disable or delete clears the text`() = runTest {
+    fun `Home data edits replace the timer and delete clears the line`() = runTest {
         val dao = FakeScheduleDao()
         val id = dao.insert(schedule(startHour = 9, endHour = 10))
         val laterId = dao.insert(schedule(startHour = 14, endHour = 15))
@@ -351,21 +409,21 @@ class HomeViewModelTest {
         runCurrent()
         dao.update(dao.getById(id)!!.copy(startTimeMinute = 30))
         runCurrent()
-        assertEquals("9:30 AM", home.nextScheduleText.value)
+        assertEquals("9:30 AM", home.lineText())
 
         advanceTimeBy(60_000)
         runCurrent()
-        assertEquals("9:30 AM", home.nextScheduleText.value)
-        advanceTimeBy(30 * 60_000)
+        assertEquals("9:30 AM", home.lineText())
+        advanceTimeBy(30 * 60_000) // 09:30, the edited window is running.
         runCurrent()
-        assertEquals("2:00 PM", home.nextScheduleText.value)
+        assertEquals("until 10:00 AM", home.lineText())
 
         dao.setEnabled(laterId, false)
         runCurrent()
-        assertEquals("9:30 AM", home.nextScheduleText.value)
+        assertEquals("until 10:00 AM", home.lineText())
         dao.delete(dao.getById(id)!!)
         runCurrent()
-        assertEquals("No active schedule", home.nextScheduleText.value)
+        assertEquals(null, home.lineText())
     }
 
     @Test
@@ -388,28 +446,28 @@ class HomeViewModelTest {
             home.observeNextSchedule(ScheduleRepository(countingDao), changes)
         }
         runCurrent()
-        assertEquals("9:00 AM", home.nextScheduleText.value)
+        assertEquals("9:00 AM", home.lineText())
 
         base = Instant.parse("2026-04-13T13:59:00Z")
         changes.emit(Unit)
         runCurrent()
-        assertEquals("2:00 PM", home.nextScheduleText.value)
+        assertEquals("2:00 PM", home.lineText())
         advanceTimeBy(60_000)
         runCurrent()
-        assertEquals("9:00 AM", home.nextScheduleText.value)
+        assertEquals("until 3:00 PM", home.lineText())
 
         base = Instant.parse("2026-04-13T08:00:00Z")
         changes.emit(Unit)
         runCurrent()
-        assertEquals("9:00 AM", home.nextScheduleText.value)
+        assertEquals("9:00 AM", home.lineText())
         zone = ZoneOffset.ofHours(2)
         changes.emit(Unit)
         runCurrent()
-        assertEquals("2:00 PM", home.nextScheduleText.value)
+        assertEquals("2:00 PM", home.lineText())
         zone = ZoneOffset.ofHours(-2)
         changes.emit(Unit)
         runCurrent()
-        assertEquals("9:00 AM", home.nextScheduleText.value)
+        assertEquals("9:00 AM", home.lineText())
         assertEquals(1, subscriptions)
     }
 
@@ -426,18 +484,18 @@ class HomeViewModelTest {
             home.observeNextSchedule(ScheduleRepository(dao), changes)
         }
         runCurrent()
-        assertEquals("1:30 AM", home.nextScheduleText.value)
-        advanceTimeBy(60_000)
+        assertEquals("1:30 AM", home.lineText())
+        advanceTimeBy(60_000) // 01:30 EDT, running.
         runCurrent()
-        assertEquals("3:00 AM", home.nextScheduleText.value)
+        assertEquals("until 2:00 AM", home.lineText())
 
-        advanceTimeBy(45 * 60_000) // 01:15 on the second offset.
+        advanceTimeBy(45 * 60_000) // 01:15 on the second offset, still inside the window.
         changes.emit(Unit)
         runCurrent()
-        assertEquals("3:00 AM", home.nextScheduleText.value)
-        advanceTimeBy(105 * 60_000)
+        assertEquals("until 2:00 AM", home.lineText())
+        advanceTimeBy(45 * 60_000) // 02:00 EST, window over.
         runCurrent()
-        assertEquals("1:30 AM", home.nextScheduleText.value) // Next Sunday.
+        assertEquals("3:00 AM", home.lineText())
     }
 
     @Test
@@ -452,10 +510,10 @@ class HomeViewModelTest {
             home.observeNextSchedule(ScheduleRepository(dao))
         }
         runCurrent()
-        assertEquals("2:30 AM", home.nextScheduleText.value)
-        advanceTimeBy(60_000)
+        assertEquals("2:30 AM", home.lineText())
+        advanceTimeBy(60_000) // 2:30 falls in the gap and resolves to 3:30 EDT.
         runCurrent()
-        assertEquals("5:00 AM", home.nextScheduleText.value)
+        assertEquals("until 4:00 AM", home.lineText())
     }
 
     @Test
@@ -503,7 +561,12 @@ class HomeViewModelTest {
             home.observeNextSchedule(repository, changes)
         }
         runCurrent()
-        assertEquals("2:00 PM", home.nextScheduleText.value)
+        assertEquals("until 10:00 AM", home.lineText())
+    }
+
+    /** "until 10:00 AM" while running, "Mon 9:00 AM" for another day, "9:00 AM" later today. */
+    private fun HomeViewModel.lineText(): String? = scheduleLine.value?.let {
+        (if (it.isActive) "until " else "") + (it.dayPrefix?.let { day -> "$day " } ?: "") + it.time
     }
 
     private fun schedule(

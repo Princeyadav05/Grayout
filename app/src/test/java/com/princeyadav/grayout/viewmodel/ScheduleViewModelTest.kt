@@ -12,6 +12,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.advanceTimeBy
@@ -224,8 +225,6 @@ class ScheduleViewModelTest {
 
         val viewModel = vm()
         advanceUntilIdle()
-        val conflicts = mutableListOf<String>()
-        val job = launch { viewModel.enableConflict.collect { conflicts.add(it) } }
         val baselineRescheduleCalls = alarm.rescheduleCallCount
 
         viewModel.toggleEnabled(dao.getById(id)!!)
@@ -233,8 +232,7 @@ class ScheduleViewModelTest {
 
         assertFalse("must not enable into an overlap", dao.getById(id)!!.isEnabled)
         assertEquals("no reschedule when the enable is refused", baselineRescheduleCalls, alarm.rescheduleCallCount)
-        assertEquals(listOf("Conflicts with \"Live\""), conflicts)
-        job.cancel()
+        assertEquals(id to "Overlaps with \"Live\"", viewModel.enableError.value)
     }
 
     @Test
@@ -242,19 +240,16 @@ class ScheduleViewModelTest {
         var granted = false
         val id = dao.insert(makeSchedule(isEnabled = false))
         val viewModel = ScheduleViewModel(repository, alarm, canWriteSecureSettings = { granted })
-        val errors = mutableListOf<String>()
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            viewModel.enableConflict.collect { errors.add(it) }
-        }
         viewModel.toggleEnabled(dao.getById(id)!!)
         advanceUntilIdle()
         assertFalse(dao.getById(id)!!.isEnabled)
         assertEquals(0, alarm.rescheduleCallCount)
-        assertEquals(listOf("Grant grayscale permission in Set up permission before enabling schedules."), errors)
+        assertEquals(id to "Turn on the grayscale permission first.", viewModel.enableError.value)
 
         granted = true
         viewModel.toggleEnabled(dao.getById(id)!!)
         advanceUntilIdle()
+        assertEquals(null, viewModel.enableError.value) // The next toggle clears the inline error.
         assertTrue(dao.getById(id)!!.isEnabled)
         assertEquals(1, alarm.rescheduleCallCount)
     }
@@ -493,4 +488,54 @@ class ScheduleViewModelTest {
         assertEquals(0, changes.subscriptionCount.value)
     }
 
+
+    @Test
+    fun `toggling invalidates coverage before the database write`() = runTest {
+        val id = dao.insert(makeSchedule())
+        val viewModel = ScheduleViewModel(repository, alarm, canWriteSecureSettings = { true })
+        var enabledWhenInvalidated: Boolean? = null
+        alarm.onInvalidate = { enabledWhenInvalidated = runBlocking { dao.getById(id)!!.isEnabled } }
+
+        viewModel.toggleEnabled(dao.getById(id)!!)
+        advanceUntilIdle()
+
+        assertEquals(listOf("invalidate", "reschedule"), alarm.calls)
+        assertEquals(true, enabledWhenInvalidated) // still the old value: invalidated first
+        assertFalse(dao.getById(id)!!.isEnabled)
+    }
+
+    @Test
+    fun `today state stops while hidden and refreshes on resume across midnight`() = runTest {
+        dao.insert(makeSchedule(name = "Focus", daysOfWeek = "TUE", startHour = 9, endHour = 10))
+        val start = fixedDateTime(DayOfWeek.MONDAY, 23, 58).toInstant(ZoneOffset.UTC)
+        var clockReads = 0
+        val viewModel = ScheduleViewModel(repository, alarm, canWriteSecureSettings = { true }) {
+            clockReads++
+            Clock.fixed(start.plusMillis(testScheduler.currentTime), ZoneOffset.UTC)
+        }
+        val observer = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.observeFiringState()
+        }
+        runCurrent()
+        val monday = viewModel.today.value!!
+        assertEquals(DayOfWeek.MONDAY, monday.date.dayOfWeek)
+        assertTrue(monday.segments.isEmpty())
+
+        observer.cancel()
+        runCurrent()
+        val readsWhileHidden = clockReads
+        advanceTimeBy(5 * 60_000) // 00:03 Tuesday, screen not visible
+        runCurrent()
+        assertEquals(readsWhileHidden, clockReads) // no ticking while inactive
+
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.observeFiringState()
+        }
+        runCurrent() // no minute tick needed: resume refreshes immediately
+        val tuesday = viewModel.today.value!!
+        assertEquals(DayOfWeek.TUESDAY, tuesday.date.dayOfWeek)
+        assertEquals(1, tuesday.segments.size)
+        assertEquals("Focus", tuesday.line?.name)
+        assertTrue(tuesday.now < 0.01f)
+    }
 }

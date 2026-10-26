@@ -5,10 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
-import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.lifecycle.Lifecycle
@@ -67,7 +64,7 @@ class HomeStateRefreshTest {
             scenario.moveToState(Lifecycle.State.RESUMED)
 
             composeRule.onNodeWithText("Grayscale on").assertIsDisplayed()
-            composeRule.onNode(hasText("15m") and isSelectable()).assertIsSelected()
+            composeRule.onNodeWithText("15 min").assertIsDisplayed()
             assertEquals(15, enforcementPrefs.getInterval())
         }
     }
@@ -82,7 +79,7 @@ class HomeStateRefreshTest {
             scenario.recreate()
             scenario.moveToState(Lifecycle.State.RESUMED)
 
-            composeRule.onNode(hasText("10m") and isSelectable()).assertIsSelected()
+            composeRule.onNodeWithText("10 min").assertIsDisplayed()
             assertEquals(10, enforcementPrefs.getInterval())
             composeRule.waitUntil(5_000) { enforcementAlarm() != null }
         }

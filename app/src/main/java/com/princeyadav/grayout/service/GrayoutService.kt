@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat
 import com.princeyadav.grayout.GrayoutApp
 import com.princeyadav.grayout.MainActivity
 import com.princeyadav.grayout.R
+import com.princeyadav.grayout.scheduling.hasScheduleCoverage
 import com.princeyadav.grayout.ui.theme.BrandAccentArgb
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -69,10 +70,15 @@ class GrayoutService : Service() {
                 }
 
                 if (!grayscaleManager.isGrayscaleEnabled()) {
-                    val delayMs = currentInterval * 60_000L
-                    countdownTargetElapsedMs = SystemClock.elapsedRealtime() + delayMs
-                    scheduleEnforcementAlarmAtElapsed(this@GrayoutService, countdownTargetElapsedMs, currentInterval)
-                    updateNotification(countdownTarget = countdownTargetElapsedMs)
+                    val target = SystemClock.elapsedRealtime() + currentInterval * 60_000L
+                    if (autoRestoreAllowedAt(restoreWallMillis(target))) {
+                        countdownTargetElapsedMs = target
+                        scheduleEnforcementAlarmAtElapsed(this@GrayoutService, target, currentInterval)
+                        updateNotification(countdownTarget = target)
+                    } else {
+                        // Schedule-only restore and the window ends first: off stays off.
+                        updateNotification(countdownTarget = null, waiting = true)
+                    }
                 } else {
                     updateNotification(countdownTarget = null)
                 }
@@ -216,13 +222,22 @@ class GrayoutService : Service() {
             if (!intervalChanged) {
                 val alarmState = enforcementAlarmState()
                 val saved = alarmState.deadline(bootCount(), interval)
-                if (saved != null) {
+                if (saved != null && !autoRestoreAllowedAt(restoreWallMillis(saved))) {
+                    // Coverage changed (edit, clock, zone, setting): this restore would
+                    // now land outside a schedule window.
+                    cancelEnforcementAlarm()
+                    countdownTargetElapsedMs = 0L
+                } else if (saved != null) {
                     countdownTargetElapsedMs = saved
                     // Permission revocation can remove the OS alarm independently
                     // of its PendingIntent. Re-register the same deadline/token.
                     scheduleEnforcementAlarmAtElapsed(this, saved, interval)
                 } else if (alarmState.hasRecord() || (alarmState.isInitialized() && hasPendingEnforcementAlarm())) {
                     cancelEnforcementAlarm()
+                    countdownTargetElapsedMs = 0L
+                } else {
+                    // Every arm persists a deadline, so none means a receiver cancelled it
+                    // (e.g. a schedule-only restore landing outside a window).
                     countdownTargetElapsedMs = 0L
                 }
             }
@@ -237,11 +252,15 @@ class GrayoutService : Service() {
                 cancelEnforcementAlarm()
                 countdownTargetElapsedMs = 0L
 
-                if (!exclusionPrefs.isExcludedAppActive() && !grayscaleManager.isGrayscaleEnabled()) {
-                    val delayMs = currentInterval * 60_000L
-                    countdownTargetElapsedMs = now + delayMs
-                    scheduleEnforcementAlarmAtElapsed(this, countdownTargetElapsedMs, currentInterval)
+                val target = now + currentInterval * 60_000L
+                if (!exclusionPrefs.isExcludedAppActive() && !grayscaleManager.isGrayscaleEnabled() &&
+                    autoRestoreAllowedAt(restoreWallMillis(target))
+                ) {
+                    countdownTargetElapsedMs = target
+                    scheduleEnforcementAlarmAtElapsed(this, target, currentInterval)
                     startForeground(NOTIFICATION_ID, buildNotification(interval, countdownTargetElapsedMs))
+                } else if (!exclusionPrefs.isExcludedAppActive() && !grayscaleManager.isGrayscaleEnabled()) {
+                    startForeground(NOTIFICATION_ID, buildNotification(interval, waiting = true))
                 } else {
                     startForeground(NOTIFICATION_ID, buildNotification(interval))
                 }
@@ -265,7 +284,8 @@ class GrayoutService : Service() {
         val hasActiveCountdown = countdownTargetElapsedMs > now
         val reEnablePending = hasActiveCountdown || hasPendingEnforcementAlarm()
 
-        reEnableOnExclusionEnd(currentInterval, reEnablePending, grayscaleManager) {
+        val restoreAllowed = autoRestoreAllowedAt(System.currentTimeMillis())
+        reEnableOnExclusionEnd(currentInterval, reEnablePending, grayscaleManager, restoreAllowed) {
             // Fire now so the receiver's tick retries each interval and posts
             // "permission lost". Stopping here left enforcement and exclusions dead
             // until the app was reopened, even after the permission came back.
@@ -275,7 +295,8 @@ class GrayoutService : Service() {
         if (hasActiveCountdown) {
             startForeground(NOTIFICATION_ID, buildNotification(currentInterval, countdownTargetElapsedMs))
         } else {
-            startForeground(NOTIFICATION_ID, buildNotification(currentInterval))
+            val waiting = !restoreAllowed && currentInterval > 0 && !grayscaleManager.isGrayscaleEnabled()
+            startForeground(NOTIFICATION_ID, buildNotification(currentInterval, waiting = waiting))
         }
     }
 
@@ -306,6 +327,7 @@ class GrayoutService : Service() {
         interval: Int,
         countdownTarget: Long? = null,
         exclusionOnly: Boolean = false,
+        waiting: Boolean = false,
     ): Notification {
         val pendingIntent = PendingIntent.getActivity(
             this,
@@ -318,7 +340,7 @@ class GrayoutService : Service() {
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_tile)
-            .setContentTitle("Grayscale enforcement")
+            .setContentTitle("Grayout")
             .setColor(BrandAccentArgb)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -326,25 +348,30 @@ class GrayoutService : Service() {
         if (countdownTarget != null && countdownTarget > SystemClock.elapsedRealtime()) {
             val targetTime = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
                 .format(java.util.Date(System.currentTimeMillis() + countdownTarget - SystemClock.elapsedRealtime()))
-            builder.setContentText("Re-enabling around $targetTime")
+            builder.setContentText("Grayscale comes back around $targetTime")
                 .setShowWhen(false)
+        } else if (waiting) {
+            builder.setContentText(
+                if (hasScheduleCoverage()) "Grayscale comes back with the next schedule"
+                else "Waiting for a schedule. None are turned on.",
+            ).setShowWhen(false)
         } else if (exclusionOnly) {
-            builder.setContentText("Watching excluded apps")
+            builder.setContentText("Keeping chosen apps in color")
                 .setShowWhen(false)
         } else if (interval > 0) {
-            builder.setContentText("Enforcement active")
+            builder.setContentText("Automatic restore every $interval min")
                 .setShowWhen(false)
         } else {
-            builder.setContentText("Stopping enforcement")
+            builder.setContentText("Stopping")
                 .setShowWhen(false)
         }
 
         return builder.build()
     }
 
-    private fun updateNotification(countdownTarget: Long?) {
+    private fun updateNotification(countdownTarget: Long?, waiting: Boolean = false) {
         val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, buildNotification(currentInterval, countdownTarget))
+        manager.notify(NOTIFICATION_ID, buildNotification(currentInterval, countdownTarget, waiting = waiting))
     }
 
     private fun cancelEnforcementAlarm() = cancelEnforcementCountdown(this)
@@ -413,7 +440,8 @@ fun shouldReEnableOnExclusionEnd(
     interval: Int,
     reEnablePending: Boolean,
     grayscaleEnabled: Boolean,
-): Boolean = interval > 0 && !reEnablePending && !grayscaleEnabled
+    restoreAllowed: Boolean = true,
+): Boolean = interval > 0 && !reEnablePending && !grayscaleEnabled && restoreAllowed
 
 /**
  * Applies [shouldReEnableOnExclusionEnd]. A write that does not stick goes to
@@ -423,9 +451,10 @@ fun reEnableOnExclusionEnd(
     interval: Int,
     reEnablePending: Boolean,
     grayscale: GrayscaleController,
+    restoreAllowed: Boolean = true,
     onWriteFailed: () -> Unit,
 ) {
-    if (!shouldReEnableOnExclusionEnd(interval, reEnablePending, grayscale.isGrayscaleEnabled())) return
+    if (!shouldReEnableOnExclusionEnd(interval, reEnablePending, grayscale.isGrayscaleEnabled(), restoreAllowed)) return
     if (!grayscale.setGrayscale(true)) onWriteFailed()
 }
 

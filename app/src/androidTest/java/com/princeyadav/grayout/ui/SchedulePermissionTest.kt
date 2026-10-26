@@ -73,7 +73,7 @@ class SchedulePermissionTest {
         seed(isEnabled = true)
         ActivityScenario.launch(MainActivity::class.java).use {
             openSchedules()
-            composeRule.onNodeWithText("Setup needed").assertIsDisplayed()
+            composeRule.onNodeWithText("Needs the grayscale permission").assertIsDisplayed()
             composeRule.onNodeWithText("Now").assertDoesNotExist()
             composeRule.onNodeWithText("On").assertDoesNotExist()
         }
@@ -99,7 +99,7 @@ class SchedulePermissionTest {
             composeRule.onNodeWithText("Every day").performScrollTo().performClick()
             composeRule.onNodeWithText("Save as off").performScrollTo().performClick()
             composeRule.waitUntil(5_000) {
-                composeRule.onAllNodes(hasText("Off")).fetchSemanticsNodes().isNotEmpty()
+                composeRule.onAllNodes(hasText("My off schedule")).fetchSemanticsNodes().isNotEmpty()
             }
             runBlocking {
                 val saved = dao.getAll().single()
@@ -116,7 +116,7 @@ class SchedulePermissionTest {
             openSchedules()
             composeRule.onNodeWithContentDescription("Schedule Permission test").performClick()
             composeRule.waitUntil(5_000) {
-                composeRule.onAllNodes(hasText("Off")).fetchSemanticsNodes().isNotEmpty()
+                composeRule.onAllNodes(hasText("Needs the grayscale permission")).fetchSemanticsNodes().isEmpty()
             }
             runBlocking { assertFalse(dao.getById(id)!!.isEnabled) }
         }

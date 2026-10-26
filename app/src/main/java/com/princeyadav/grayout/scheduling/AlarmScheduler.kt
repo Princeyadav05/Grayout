@@ -15,4 +15,12 @@ interface AlarmScheduler {
      * edit did not change keeps the user's manual colour choice. Boot resyncs it.
      */
     suspend fun reschedule(repository: ScheduleRepository, keepManualChoice: Boolean = false)
+
+    /**
+     * Call before writing schedules. Drops the persisted coverage snapshot so a process
+     * death between the database write and [reschedule] can never leave stale coverage
+     * behind: an empty snapshot only withholds schedule-only restores (the safe side)
+     * until the next reschedule or reconcile rebuilds it.
+     */
+    fun invalidateCoverage() {}
 }

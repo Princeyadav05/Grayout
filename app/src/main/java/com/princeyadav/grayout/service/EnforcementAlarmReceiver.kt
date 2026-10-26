@@ -9,6 +9,8 @@ import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import com.princeyadav.grayout.MainActivity
 import com.princeyadav.grayout.R
+import com.princeyadav.grayout.scheduling.inScheduleWindowAt
+import com.princeyadav.grayout.scheduling.startForegroundServiceSafely
 
 /**
  * Receives the enforcement countdown alarm and re-applies grayscale.
@@ -34,12 +36,21 @@ class EnforcementAlarmReceiver : BroadcastReceiver() {
                 // The current identity/deadline is retained; cleared, old-boot, or
                 // changed-interval records cannot be revived by a stale delivery.
                 if (interval > 0 && alarmState.generation() != null) alarmState.deadline(boot, interval)?.let {
-                    scheduleEnforcementAlarmAtElapsed(context, it, interval)
+                    if (context.autoRestoreAllowedAt(restoreWallMillis(it))) {
+                        scheduleEnforcementAlarmAtElapsed(context, it, interval)
+                    } else {
+                        cancelEnforcementCountdown(context)
+                        refreshServiceNotification(context)
+                    }
                 }
                 return
             }
             val grayscale = GrayscaleManager(context)
-            val result = applyEnforcementTick(enforcementPrefs, ExclusionPrefs(prefs), grayscale)
+            val inWindow = context.inScheduleWindowAt(System.currentTimeMillis())
+            val result = applyEnforcementTick(
+                enforcementPrefs, ExclusionPrefs(prefs), grayscale,
+                restoreMomentInWindow = inWindow,
+            )
             // The alarm that fired is spent, but its non-one-shot PendingIntent token
             // survives, and hasPendingEnforcementAlarm() (used by the service's re-arm
             // branch and the exclusion-exit re-enable) would keep reporting a live alarm.
@@ -49,12 +60,21 @@ class EnforcementAlarmReceiver : BroadcastReceiver() {
             when (result) {
                 EnforcementTickResult.WriteFailed ->
                     onWriteFailed(context, enforcementPrefs.getInterval(), grayscale)
-                else -> cancelEnforcementAlarm(context)
+                else -> {
+                    cancelEnforcementAlarm(context)
+                    // A late (inexact/Doze) delivery past the window end: let the service
+                    // replace its "comes back around" countdown with the waiting text.
+                    if (enforcementPrefs.isOnlyDuringSchedules() && !inWindow) refreshServiceNotification(context)
+                }
             }
         }
     }
 
     private fun cancelEnforcementAlarm(context: Context) = cancelEnforcementCountdown(context)
+
+    /** The service owns the notification; a plain start makes it re-evaluate (branch C). */
+    private fun refreshServiceNotification(context: Context) =
+        context.startForegroundServiceSafely(Intent(context, GrayoutService::class.java))
 
     companion object {
         internal const val EXTRA_GENERATION = "enforcement_generation"
@@ -79,7 +99,15 @@ class EnforcementAlarmReceiver : BroadcastReceiver() {
         val canWrite = grayscale.canWriteSecureSettings()
         if (intervalMinutes > 0) {
             val delayMs = writeRetryDelayMs(intervalMinutes * 60_000L, canWrite)
-            scheduleEnforcementAlarm(context, System.currentTimeMillis() + delayMs, intervalMinutes)
+            val retryAt = System.currentTimeMillis() + delayMs
+            // A retry (including the permission backoff) that would land after the
+            // schedule window ends must not be armed when restore is schedule-only.
+            if (context.autoRestoreAllowedAt(retryAt)) {
+                scheduleEnforcementAlarm(context, retryAt, intervalMinutes)
+            } else {
+                cancelEnforcementCountdown(context)
+                if (canWrite) refreshServiceNotification(context)
+            }
         }
         if (!canWrite) postPermissionLost(context)
     }
@@ -96,8 +124,8 @@ class EnforcementAlarmReceiver : BroadcastReceiver() {
         )
         val notification = NotificationCompat.Builder(context, GrayoutService.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_tile)
-            .setContentTitle("Grayscale enforcement paused")
-            .setContentText("Permission lost — tap to fix")
+            .setContentTitle("Automatic restore paused")
+            .setContentText("Grayscale permission lost. Tap to fix.")
             .setContentIntent(contentIntent)
             .setOngoing(true)
             .setShowWhen(false)
@@ -133,16 +161,51 @@ fun applyEnforcementTick(
     enforcementPrefs: EnforcementPrefs,
     exclusionPrefs: ExclusionPrefs,
     grayscale: GrayscaleController,
+    restoreMomentInWindow: Boolean = true,
 ): EnforcementTickResult = synchronized(GrayscaleStateLock) {
-    if (enforcementPrefs.getInterval() <= 0) return@synchronized EnforcementTickResult.Skipped
-    if (exclusionPrefs.isExcludedAppActive()) return@synchronized EnforcementTickResult.Skipped
-    if (grayscale.isGrayscaleEnabled()) return@synchronized EnforcementTickResult.Skipped
+    val restore = shouldAutoRestore(
+        intervalMinutes = enforcementPrefs.getInterval(),
+        onlyDuringSchedules = enforcementPrefs.isOnlyDuringSchedules(),
+        restoreMomentInWindow = restoreMomentInWindow,
+        excludedAppActive = exclusionPrefs.isExcludedAppActive(),
+        grayscaleOn = grayscale.isGrayscaleEnabled(),
+    )
+    if (!restore) return@synchronized EnforcementTickResult.Skipped
     if (grayscale.setGrayscale(true)) {
         EnforcementTickResult.Applied
     } else {
         EnforcementTickResult.WriteFailed
     }
 }
+
+/**
+ * The one automatic-restore rule. [restoreMomentInWindow] is schedule coverage at the
+ * instant grayscale would come back (the alarm's deadline when arming, now when firing);
+ * it only matters when the user chose "Only during schedules".
+ */
+fun shouldAutoRestore(
+    intervalMinutes: Int,
+    onlyDuringSchedules: Boolean,
+    restoreMomentInWindow: Boolean,
+    excludedAppActive: Boolean,
+    grayscaleOn: Boolean,
+): Boolean = intervalMinutes > 0 && !excludedAppActive && !grayscaleOn &&
+    (!onlyDuringSchedules || restoreMomentInWindow)
+
+/**
+ * Schedule-coverage gate for an automatic restore landing at [wallMillis]. Always true
+ * unless the user turned on "Only during schedules".
+ */
+internal fun Context.autoRestoreAllowedAt(wallMillis: Long): Boolean =
+    !EnforcementPrefs(getSharedPreferences(EnforcementPrefs.PREFS_NAME, Context.MODE_PRIVATE)).isOnlyDuringSchedules() ||
+        inScheduleWindowAt(wallMillis)
+
+/** Wall-clock instant of an elapsed-realtime alarm deadline. Overdue deadlines fire now, so they read as now. */
+internal fun restoreWallMillis(
+    elapsedDeadline: Long,
+    nowElapsed: Long = SystemClock.elapsedRealtime(),
+    nowWall: Long = System.currentTimeMillis(),
+): Long = nowWall + (elapsedDeadline - nowElapsed).coerceAtLeast(0L)
 
 /**
  * Delay before retrying a grayscale write that did not stick. A transient failure

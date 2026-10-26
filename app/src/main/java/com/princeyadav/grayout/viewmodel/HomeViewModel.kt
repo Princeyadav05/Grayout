@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.princeyadav.grayout.data.ScheduleRepository
-import com.princeyadav.grayout.logic.nextScheduleStart
+import com.princeyadav.grayout.logic.nextScheduleLineChange
+import com.princeyadav.grayout.logic.scheduleColorIndex
+import com.princeyadav.grayout.logic.scheduleLine
 import com.princeyadav.grayout.model.formatTime
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
@@ -26,19 +28,21 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.Duration
+import java.time.format.TextStyle
+import java.util.Locale
 
 class HomeViewModel(
     private val grayscaleManager: GrayscaleController,
     private val enforcementPrefs: EnforcementPrefs,
     private val exclusionPrefs: ExclusionPrefs,
-    private val isBatteryUnrestricted: () -> Boolean,
     private val loadExcludedIcons: (List<String>) -> Pair<List<Bitmap>, Int>,
     private val ioDispatcher: CoroutineDispatcher,
-    private val usageAccessProbe: () -> Boolean,
     serviceRunning: StateFlow<Boolean>,
     private val onEnforcementIntervalChanged: (Int) -> Unit = {},
     private val clock: () -> Clock = { Clock.systemDefaultZone() },
     private val is24HourFormat: () -> Boolean = { false },
+    private val notificationsAllowed: () -> Boolean = { true },
+    private val onRestoreSettingsChanged: () -> Unit = {},
 ) : ViewModel() {
 
     private val _isGrayscaleOn = MutableStateFlow(false)
@@ -47,8 +51,9 @@ class HomeViewModel(
     private val _enforcementInterval = MutableStateFlow(0)
     val enforcementInterval: StateFlow<Int> = _enforcementInterval.asStateFlow()
 
-    private val _nextScheduleText = MutableStateFlow("No active schedule")
-    val nextScheduleText: StateFlow<String> = _nextScheduleText.asStateFlow()
+    /** The schedule line on Home's status card; null when nothing is running or upcoming. */
+    private val _scheduleLine = MutableStateFlow<HomeScheduleLine?>(null)
+    val scheduleLine: StateFlow<HomeScheduleLine?> = _scheduleLine.asStateFlow()
 
     private val _excludedAppIcons = MutableStateFlow<List<Bitmap>>(emptyList())
     val excludedAppIcons: StateFlow<List<Bitmap>> = _excludedAppIcons.asStateFlow()
@@ -56,14 +61,23 @@ class HomeViewModel(
     private val _excludedOverflowCount = MutableStateFlow(0)
     val excludedOverflowCount: StateFlow<Int> = _excludedOverflowCount.asStateFlow()
 
-    private val _needsAttentionCount = MutableStateFlow(0)
-    val needsAttentionCount: StateFlow<Int> = _needsAttentionCount.asStateFlow()
-
     /** Live service-running status for the Settings diagnostics row. */
     val isServiceRunning: StateFlow<Boolean> = serviceRunning
 
-    private val _navigateToSetup = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val navigateToSetup: SharedFlow<Unit> = _navigateToSetup.asSharedFlow()
+    /** Opens the setup guide on Home: the grayscale permission is missing. */
+    private val _setupRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val setupRequests: SharedFlow<Unit> = _setupRequests.asSharedFlow()
+
+    /** The grayscale state the last toggle failed to reach while the permission was granted, or null. */
+    private val _toggleFailedTarget = MutableStateFlow<Boolean?>(null)
+    val toggleFailedTarget: StateFlow<Boolean?> = _toggleFailedTarget.asStateFlow()
+
+    private val _onlyDuringSchedules = MutableStateFlow(false)
+    val onlyDuringSchedules: StateFlow<Boolean> = _onlyDuringSchedules.asStateFlow()
+
+    /** In-app ask for notifications, raised the first time automatic restore is turned on. */
+    private val _showNotificationPrompt = MutableStateFlow(false)
+    val showNotificationPrompt: StateFlow<Boolean> = _showNotificationPrompt.asStateFlow()
 
     init {
         refreshSystemState()
@@ -73,34 +87,70 @@ class HomeViewModel(
     fun refreshSystemState() {
         refreshGrayscaleStateFromSystem()
         _enforcementInterval.value = enforcementPrefs.getInterval()
+        _onlyDuringSchedules.value = enforcementPrefs.isOnlyDuringSchedules()
     }
 
     fun refreshGrayscaleStateFromSystem() {
         _isGrayscaleOn.value = grayscaleManager.isGrayscaleEnabled()
+        // Something else (a schedule, a restore tick, the tile) reached the failed target.
+        if (_toggleFailedTarget.value == _isGrayscaleOn.value) _toggleFailedTarget.value = null
     }
 
-    fun toggleGrayscale() {
-        val newValue = !_isGrayscaleOn.value
+    fun toggleGrayscale() = setGrayscaleTo(!_isGrayscaleOn.value)
+
+    /** "Try again" aims at the state that failed, never the opposite of whatever is showing now. */
+    fun retryFailedToggle() {
+        _toggleFailedTarget.value?.let(::setGrayscaleTo)
+    }
+
+    /** The setup guide's "Try grayscale": turn it on, even if a toggle already did. */
+    fun turnGrayscaleOn() = setGrayscaleTo(true)
+
+    private fun setGrayscaleTo(newValue: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             val success = grayscaleManager.setGrayscale(newValue)
             if (!success) {
-                _navigateToSetup.tryEmit(Unit)
+                if (grayscaleManager.canWriteSecureSettings()) {
+                    _toggleFailedTarget.value = newValue
+                } else {
+                    _toggleFailedTarget.value = null
+                    _setupRequests.tryEmit(Unit)
+                }
+                _isGrayscaleOn.value = grayscaleManager.isGrayscaleEnabled()
                 return@launch
             }
+            _toggleFailedTarget.value = null
             _isGrayscaleOn.value = grayscaleManager.isGrayscaleEnabled()
         }
     }
 
     fun setEnforcementInterval(minutes: Int) {
         if (minutes != 0 && !grayscaleManager.canWriteSecureSettings()) {
-            _navigateToSetup.tryEmit(Unit)
+            _setupRequests.tryEmit(Unit)
             return
         }
+        val wasOff = _enforcementInterval.value == 0
         enforcementPrefs.setInterval(minutes)
         _enforcementInterval.value = minutes
+        if (wasOff && minutes > 0 && !notificationsAllowed() && !enforcementPrefs.isNotificationPromptDone()) {
+            _showNotificationPrompt.value = true
+        }
         // Only explicit user changes command the service. Replaying UI state on
         // resume must not overwrite a newer interval set by the Quick Settings tile.
         onEnforcementIntervalChanged(minutes)
+    }
+
+    /** "Only during schedules". The service re-checks any pending countdown against it. */
+    fun setOnlyDuringSchedules(enabled: Boolean) {
+        enforcementPrefs.setOnlyDuringSchedules(enabled)
+        _onlyDuringSchedules.value = enabled
+        onRestoreSettingsChanged()
+    }
+
+    /** Either prompt button. The answer is remembered so the card never comes back. */
+    fun dismissNotificationPrompt() {
+        enforcementPrefs.setNotificationPromptDone()
+        _showNotificationPrompt.value = false
     }
 
     fun refreshExcludedAppIcons() {
@@ -108,16 +158,6 @@ class HomeViewModel(
             val (icons, overflow) = loadExcludedIcons(exclusionPrefs.getExcludedPackages().toList())
             _excludedAppIcons.value = icons
             _excludedOverflowCount.value = overflow
-        }
-    }
-
-    fun refreshAttentionCount() {
-        viewModelScope.launch(ioDispatcher) {
-            var count = 0
-            if (!grayscaleManager.canWriteSecureSettings()) count++
-            if (!usageAccessProbe()) count++
-            if (!isBatteryUnrestricted()) count++
-            _needsAttentionCount.value = count
         }
     }
 
@@ -134,32 +174,48 @@ class HomeViewModel(
                 val reading = clock()
                 val now = reading.instant()
                 val zone = reading.zone
-                val next = nextScheduleStart(schedules, now, zone)
-                _nextScheduleText.value = if (next == null) {
-                    "No active schedule"
-                } else {
-                    formatTime(next.hour, next.minute, is24HourFormat())
+                _scheduleLine.value = scheduleLine(schedules, now, zone)?.let { line ->
+                    val today = now.atZone(zone).toLocalDate()
+                    HomeScheduleLine(
+                        name = line.name,
+                        colorIndex = scheduleColorIndex(line.scheduleId),
+                        time = formatTime(line.at.hour, line.at.minute, is24HourFormat()),
+                        isActive = line.isActive,
+                        dayPrefix = if (!line.isActive && line.at.toLocalDate() != today) {
+                            line.at.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
+                        } else {
+                            null
+                        },
+                    )
                 }
-                if (next == null) break
-                val nextInstant = next.atZone(zone).toInstant()
-                delay(Duration.between(now, nextInstant).toMillis().coerceAtLeast(1L))
+                val next = nextScheduleLineChange(schedules, now, zone) ?: break
+                delay(Duration.between(now, next).toMillis().coerceAtLeast(1L))
             }
         }
     }
 
 }
 
+/** [time] is the end when [isActive], else the next start; [dayPrefix] ("Tue") when not today. */
+data class HomeScheduleLine(
+    val name: String,
+    val colorIndex: Int,
+    val time: String,
+    val isActive: Boolean,
+    val dayPrefix: String?,
+)
+
 class HomeViewModelFactory(
     private val grayscaleManager: GrayscaleController,
     private val enforcementPrefs: EnforcementPrefs,
     private val exclusionPrefs: ExclusionPrefs,
-    private val isBatteryUnrestricted: () -> Boolean,
     private val loadExcludedIcons: (List<String>) -> Pair<List<Bitmap>, Int>,
     private val ioDispatcher: CoroutineDispatcher,
-    private val usageAccessProbe: () -> Boolean,
     private val serviceRunning: StateFlow<Boolean>,
     private val onEnforcementIntervalChanged: (Int) -> Unit,
     private val is24HourFormat: () -> Boolean,
+    private val notificationsAllowed: () -> Boolean,
+    private val onRestoreSettingsChanged: () -> Unit,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -167,13 +223,13 @@ class HomeViewModelFactory(
             grayscaleManager,
             enforcementPrefs,
             exclusionPrefs,
-            isBatteryUnrestricted,
             loadExcludedIcons,
             ioDispatcher,
-            usageAccessProbe,
             serviceRunning,
             onEnforcementIntervalChanged,
             is24HourFormat = is24HourFormat,
+            notificationsAllowed = notificationsAllowed,
+            onRestoreSettingsChanged = onRestoreSettingsChanged,
         ) as T
     }
 }

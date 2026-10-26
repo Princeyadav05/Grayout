@@ -21,8 +21,20 @@ class FakeScheduleAlarmManager : AlarmScheduler {
     var lastKeepManualChoice: Boolean? = null
         private set
 
+    /** "invalidate" and "reschedule" in call order, to check invalidation precedes writes. */
+    val calls = mutableListOf<String>()
+
+    /** Set by tests to observe whether the DB write had happened when invalidation ran. */
+    var onInvalidate: () -> Unit = {}
+
+    override fun invalidateCoverage() {
+        calls += "invalidate"
+        onInvalidate()
+    }
+
     override suspend fun reschedule(repository: ScheduleRepository, keepManualChoice: Boolean) {
         rescheduleCallCount++
+        calls += "reschedule"
         lastRescheduleRepository = repository
         lastKeepManualChoice = keepManualChoice
     }

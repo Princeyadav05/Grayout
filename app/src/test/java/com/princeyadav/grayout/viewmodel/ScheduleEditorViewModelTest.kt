@@ -164,6 +164,7 @@ class ScheduleEditorViewModelTest {
             alarm.rescheduleCallCount >= 1,
         )
         assertEquals("A schedule edit must not override a manual color choice", true, alarm.lastKeepManualChoice)
+        assertEquals("Coverage is invalidated before the write", listOf("invalidate", "reschedule"), alarm.calls)
 
         val enabled = dao.getEnabledSchedules()
         assertEquals("Expected exactly one enabled schedule in dao", 1, enabled.size)
@@ -199,6 +200,7 @@ class ScheduleEditorViewModelTest {
             "Expected at least one reschedule after delete, had ${alarm.rescheduleCallCount}",
             alarm.rescheduleCallCount > baselineRescheduleCalls,
         )
+        assertEquals("Coverage is invalidated before the delete", "invalidate", alarm.calls.dropLast(1).last())
         assertNull("Expected schedule to be gone from dao after delete", dao.getById(id))
     }
 

@@ -25,9 +25,9 @@ class SettingsPermissionGrantTest {
     fun adbGrantRefreshesTheSettingsSheetAndRowInPlace() {
         ActivityScenario.launch(MainActivity::class.java).use {
             composeRule.onNodeWithText("Settings").performClick()
-            composeRule.onNodeWithText("Required for grayscale toggle").performScrollTo().assertIsDisplayed()
-            composeRule.onNodeWithText("ADB permission").performScrollTo().performClick()
-            composeRule.onNodeWithText("Grant via ADB").assertIsDisplayed()
+            composeRule.onNodeWithText("Needed to turn grayscale on and off").performScrollTo().assertIsDisplayed()
+            composeRule.onNodeWithText("Grayscale permission").performScrollTo().performClick()
+            composeRule.onNodeWithText("One-time setup").assertIsDisplayed()
 
             permissionRule.setGranted(true)
             composeRule.waitUntil(5_000) {
@@ -36,7 +36,7 @@ class SettingsPermissionGrantTest {
             pressBack()
             // The ADB row's subtitle shows only while the permission is missing.
             composeRule.waitUntil(5_000) {
-                composeRule.onAllNodes(hasText("Required for grayscale toggle")).fetchSemanticsNodes().isEmpty()
+                composeRule.onAllNodes(hasText("Needed to turn grayscale on and off")).fetchSemanticsNodes().isEmpty()
             }
         }
     }

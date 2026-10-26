@@ -6,49 +6,48 @@ This document defines the visual language for the Grayout Android app. It reflec
 
 ## Philosophy
 
-Grayout is a grayscale-enforcement app, so its UI is itself almost entirely achromatic. Depth, state, and hierarchy come from **luminance** — layered blacks, border weights, and text brightness — not from color.
+Grayout is a grayscale-enforcement app, and most of the time its users see it in grayscale too. Depth and hierarchy come from **luminance**: layered blacks, border weights, and text brightness.
 
-State is communicated **without hue**:
-- On/off is expressed through layout, border weight, text weight, and luminance.
-- Disabled/inactive elements go gray. They never turn a different color.
-- A card that is "active" has a brighter border, not a blue tint.
+**Color reinforces, it never carries meaning alone.** The app uses a small, deliberate palette (lavender, mint, amber, coral, plus per-schedule colors), but every colored state also has a word, and every problem also has an icon. Check any new UI in grayscale: if a state can only be told apart by hue, it is wrong.
 
-The app has a **single brand accent**: `BrandAccent = #B5A0D8` (dusty lavender). It is deliberately scarce — a light sprinkle of identity, not a state color. It lives as a standalone top-level `val` in `Color.kt`, **not inside `GrayoutTheme.colors.*`**, so it is harder to reach for by accident.
+- On/off is expressed through the switch, layout, text weight, and luminance. Color only adds to it.
+- Healthy states are words (`Granted`, `Unrestricted`) in `success`. Problems are a Material warning icon + words in `warning`, plus an action (`Fix`, `Try again`). Errors use `danger`.
+- Healthy rows get no icon. Never use a tick or check glyph, and never a bare "!", as an icon.
 
-`BrandAccent` is used only for:
-- Eyebrow labels (`STATUS`, `ENFORCEMENT`, `EXCLUSIONS`) at 0.75 alpha
-- The vertical gradient wash at the top of the Status Hero card and the Schedules empty-state card
-- The foreground notification accent
-- The adaptive launcher icon tint
-- The wordmark lockup on the home header
-- The `STATUS` dot when grayscale is **off**
-- The flash/pulse on the ADB command sheet `COPY → COPIED` confirmation
-- Section headers inside the exclusions screen
-- The schedule "Now" badge on the schedule list
-
-Everything else is grayscale.
+`BrandAccent = #B5A0D8` (dusty lavender) is the brand and "now/active" color. It is available both as a standalone top-level `val` and as `GrayoutTheme.colors.accent`. It is used for:
+- Eyebrow labels (`STATUS`, `AUTOMATIC RESTORE`, `KEPT IN COLOR`) at 0.75 alpha
+- The vertical gradient wash at the top of the Status card and the Schedules empty-state card
+- Active switch tracks and the selected bottom-nav pill
+- The "Now" pill on a running schedule, and the first schedule color
+- The foreground notification accent, the launcher icon tint, and the wordmark
+- The flash on the ADB command sheet `Copy` confirmation, and exclusions section headers
 
 ---
 
 ## Color Tokens
 
-All tokens live in `Color.kt`. There are **10 tokens** on `GrayoutTheme.colors`, plus one standalone `BrandAccent`. That's it.
+All tokens live in `Color.kt` and are exposed on `GrayoutTheme.colors`. `BrandAccent` is also a standalone top-level `val` (the notification needs a raw ARGB int).
 
-| Token          | Hex       | Usage                                                           |
-|----------------|-----------|-----------------------------------------------------------------|
-| `bg`           | `#0B0B0B` | Scaffold / screen background                                    |
-| `surface`      | `#161616` | Card backgrounds                                                |
-| `border`       | `#2A2A2A` | Card borders, dividers, inactive chip borders                   |
-| `borderActive` | `#555555` | Borders on active/selected cards                                |
-| `text`         | `#E8E8E8` | Primary text, active chip fill, active toggle track             |
-| `textMuted`    | `#777777` | Secondary / supporting text, inactive chip text                 |
-| `textDim`      | `#4A4A4A` | Disabled / tertiary text, footer tagline                        |
-| `off`          | `#3A3A3A` | Toggle off track, inactive pill background                      |
-| `offText`      | `#666666` | Text on off/disabled elements                                   |
-| `danger`       | `#FF6B6B` | Destructive actions and error states                            |
-| `BrandAccent`  | `#B5A0D8` | Standalone. Brand/identity only — see list above.               |
+| Token             | Hex       | Usage                                                        |
+|-------------------|-----------|--------------------------------------------------------------|
+| `bg`              | `#0B0B0B` | Scaffold / screen background                                 |
+| `surface`         | `#161616` | Card backgrounds                                             |
+| `border`          | `#2A2A2A` | Card borders, dividers, inactive chip borders                |
+| `borderActive`    | `#555555` | Borders on active/selected cards                             |
+| `text`            | `#E8E8E8` | Primary text, active chip fill                               |
+| `textMuted`       | `#999999` | Secondary / supporting text, inactive nav and chip text      |
+| `textDim`         | `#4A4A4A` | Decorative glyphs only (chevrons). Never real text.          |
+| `off`             | `#3A3A3A` | Toggle off track, inactive pill background                   |
+| `offText`         | `#666666` | Thumb on an off toggle. Not for text.                        |
+| `danger`          | `#FF6B6B` | Destructive actions and errors (`Couldn't turn on grayscale`) |
+| `success`         | `#6BE8A0` | Healthy status words (`Granted`, `Unrestricted`, `On`)       |
+| `warning`         | `#FFC857` | Problems that need the user (`Not granted`, `Needs the grayscale permission`) |
+| `accent`          | `#B5A0D8` | Brand, "now", active switch track (see Philosophy)           |
+| `schedulePalette` | `#B5A0D8`, `#5FD4C4`, `#F4A78B` | Per-schedule identity color (dot, Today strip), picked from the schedule id |
 
-**Rule:** never hardcode a `Color(0x...)` in UI code. Pull from `GrayoutTheme.colors` or import `BrandAccent`.
+Contrast when used as text (WCAG, on `bg` / `surface`): `textMuted` 6.9 / 6.4, `accent` 8.4 / 7.7, `success` 12.8 / 11.8, `warning` 12.8 / 11.8, `danger` 7.1 / 6.5. All pass 4.5:1. Check composited colors (alpha over a fill), not just the token.
+
+**Rule:** never hardcode a `Color(0x...)` in UI code. Pull from `GrayoutTheme.colors`.
 
 The `MaterialTheme` color scheme in `Theme.kt` is wired from these same tokens so that stock Material 3 components (`HorizontalDivider`, `Text`, etc.) also pick up the theme automatically.
 
@@ -70,10 +69,10 @@ Styles are defined on `GrayoutTheme.typography`.
 | `titleMedium`   | Plus Jakarta Sans| 18sp | Bold       | Schedule name, stat values                 |
 | `bodyLarge`     | Plus Jakarta Sans| 16sp | Regular    | Input text                                 |
 | `bodyMedium`    | Plus Jakarta Sans| 14sp | SemiBold   | **The one body style.** Row labels, subtitles, chip labels |
-| `labelSmall`    | Plus Jakarta Sans| 12sp | Regular    | Eyebrow / section headers (`STATUS`, `ENFORCEMENT`), muted captions. `0.5sp` tracking. |
+| `labelSmall`    | Plus Jakarta Sans| 12sp | Regular    | Eyebrow / section headers (`STATUS`, `AUTOMATIC RESTORE`), muted captions. `0.5sp` tracking. |
 | `labelXSmall`   | Plus Jakarta Sans| 11sp | SemiBold   | Pill text, day-letter text, nav labels     |
-| `mono`          | JetBrains Mono   | 22sp | Bold       | Full-size time display (pickers)           |
-| `monoSmall`     | JetBrains Mono   | 14sp | Medium     | Next-schedule chip on hero, schedule times |
+| `mono`          | JetBrains Mono   | 22sp | Bold       | Automatic restore value, time pickers      |
+| `monoSmall`     | JetBrains Mono   | 14sp | Medium     | Schedule times                             |
 
 Headings use `-0.5sp` letter spacing. `labelSmall` uses `+0.5sp`.
 
@@ -90,12 +89,19 @@ All in `Dimens.kt` on `GrayoutTheme.dimens`.
 | `screenPad`    | 20dp   | Horizontal padding on every screen                   |
 | `cardPad`      | 16dp   | Default card internal padding                        |
 | `cardPadLarge` | 24dp   | Reserved for tall hero cards                         |
-| `cardGap`      | 12dp   | Gap between cards, gap inside the hero pill row      |
+| `cardGap`      | 12dp   | Gap between cards                                    |
 | `sectionGap`   | 16dp   | Gap between sections inside a card                   |
+| `microGap`     | 4dp    | Inside pills and between an icon and its word        |
 | `tightGap`     | 8dp    | The one "small gap" token. Replaces the old `itemGap`, `chipGap`, and `dayDotGap` — use this for any inside-a-component small gap. |
 | `radius`       | 16dp   | Cards                                                |
 | `radiusSm`     | 10dp   | Inner containers, inputs                             |
 | `radiusFull`   | 999dp  | Pills, chips, toggles, dots                          |
+| `minTouch`     | 48dp   | Minimum touch target (day buttons, inline actions)   |
+| `navBarPadV`   | 12dp   | Vertical padding inside the bottom navigation bar    |
+| `dotSize`      | 10dp   | Schedule color dot                                   |
+| `stripHeight`  | 28dp   | Height of the Today strip on Schedules               |
+| `iconSm`       | 16dp   | Inline problem icon (warning) next to text           |
+| `stepSize`     | 24dp   | Numbered step circle in the setup guide              |
 
 **Rule:** never hardcode `.dp` values for spacing or radii. Use tokens.
 
@@ -121,55 +127,60 @@ No spring physics, no bounce, no custom easings. If you need a duration, pick `F
 - Background: `surface`. Corner: `dimens.radius` (16dp).
 - Border: 1dp `border` by default, animates to 2dp `borderActive` when `isActive = true`. The animation uses `GrayoutMotion.Slow`.
 - No elevation, no shadow. Depth is borders only.
-- `wash = true` opts into the hero accent wash. Default is false. Only the Status Hero and the Schedules empty-state card pass `wash = true`.
+- `wash = true` opts into the hero accent wash. Default is false. Only the Home Status/Setup card and the Schedules empty-state card pass `wash = true`.
 
 ### Eyebrow label
 - A small uppercase text using `typography.labelSmall`, colored `BrandAccent.copy(alpha = 0.75f)`.
-- Used at the top of sections inside a card (`STATUS`, `ENFORCEMENT`, `EXCLUSIONS`) and for section headers on the exclusions screen.
+- Used at the top of sections inside a card (`STATUS`, `AUTOMATIC RESTORE`, `KEPT IN COLOR`, `SETUP`) and for section headers on the exclusions screen.
 - Optionally paired with a 6dp dot to its left.
 
-### Status hero card (home)
-- One unified card that combines status + pills + toggle. There is no separate 120dp circle anymore.
-- Top edge has a vertical gradient wash: `BrandAccent` at 0.08 alpha at the top, fading to `Color.Transparent` by 40% of the card height. This wash also appears on the Schedules empty-state card; it appears nowhere else.
-- Contents, top to bottom:
-  1. Eyebrow row: a 6dp dot (`BrandAccent` when off, `text` when on) + the `STATUS` label.
-  2. `Grayscale on` / `Grayscale off` in `headingLarge`, colored `text`.
-  3. A `bodyMedium` subtitle in `textMuted` ("Your screen is muted" / "Tap to mute your screen"), or an error line in `text` if the last toggle failed.
-  4. A row with the enforcement interval pill (`1m`, `5m`, `10m`, `15m`, `30m` — hidden when enforcement is off) and the next-schedule summary in `monoSmall`.
-  5. A divider, then the `Grayscale` label + `GrayoutToggle` row.
-- When grayscale is on, the card passes `isActive = true` to `GrayoutCard`, which brightens the border.
-
-### Enforcement pills
-- Six pills in a single row, equal width (`Modifier.weight(1f)`): `Off`, `1m`, `5m`, `10m`, `15m`, `30m`.
-- Shape: `radiusFull`. Min height 48dp (touch target).
-- Active: background `text`, text color `bg`, no border, `bodyMedium` at `ExtraBold` weight.
-- Inactive: transparent background, text `textMuted`, 1dp `border` border, `bodyMedium` at `SemiBold`.
-- State changes animate over `GrayoutMotion.Fast`.
+### Home cards
+Three cards, each fact shown once:
+- **Status** (`STATUS` eyebrow, accent wash, `isActive` when grayscale is on): "Grayscale on/off" in `headingLarge` with the switch on the same row. A hairline divider, then the schedule row: schedule color dot, a `labelSmall` "Schedule" caption, and "Daily focus, until 11:00 PM" (running, with the lavender "Now" pill) / "Next: Work, Tue 9:00 AM" / "No upcoming schedules". The row opens Schedules (`onClickLabel = "Open schedules"`).
+  - Before the grayscale permission is granted the card is replaced by the **Setup** card: "One-time setup", one sentence, and a filled "Show the command" pill that opens the setup guide.
+  - If a write fails while the permission is granted, an inline row under the switch shows the warning icon + "Couldn't turn on grayscale" in `danger` + an underlined "Try again". Polite live region.
+- **Automatic restore**: the current value in `mono` ("5 min" / "Off") with an outlined "Change" pill, plus one `labelSmall` helper line. "Change" opens a bottom sheet with a radio list (Off, 1, 5, 10, 15, 30 min; radios use `accent`) and an "Only during schedules" switch ("Outside a schedule, off stays off."). With it on, the helper reads "Turns grayscale back on during schedules." and the notification shows "Grayscale comes back with the next schedule" when a restore would land outside a window.
+- **Notification prompt** (only once, right after automatic restore is first turned on while notifications are off): an active card, "See when grayscale comes back?", one sentence, "Allow notifications" (filled) and "Not now" (outlined). Either answer is remembered. The app never asks at launch.
+- **Kept in color**: "3 apps" / "No apps yet", up to three app icons, "+N", chevron. When apps are kept in color but usage access is off: warning icon + "Paused: usage access is off" in `warning` + "Fix".
 
 ### Wordmark (home header)
 - A compact lockup: the ring mark (`ic_grayout_foreground`) tinted with `BrandAccent`, 24dp, next to the text "Grayout" in `headingSmall`.
 - This replaces the older freestanding app header and is the only place the wordmark appears in-app.
 
 ### `GrayoutToggle`
-- Track: `text` when on, `off` when off.
+- Track: `accent` (lavender) when on, `off` when off.
 - Thumb: `bg` when on, `offText` when off.
 - Animates on `GrayoutMotion.Fast`. Haptic tick on press.
 
-### `StatusDot`
-- 8dp circle. Used in rows (e.g. "Service status") to indicate liveness.
-- When on: fills with `text`. When off: fills with `off`.
+### Schedules list
+- Header "Schedules" + filled "+ Add" pill.
+- **Today card**: `labelSmall` "Today", a `stripHeight` strip (`bg` fill, 1dp `border`, `radiusSm`) with today's windows in each schedule's color and a 2dp `text` now marker, axis labels in `labelXSmall` `textMuted`, and one sentence ("Daily focus is on until 11:00 PM" / "Next: Work at 9:00 AM" / "Nothing else scheduled today"). The card reads as one node: "Today. <sentence>". It refreshes every minute while visible.
+- **Rows** in one card, hairline dividers: schedule color dot (`dotSize`), bold name, lavender "Now" pill when running, `monoSmall` "9:00 PM → 11:00 PM · Every day" (days in words: Every day, Weekdays, Weekends, or "Mon, Wed, Fri"), switch at the end. Off rows stay fully readable; the switch is the only on/off signal.
+- Labels only for problems, under the row: warning icon + "Needs the grayscale permission" + "Fix"; info icon + "Might start a few minutes late" + "Allow" (exact alarms); a refused enable ("Overlaps with \"Work\"") as a polite live region.
+- Schedule colors come from `schedulePalette`, picked by `scheduleColorIndex(id)`, so they never shift when another schedule is deleted.
+
+### Schedule editor
+- Day buttons are `minTouch` boxes with a 40dp painted circle, laid out in a `FlowRow` (`tightGap` both ways), so they wrap to a second row on narrow screens or large text instead of shrinking. Presets (Every day, Weekdays, Weekends) wrap the same way.
+- Start and end times are `mono` buttons that announce "Start time, 9:00 PM". Tapping one opens a bottom sheet with the Material 3 `TimePicker` themed from tokens (`accent` selector and selected fields, `bg` dial, `text` numbers) and Cancel / Set pills. No platform time dialog.
+
+### Status value and problem rows (Settings)
+- `StatusValue(text, isProblem)`: healthy is a plain word ("Granted", "Unrestricted") in `success`; a problem is the Material warning icon (`iconSm`) + the word in `warning`.
+- Optional settings that are off (Notifications) show a neutral "Off" in `textMuted`, not a problem.
+- Problem rows add a `labelSmall` subtitle that says why it matters ("Needed to keep apps in color") and open the fix on tap. Healthy rows have no icon and no subtitle.
+- Settings has two cards: PERMISSIONS (grayscale permission, usage access, alarms & reminders when needed, notifications, battery) and ABOUT ("Grayout 1.4.0", "Running in the background").
 
 ### Bottom navigation
-- 3 tabs: Home, Schedule, Settings.
-- Active: icon and label in `text`. Inactive: `textMuted`.
+- 3 tabs: Home, Schedules, Settings.
+- Active: icon in `accent` on an `accent` 0.2 alpha pill, label in `text` ExtraBold. Inactive: icon and label in `textMuted`.
+- Row padding is `navBarPadV` top and bottom, plus the system navigation-bar inset.
 - Bar background: `bg`. Top border: 1dp `border`.
 - Labels use `labelXSmall`.
 
 ### Category chips (exclusions)
 - A horizontally scrolling row under the search field: `All`, then one chip per category (`Camera`, `Photos`, `Maps`) that has at least one installed app. The row is hidden when no category has apps.
-- Active and inactive colors match the enforcement pills (`text` fill / `bg` label / ExtraBold vs transparent / `textMuted` / 1dp `border`), animated on `GrayoutMotion.Fast`.
-- Unlike the enforcement pills, chips are wrap-content: the painted pill uses `cardGap` horizontal and `tightGap` vertical padding, centered inside a 48dp-tall touch target.
-- Label in `bodyMedium`; app count after it in `labelXSmall`, `textDim` (inactive) or `bg` at 0.5 alpha (active), `tightGap` apart.
+- Active: `text` fill, `bg` label, ExtraBold. Inactive: transparent, `textMuted` label, 1dp `border`. Animated on `GrayoutMotion.Fast`.
+- Chips are wrap-content: the painted pill uses `cardGap` horizontal and `tightGap` vertical padding, centered inside a 48dp-tall touch target.
+- Label in `bodyMedium`; app count after it in `labelXSmall`, `textMuted` (inactive) or opaque `bg` (active), `tightGap` apart.
 - Radio semantics: the row is a `selectableGroup`, each chip is `selectable` with `Role.RadioButton`.
 
 ### Header action pill
@@ -182,6 +193,13 @@ No spring physics, no bounce, no custom easings. If you need a duration, pick `F
 - Message in `bodyMedium` `text`; action (`Undo`) in `bodyMedium` ExtraBold `text` with a 48dp touch target.
 - Short duration. Polite live region so TalkBack announces it.
 
+### Setup guide (ADB command sheet)
+- `ModalBottomSheet` titled "One-time setup", three steps: turn on Developer options, turn on USB debugging, run the command.
+- Step circles are `stepSize`: done = filled `text` circle with a `bg` number; current = 1dp `accent` outline with an `accent` number; upcoming = 1dp `border` outline with a `textMuted` number. **Finished steps never show a tick.**
+- Steps advance on their own: the sheet polls Developer options, USB debugging, and the grant while visible.
+- Actions are outlined pills (1dp `borderActive`, `labelSmall` ExtraBold) inside a `minTouch` target: "Open About phone", "Open Developer options", "Copy", "Share". The primary action ("Try grayscale") is a filled `text` pill.
+- Footer status is a polite live region: "Permission granted" in `success`, or "Waiting for the grant" in `textMuted`.
+
 ### Buttons
 - Primary (Save): `text` background, `bg` label, `radius` corners, 16dp vertical padding.
 - Destructive (Delete): transparent background, `danger` label, `bodyMedium`.
@@ -193,8 +211,9 @@ No spring physics, no bounce, no custom easings. If you need a duration, pick `F
 
 - **Dark theme only.** There is no light mode, and there is no plan to add one.
 - **No hardcoded colors or sizes.** Every color must come from `GrayoutTheme.colors` (or `BrandAccent`), every dimension from `GrayoutTheme.dimens`, every text style from `GrayoutTheme.typography`, every duration from `GrayoutMotion`.
-- **State is non-chromatic.** When something is off, inactive, or disabled, it goes gray — not a faded accent. If you find yourself tinting a failure state blue or a success state green, stop.
+- **Color reinforces, never alone.** Every colored state has a word; every problem has an icon and an action. Check new UI in grayscale.
+- **Icons for problems only.** Use Material icons (`Icons.Filled.Warning`, `Info`, `Refresh`) where the user must act. No icons on healthy rows, no tick or check glyphs, no bare "!".
 - **Depth is borders, not shadows.** The app uses no elevation. Cards sit on `bg`, darker than `surface`, with a 1dp border.
-- **`BrandAccent` is sparingly used.** If you're about to reach for `BrandAccent` outside the cases listed in the Philosophy section, reconsider. The whole point of keeping it out of `GrayoutTheme.colors` is to create friction.
+- **Lavender means brand or "now".** Use `accent` for the cases in the Philosophy section, not as a general highlight.
 - **Generous whitespace.** Don't crowd elements. `sectionGap` between sections, `cardGap` between cards.
 - **Monospace only for time/number displays.** `mono` and `monoSmall` are reserved for actual numeric values the user reads as data (schedule times, next-run countdown). They are never used for regular body copy.
