@@ -9,4 +9,5 @@ data class AppInfo(
     val appName: String,
     val icon: ImageBitmap,
     val isExcluded: Boolean,
+    val categories: Set<AppCategory> = emptySet(),
 )
