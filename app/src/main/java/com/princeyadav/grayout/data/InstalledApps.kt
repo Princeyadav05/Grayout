@@ -8,7 +8,6 @@ import android.os.Build
 import android.provider.MediaStore
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
-import androidx.core.net.toUri
 import com.princeyadav.grayout.model.AppCategory
 import com.princeyadav.grayout.model.AppInfo
 
@@ -20,12 +19,13 @@ import com.princeyadav.grayout.model.AppInfo
 fun loadInstalledApps(context: Context): List<AppInfo> {
     val pm = context.packageManager
     // Not ACTION_IMAGE_CAPTURE or ACTION_VIEW image/* / video/*: those also match
-    // capture helpers, browsers, file managers and messengers.
+    // capture helpers, browsers, file managers and messengers. Maps uses only the
+    // APP_MAPS launcher category: ride-hailing and delivery apps (Uber, Rapido, Zomato)
+    // both handle geo: links and declare appCategory="maps".
     val camera = pm.handlers(Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)) +
         pm.handlers(Intent(MediaStore.INTENT_ACTION_VIDEO_CAMERA))
     val gallery = pm.handlers(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_GALLERY))
-    val maps = pm.handlers(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MAPS)) +
-        pm.handlers(Intent(Intent.ACTION_VIEW, "geo:0,0".toUri()))
+    val maps = pm.handlers(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MAPS))
 
     return pm.getInstalledApplications(0)
         .filter { info ->
@@ -45,9 +45,7 @@ fun loadInstalledApps(context: Context): List<AppInfo> {
                     if (info.packageName in gallery || info.category == ApplicationInfo.CATEGORY_IMAGE) {
                         add(AppCategory.PHOTOS)
                     }
-                    if (info.packageName in maps || info.category == ApplicationInfo.CATEGORY_MAPS) {
-                        add(AppCategory.MAPS)
-                    }
+                    if (info.packageName in maps) add(AppCategory.MAPS)
                 },
             )
         }
