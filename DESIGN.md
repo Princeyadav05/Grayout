@@ -158,6 +158,10 @@ Three cards, each fact shown once:
 - Labels only for problems, under the row: warning icon + "Needs the grayscale permission" + "Fix"; info icon + "Might start a few minutes late" + "Allow" (exact alarms); a refused enable ("Overlaps with \"Work\"") as a polite live region.
 - Schedule colors come from `schedulePalette`, picked by `scheduleColorIndex(id)`, so they never shift when another schedule is deleted.
 
+### Schedule editor
+- Day buttons are `minTouch` boxes with a 40dp painted circle, laid out in a `FlowRow` (`tightGap` both ways), so they wrap to a second row on narrow screens or large text instead of shrinking. Presets (Every day, Weekdays, Weekends) wrap the same way.
+- Start and end times are `mono` buttons that announce "Start time, 9:00 PM". Tapping one opens a bottom sheet with the Material 3 `TimePicker` themed from tokens (`accent` selector and selected fields, `bg` dial, `text` numbers) and Cancel / Set pills. No platform time dialog.
+
 ### Status value and problem rows (Settings)
 - `StatusValue(text, isProblem)`: healthy is a plain word ("Granted", "Unrestricted") in `success`; a problem is the Material warning icon (`iconSm`) + the word in `warning`.
 - Optional settings that are off (Notifications) show a neutral "Off" in `textMuted`, not a problem.

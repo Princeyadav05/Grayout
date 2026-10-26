@@ -1,6 +1,5 @@
 package com.princeyadav.grayout.ui.screens
 
-import android.app.TimePickerDialog
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -11,6 +10,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,6 +30,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TimePickerDefaults
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -39,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,7 +50,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -100,9 +103,10 @@ fun ScheduleEditorScreen(
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
-    val context = LocalContext.current
     val is24Hour = rememberIs24HourFormat()
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    // null = no picker open; true = start time; false = end time.
+    var editingStart by rememberSaveable { mutableStateOf<Boolean?>(null) }
     val canDelete = isReady && !isLoading && !isSaving
     val isEditable = canDelete && !isDeleted
 
@@ -175,27 +179,23 @@ fun ScheduleEditorScreen(
             endMinute = endMinute,
             is24Hour = is24Hour,
             enabled = isEditable,
-            onStartTimeClick = {
-                TimePickerDialog(
-                    context,
-                    android.R.style.Theme_Material_Dialog_Alert,
-                    { _, h, m -> onSetStartTime(h, m) },
-                    startHour,
-                    startMinute,
-                    is24Hour,
-                ).show()
-            },
-            onEndTimeClick = {
-                TimePickerDialog(
-                    context,
-                    android.R.style.Theme_Material_Dialog_Alert,
-                    { _, h, m -> onSetEndTime(h, m) },
-                    endHour,
-                    endMinute,
-                    is24Hour,
-                ).show()
-            },
+            onStartTimeClick = { editingStart = true },
+            onEndTimeClick = { editingStart = false },
         )
+
+        editingStart?.let { isStart ->
+            TimePickerSheet(
+                title = if (isStart) "Start time" else "End time",
+                hour = if (isStart) startHour else endHour,
+                minute = if (isStart) startMinute else endMinute,
+                is24Hour = is24Hour,
+                onDismiss = { editingStart = null },
+                onSet = { h, m ->
+                    if (isStart) onSetStartTime(h, m) else onSetEndTime(h, m)
+                    editingStart = null
+                },
+            )
+        }
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
 
@@ -411,12 +411,14 @@ private fun TimeCard(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
+                    val start = formatTime(startHour, startMinute, is24Hour)
                     Text(
-                        text = formatTime(startHour, startMinute, is24Hour),
+                        text = start,
                         style = typography.mono,
                         color = colors.text,
                         modifier = Modifier
-                            .sizeIn(minHeight = 48.dp)
+                            .semantics { contentDescription = "Start time, $start" }
+                            .sizeIn(minHeight = dimens.minTouch)
                             .clickable(
                                 enabled = enabled,
                                 role = Role.Button,
@@ -443,12 +445,14 @@ private fun TimeCard(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
+                    val end = formatTime(endHour, endMinute, is24Hour)
                     Text(
-                        text = formatTime(endHour, endMinute, is24Hour),
+                        text = end,
                         style = typography.mono,
                         color = colors.text,
                         modifier = Modifier
-                            .sizeIn(minHeight = 48.dp)
+                            .semantics { contentDescription = "End time, $end" }
+                            .sizeIn(minHeight = dimens.minTouch)
                             .clickable(
                                 enabled = enabled,
                                 role = Role.Button,
@@ -495,9 +499,11 @@ private fun DaysCard(
 
             Spacer(modifier = Modifier.height(dimens.sectionGap))
 
-            Row(
+            // Wraps to a second row on narrow screens or large text instead of shrinking targets.
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
+                verticalArrangement = Arrangement.spacedBy(dimens.tightGap),
             ) {
                 val view = LocalView.current
                 DayLabels.forEach { (day, label) ->
@@ -507,8 +513,7 @@ private fun DaysCard(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
+                            .size(dimens.minTouch)
                             .toggleable(
                                 value = isSelected,
                                 enabled = enabled,
@@ -550,8 +555,9 @@ private fun DaysCard(
 
             Spacer(modifier = Modifier.height(dimens.sectionGap))
 
-            Row(
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
+                verticalArrangement = Arrangement.spacedBy(dimens.tightGap),
             ) {
                 val presets = listOf(
                     "Every day" to everyDay,
@@ -733,5 +739,96 @@ private fun DeleteConfirmSheet(
                 )
             }
         }
+    }
+}
+
+/** Themed Material 3 time picker in a bottom sheet, replacing the platform dialog. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimePickerSheet(
+    title: String,
+    hour: Int,
+    minute: Int,
+    is24Hour: Boolean,
+    onDismiss: () -> Unit,
+    onSet: (Int, Int) -> Unit,
+) {
+    val colors = GrayoutTheme.colors
+    val typography = GrayoutTheme.typography
+    val dimens = GrayoutTheme.dimens
+    val state = rememberTimePickerState(initialHour = hour, initialMinute = minute, is24Hour = is24Hour)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = colors.surface,
+        contentColor = colors.text,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = dimens.cardPadLarge)
+                .padding(bottom = dimens.sectionGap),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = title,
+                style = typography.headingSmall,
+                color = colors.text,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(dimens.sectionGap))
+            TimePicker(
+                state = state,
+                colors = TimePickerDefaults.colors(
+                    clockDialColor = colors.bg,
+                    clockDialSelectedContentColor = colors.bg,
+                    clockDialUnselectedContentColor = colors.text,
+                    selectorColor = colors.accent,
+                    containerColor = colors.surface,
+                    periodSelectorBorderColor = colors.border,
+                    periodSelectorSelectedContainerColor = colors.accent,
+                    periodSelectorUnselectedContainerColor = colors.surface,
+                    periodSelectorSelectedContentColor = colors.bg,
+                    periodSelectorUnselectedContentColor = colors.textMuted,
+                    timeSelectorSelectedContainerColor = colors.accent,
+                    timeSelectorUnselectedContainerColor = colors.bg,
+                    timeSelectorSelectedContentColor = colors.bg,
+                    timeSelectorUnselectedContentColor = colors.text,
+                ),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(dimens.tightGap, Alignment.End),
+            ) {
+                SheetButton(label = "Cancel", onClick = onDismiss)
+                SheetButton(label = "Set", primary = true, onClick = { onSet(state.hour, state.minute) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun SheetButton(label: String, primary: Boolean = false, onClick: () -> Unit) {
+    val colors = GrayoutTheme.colors
+    val dimens = GrayoutTheme.dimens
+    val shape = RoundedCornerShape(dimens.radiusFull)
+    Box(
+        modifier = Modifier
+            .heightIn(min = dimens.minTouch)
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = GrayoutTheme.typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
+            color = if (primary) colors.bg else colors.text,
+            modifier = Modifier
+                .then(
+                    if (primary) Modifier.background(colors.text, shape)
+                    else Modifier.border(1.dp, colors.borderActive, shape),
+                )
+                .padding(horizontal = dimens.sectionGap, vertical = dimens.tightGap),
+        )
     }
 }
