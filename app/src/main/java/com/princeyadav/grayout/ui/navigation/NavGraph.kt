@@ -28,11 +28,9 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.core.graphics.drawable.toBitmap
 import com.princeyadav.grayout.data.GrayoutDatabase
 import com.princeyadav.grayout.data.ScheduleRepository
-import com.princeyadav.grayout.model.AppInfo
+import com.princeyadav.grayout.data.loadInstalledApps
 import com.princeyadav.grayout.scheduling.ScheduleAlarmManager
 import com.princeyadav.grayout.scheduling.needsExactAlarmAccess
 import com.princeyadav.grayout.service.EnforcementPrefs
@@ -356,25 +354,7 @@ fun GrayoutNavGraph(
                             Intent(applicationContext, GrayoutService::class.java)
                         )
                     },
-                    loadApps = {
-                        applicationContext.packageManager.getInstalledApplications(0)
-                            .filter { info ->
-                                applicationContext.packageManager
-                                    .getLaunchIntentForPackage(info.packageName) != null &&
-                                    info.packageName != applicationContext.packageName
-                            }
-                            .map { info ->
-                                AppInfo(
-                                    packageName = info.packageName,
-                                    appName = info.loadLabel(applicationContext.packageManager).toString(),
-                                    icon = info.loadIcon(applicationContext.packageManager)
-                                        .toBitmap(width = 80, height = 80)
-                                        .asImageBitmap(),
-                                    isExcluded = exclusionPrefs.isExcluded(info.packageName),
-                                )
-                            }
-                            .sortedBy { it.appName.lowercase() }
-                    },
+                    loadApps = { loadInstalledApps(applicationContext) },
                     ioDispatcher = kotlinx.coroutines.Dispatchers.IO,
                 )
             )
