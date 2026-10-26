@@ -6,16 +6,22 @@ import androidx.compose.ui.graphics.colorspace.ColorSpace
 import androidx.compose.ui.graphics.colorspace.ColorSpaces
 import app.cash.turbine.test
 import com.princeyadav.grayout.fakes.FakeSharedPreferences
+import com.princeyadav.grayout.model.AppCategory
 import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.service.ExclusionPrefs
 import com.princeyadav.grayout.testutil.MainDispatcherRule
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -71,12 +77,24 @@ private fun fakeAppInfo(
     packageName: String,
     appName: String,
     isExcluded: Boolean = false,
+    categories: Set<AppCategory> = emptySet(),
 ): AppInfo = AppInfo(
     packageName = packageName,
     appName = appName,
     icon = StubImageBitmap(),
     isExcluded = isExcluded,
+    categories = categories,
 )
+
+/** Keeps WhileSubscribed flows collected so their `.value` stays current. */
+private fun TestScope.keepCollecting(vararg flows: Flow<*>) {
+    flows.forEach { flow -> backgroundScope.launch { flow.collect {} } }
+}
+
+private val camera = fakeAppInfo("cam.pkg", "Camera", categories = setOf(AppCategory.CAMERA))
+private val gallery = fakeAppInfo("gal.pkg", "Gallery", categories = setOf(AppCategory.PHOTOS))
+private val photos = fakeAppInfo("pho.pkg", "Google Photos", categories = setOf(AppCategory.PHOTOS))
+private val chrome = fakeAppInfo("web.pkg", "Chrome")
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ExclusionViewModelTest {
@@ -277,5 +295,155 @@ class ExclusionViewModelTest {
             assertEquals("Apple", latest.first().appName)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun `categoryCounts lists only categories with apps, in chip order, ignoring search`() = runTest {
+        val viewModel = vm(apps = listOf(chrome, photos, camera, gallery))
+        keepCollecting(viewModel.categoryCounts)
+        viewModel.setSearchQuery("chrome")
+        advanceUntilIdle()
+
+        val counts = viewModel.categoryCounts.value
+        assertEquals(listOf(AppCategory.CAMERA, AppCategory.PHOTOS), counts.keys.toList())
+        assertEquals(1, counts[AppCategory.CAMERA])
+        assertEquals(2, counts[AppCategory.PHOTOS])
+    }
+
+    @Test
+    fun `selecting a category narrows filteredApps and selecting null shows all again`() = runTest {
+        val viewModel = vm(apps = listOf(camera, chrome, gallery, photos))
+        keepCollecting(viewModel.filteredApps)
+
+        viewModel.selectCategory(AppCategory.PHOTOS)
+        advanceUntilIdle()
+        assertEquals(setOf("gal.pkg", "pho.pkg"), viewModel.filteredApps.value.map { it.packageName }.toSet())
+
+        viewModel.selectCategory(null)
+        advanceUntilIdle()
+        assertEquals(4, viewModel.filteredApps.value.size)
+    }
+
+    @Test
+    fun `selectedCategory falls back to All when a refresh leaves it empty`() = runTest {
+        val viewModel = vm(apps = listOf(camera, chrome))
+        keepCollecting(viewModel.selectedCategory, viewModel.filteredApps)
+        viewModel.selectCategory(AppCategory.CAMERA)
+        advanceUntilIdle()
+        assertEquals(AppCategory.CAMERA, viewModel.selectedCategory.value)
+
+        fakeApps = listOf(chrome)
+        viewModel.refreshApps()
+        advanceUntilIdle()
+
+        assertNull(viewModel.selectedCategory.value)
+        assertEquals(listOf("web.pkg"), viewModel.filteredApps.value.map { it.packageName })
+    }
+
+    @Test
+    fun `excludeAllVisible adds only visible not-yet-excluded apps in one write`() = runTest {
+        exclusionPrefs.addExcludedPackage(gallery.packageName)
+        val viewModel = vm(apps = listOf(camera, gallery, photos, chrome))
+        advanceUntilIdle()
+        viewModel.selectCategory(AppCategory.PHOTOS)
+
+        viewModel.excludeAllVisible()
+
+        assertEquals(setOf("gal.pkg", "pho.pkg"), exclusionPrefs.getExcludedPackages())
+        assertEquals(1, changedCount)
+        assertEquals(setOf("pho.pkg"), viewModel.pendingUndo.value?.packages)
+    }
+
+    @Test
+    fun `excludeAllVisible respects the search query`() = runTest {
+        val viewModel = vm(apps = listOf(gallery, photos))
+        advanceUntilIdle()
+        viewModel.selectCategory(AppCategory.PHOTOS)
+        viewModel.setSearchQuery("goo")
+
+        viewModel.excludeAllVisible()
+
+        assertEquals(setOf("pho.pkg"), exclusionPrefs.getExcludedPackages())
+    }
+
+    @Test
+    fun `excludeAllVisible does nothing when every visible app is already excluded`() = runTest {
+        exclusionPrefs.setExcludedPackages(setOf(gallery.packageName, photos.packageName))
+        val viewModel = vm(apps = listOf(gallery, photos))
+        advanceUntilIdle()
+        viewModel.selectCategory(AppCategory.PHOTOS)
+
+        viewModel.excludeAllVisible()
+
+        assertEquals(0, changedCount)
+        assertNull(viewModel.pendingUndo.value)
+    }
+
+    @Test
+    fun `excludeAllVisible does nothing in All mode`() = runTest {
+        val viewModel = vm(apps = listOf(camera, chrome))
+        advanceUntilIdle()
+
+        viewModel.excludeAllVisible()
+
+        assertTrue(exclusionPrefs.getExcludedPackages().isEmpty())
+        assertEquals(0, changedCount)
+    }
+
+    @Test
+    fun `a double tap on Exclude all writes once`() = runTest {
+        val viewModel = vm(apps = listOf(gallery, photos))
+        advanceUntilIdle()
+        viewModel.selectCategory(AppCategory.PHOTOS)
+
+        viewModel.excludeAllVisible()
+        viewModel.excludeAllVisible()
+
+        assertEquals(1, changedCount)
+    }
+
+    @Test
+    fun `undo removes only the bulk-added apps and keeps earlier exclusions`() = runTest {
+        exclusionPrefs.addExcludedPackage(gallery.packageName)
+        val viewModel = vm(apps = listOf(gallery, photos))
+        advanceUntilIdle()
+        viewModel.selectCategory(AppCategory.PHOTOS)
+        viewModel.excludeAllVisible()
+        val op = viewModel.pendingUndo.value!!
+
+        viewModel.undoBulkExclusion(op)
+
+        assertEquals(setOf("gal.pkg"), exclusionPrefs.getExcludedPackages())
+        assertEquals(2, changedCount)
+        assertNull(viewModel.pendingUndo.value)
+    }
+
+    @Test
+    fun `a stale snackbar cannot undo or clear a newer bulk action`() = runTest {
+        val viewModel = vm(apps = listOf(camera, photos))
+        advanceUntilIdle()
+        viewModel.selectCategory(AppCategory.PHOTOS)
+        viewModel.excludeAllVisible()
+        val first = viewModel.pendingUndo.value!!
+        viewModel.selectCategory(AppCategory.CAMERA)
+        viewModel.excludeAllVisible()
+        val second = viewModel.pendingUndo.value!!
+
+        viewModel.undoBulkExclusion(first)
+        viewModel.clearPendingUndo(first)
+
+        assertEquals(setOf("cam.pkg", "pho.pkg"), exclusionPrefs.getExcludedPackages())
+        assertSame(second, viewModel.pendingUndo.value)
+        assertEquals(2, changedCount)
+    }
+
+    @Test
+    fun `visibleApps applies search and category together`() {
+        val apps = listOf(camera, gallery, photos, chrome)
+
+        assertEquals(apps, visibleApps(apps, "", null))
+        assertEquals(listOf(gallery, photos), visibleApps(apps, "", AppCategory.PHOTOS))
+        assertEquals(listOf(photos), visibleApps(apps, "goo", AppCategory.PHOTOS))
+        assertEquals(listOf(chrome), visibleApps(apps, "CHR", null))
     }
 }

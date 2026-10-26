@@ -28,11 +28,9 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.core.graphics.drawable.toBitmap
 import com.princeyadav.grayout.data.GrayoutDatabase
 import com.princeyadav.grayout.data.ScheduleRepository
-import com.princeyadav.grayout.model.AppInfo
+import com.princeyadav.grayout.data.loadInstalledApps
 import com.princeyadav.grayout.scheduling.ScheduleAlarmManager
 import com.princeyadav.grayout.scheduling.needsExactAlarmAccess
 import com.princeyadav.grayout.service.EnforcementPrefs
@@ -356,31 +354,17 @@ fun GrayoutNavGraph(
                             Intent(applicationContext, GrayoutService::class.java)
                         )
                     },
-                    loadApps = {
-                        applicationContext.packageManager.getInstalledApplications(0)
-                            .filter { info ->
-                                applicationContext.packageManager
-                                    .getLaunchIntentForPackage(info.packageName) != null &&
-                                    info.packageName != applicationContext.packageName
-                            }
-                            .map { info ->
-                                AppInfo(
-                                    packageName = info.packageName,
-                                    appName = info.loadLabel(applicationContext.packageManager).toString(),
-                                    icon = info.loadIcon(applicationContext.packageManager)
-                                        .toBitmap(width = 80, height = 80)
-                                        .asImageBitmap(),
-                                    isExcluded = exclusionPrefs.isExcluded(info.packageName),
-                                )
-                            }
-                            .sortedBy { it.appName.lowercase() }
-                    },
+                    loadApps = { loadInstalledApps(applicationContext) },
                     ioDispatcher = kotlinx.coroutines.Dispatchers.IO,
                 )
             )
 
             val excludedApps by viewModel.excludedApps.collectAsStateWithLifecycle(emptyList())
             val allOtherApps by viewModel.allOtherApps.collectAsStateWithLifecycle(emptyList())
+            val categoryApps by viewModel.filteredApps.collectAsStateWithLifecycle()
+            val categoryCounts by viewModel.categoryCounts.collectAsStateWithLifecycle()
+            val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
+            val pendingUndo by viewModel.pendingUndo.collectAsStateWithLifecycle()
             val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
             val isUsageAccessGranted by viewModel.isUsageAccessGranted.collectAsStateWithLifecycle()
 
@@ -395,9 +379,17 @@ fun GrayoutNavGraph(
             ExclusionListScreen(
                 excludedApps = excludedApps,
                 allOtherApps = allOtherApps,
+                categoryApps = categoryApps,
+                categoryCounts = categoryCounts,
+                selectedCategory = selectedCategory,
+                pendingUndo = pendingUndo,
                 searchQuery = searchQuery,
                 isUsageAccessGranted = isUsageAccessGranted,
                 onToggle = viewModel::toggleExclusion,
+                onSelectCategory = viewModel::selectCategory,
+                onExcludeAll = viewModel::excludeAllVisible,
+                onUndo = viewModel::undoBulkExclusion,
+                onUndoDismissed = viewModel::clearPendingUndo,
                 onSearchQueryChange = viewModel::setSearchQuery,
                 onOpenUsageAccessSettings = {
                     try {
