@@ -6,49 +6,48 @@ This document defines the visual language for the Grayout Android app. It reflec
 
 ## Philosophy
 
-Grayout is a grayscale-enforcement app, so its UI is itself almost entirely achromatic. Depth, state, and hierarchy come from **luminance** — layered blacks, border weights, and text brightness — not from color.
+Grayout is a grayscale-enforcement app, and most of the time its users see it in grayscale too. Depth and hierarchy come from **luminance**: layered blacks, border weights, and text brightness.
 
-State is communicated **without hue**:
-- On/off is expressed through layout, border weight, text weight, and luminance.
-- Disabled/inactive elements go gray. They never turn a different color.
-- A card that is "active" has a brighter border, not a blue tint.
+**Color reinforces, it never carries meaning alone.** The app uses a small, deliberate palette (lavender, mint, amber, coral, plus per-schedule colors), but every colored state also has a word, and every problem also has an icon. Check any new UI in grayscale: if a state can only be told apart by hue, it is wrong.
 
-The app has a **single brand accent**: `BrandAccent = #B5A0D8` (dusty lavender). It is deliberately scarce — a light sprinkle of identity, not a state color. It lives as a standalone top-level `val` in `Color.kt`, **not inside `GrayoutTheme.colors.*`**, so it is harder to reach for by accident.
+- On/off is expressed through the switch, layout, text weight, and luminance. Color only adds to it.
+- Healthy states are words (`Granted`, `Unrestricted`) in `success`. Problems are a Material warning icon + words in `warning`, plus an action (`Fix`, `Try again`). Errors use `danger`.
+- Healthy rows get no icon. Never use a tick or check glyph, and never a bare "!", as an icon.
 
-`BrandAccent` is used only for:
-- Eyebrow labels (`STATUS`, `ENFORCEMENT`, `EXCLUSIONS`) at 0.75 alpha
-- The vertical gradient wash at the top of the Status Hero card and the Schedules empty-state card
-- The foreground notification accent
-- The adaptive launcher icon tint
-- The wordmark lockup on the home header
-- The `STATUS` dot when grayscale is **off**
-- The flash/pulse on the ADB command sheet `COPY → COPIED` confirmation
-- Section headers inside the exclusions screen
-- The schedule "Now" badge on the schedule list
-
-Everything else is grayscale.
+`BrandAccent = #B5A0D8` (dusty lavender) is the brand and "now/active" color. It is available both as a standalone top-level `val` and as `GrayoutTheme.colors.accent`. It is used for:
+- Eyebrow labels (`STATUS`, `AUTOMATIC RESTORE`, `KEPT IN COLOR`) at 0.75 alpha
+- The vertical gradient wash at the top of the Status card and the Schedules empty-state card
+- Active switch tracks and the selected bottom-nav pill
+- The "Now" pill on a running schedule, and the first schedule color
+- The foreground notification accent, the launcher icon tint, and the wordmark
+- The flash on the ADB command sheet `Copy` confirmation, and exclusions section headers
 
 ---
 
 ## Color Tokens
 
-All tokens live in `Color.kt`. There are **10 tokens** on `GrayoutTheme.colors`, plus one standalone `BrandAccent`. That's it.
+All tokens live in `Color.kt` and are exposed on `GrayoutTheme.colors`. `BrandAccent` is also a standalone top-level `val` (the notification needs a raw ARGB int).
 
-| Token          | Hex       | Usage                                                           |
-|----------------|-----------|-----------------------------------------------------------------|
-| `bg`           | `#0B0B0B` | Scaffold / screen background                                    |
-| `surface`      | `#161616` | Card backgrounds                                                |
-| `border`       | `#2A2A2A` | Card borders, dividers, inactive chip borders                   |
-| `borderActive` | `#555555` | Borders on active/selected cards                                |
-| `text`         | `#E8E8E8` | Primary text, active chip fill, active toggle track             |
-| `textMuted`    | `#777777` | Secondary / supporting text, inactive chip text                 |
-| `textDim`      | `#4A4A4A` | Disabled / tertiary text, footer tagline                        |
-| `off`          | `#3A3A3A` | Toggle off track, inactive pill background                      |
-| `offText`      | `#666666` | Text on off/disabled elements                                   |
-| `danger`       | `#FF6B6B` | Destructive actions and error states                            |
-| `BrandAccent`  | `#B5A0D8` | Standalone. Brand/identity only — see list above.               |
+| Token             | Hex       | Usage                                                        |
+|-------------------|-----------|--------------------------------------------------------------|
+| `bg`              | `#0B0B0B` | Scaffold / screen background                                 |
+| `surface`         | `#161616` | Card backgrounds                                             |
+| `border`          | `#2A2A2A` | Card borders, dividers, inactive chip borders                |
+| `borderActive`    | `#555555` | Borders on active/selected cards                             |
+| `text`            | `#E8E8E8` | Primary text, active chip fill                               |
+| `textMuted`       | `#999999` | Secondary / supporting text, inactive nav and chip text      |
+| `textDim`         | `#4A4A4A` | Decorative glyphs only (chevrons). Never real text.          |
+| `off`             | `#3A3A3A` | Toggle off track, inactive pill background                   |
+| `offText`         | `#666666` | Thumb on an off toggle. Not for text.                        |
+| `danger`          | `#FF6B6B` | Destructive actions and errors (`Couldn't turn on grayscale`) |
+| `success`         | `#6BE8A0` | Healthy status words (`Granted`, `Unrestricted`, `On`)       |
+| `warning`         | `#FFC857` | Problems that need the user (`Not granted`, `Needs the grayscale permission`) |
+| `accent`          | `#B5A0D8` | Brand, "now", active switch track (see Philosophy)           |
+| `schedulePalette` | `#B5A0D8`, `#5FD4C4`, `#F4A78B` | Per-schedule identity color (dot, Today strip), picked from the schedule id |
 
-**Rule:** never hardcode a `Color(0x...)` in UI code. Pull from `GrayoutTheme.colors` or import `BrandAccent`.
+Contrast when used as text (WCAG, on `bg` / `surface`): `textMuted` 6.9 / 6.4, `accent` 8.4 / 7.7, `success` 12.8 / 11.8, `warning` 12.8 / 11.8, `danger` 7.1 / 6.5. All pass 4.5:1. Check composited colors (alpha over a fill), not just the token.
+
+**Rule:** never hardcode a `Color(0x...)` in UI code. Pull from `GrayoutTheme.colors`.
 
 The `MaterialTheme` color scheme in `Theme.kt` is wired from these same tokens so that stock Material 3 components (`HorizontalDivider`, `Text`, etc.) also pick up the theme automatically.
 
@@ -96,6 +95,11 @@ All in `Dimens.kt` on `GrayoutTheme.dimens`.
 | `radius`       | 16dp   | Cards                                                |
 | `radiusSm`     | 10dp   | Inner containers, inputs                             |
 | `radiusFull`   | 999dp  | Pills, chips, toggles, dots                          |
+| `minTouch`     | 48dp   | Minimum touch target (day buttons, inline actions)   |
+| `navBarPadV`   | 12dp   | Vertical padding inside the bottom navigation bar    |
+| `dotSize`      | 10dp   | Schedule color dot                                   |
+| `stripHeight`  | 28dp   | Height of the Today strip on Schedules               |
+| `iconSm`       | 16dp   | Inline problem icon (warning) next to text           |
 
 **Rule:** never hardcode `.dp` values for spacing or radii. Use tokens.
 
@@ -193,8 +197,9 @@ No spring physics, no bounce, no custom easings. If you need a duration, pick `F
 
 - **Dark theme only.** There is no light mode, and there is no plan to add one.
 - **No hardcoded colors or sizes.** Every color must come from `GrayoutTheme.colors` (or `BrandAccent`), every dimension from `GrayoutTheme.dimens`, every text style from `GrayoutTheme.typography`, every duration from `GrayoutMotion`.
-- **State is non-chromatic.** When something is off, inactive, or disabled, it goes gray — not a faded accent. If you find yourself tinting a failure state blue or a success state green, stop.
+- **Color reinforces, never alone.** Every colored state has a word; every problem has an icon and an action. Check new UI in grayscale.
+- **Icons for problems only.** Use Material icons (`Icons.Filled.Warning`, `Info`, `Refresh`) where the user must act. No icons on healthy rows, no tick or check glyphs, no bare "!".
 - **Depth is borders, not shadows.** The app uses no elevation. Cards sit on `bg`, darker than `surface`, with a 1dp border.
-- **`BrandAccent` is sparingly used.** If you're about to reach for `BrandAccent` outside the cases listed in the Philosophy section, reconsider. The whole point of keeping it out of `GrayoutTheme.colors` is to create friction.
+- **Lavender means brand or "now".** Use `accent` for the cases in the Philosophy section, not as a general highlight.
 - **Generous whitespace.** Don't crowd elements. `sectionGap` between sections, `cardGap` between cards.
 - **Monospace only for time/number displays.** `mono` and `monoSmall` are reserved for actual numeric values the user reads as data (schedule times, next-run countdown). They are never used for regular body copy.
