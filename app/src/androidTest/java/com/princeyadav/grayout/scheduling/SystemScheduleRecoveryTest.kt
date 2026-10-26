@@ -439,7 +439,7 @@ class SystemScheduleRecoveryTest {
         // This implicit start should leave deadline and generation unchanged.
         // Its real foreground-notification replacement confirms onStartCommand
         // reached its final branch after the asynchronous service IPC arrived.
-        await { currentTitle() == "Grayscale enforcement" }
+        await { currentTitle() == "Grayout" }
         instrumentation.waitForIdleSync()
     }
 

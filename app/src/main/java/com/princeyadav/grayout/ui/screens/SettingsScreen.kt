@@ -113,8 +113,8 @@ private fun ServiceCard(enforcementInterval: Int, isServiceRunning: Boolean) {
             SectionHeader("SERVICE")
 
             SettingsRow(
-                label = "Enforcement status",
-                subtitle = if (enforcementInterval > 0) "Every ${enforcementInterval}m" else "Off",
+                label = "Automatic restore",
+                subtitle = if (enforcementInterval > 0) "Every $enforcementInterval min" else "Off",
                 trailing = { StatusDot(isActive = enforcementInterval > 0) },
             )
 
@@ -197,7 +197,7 @@ private fun SetupCard(
 
             SettingsRow(
                 label = "Battery optimization",
-                subtitle = "Disable battery optimization for reliable enforcement",
+                subtitle = "Keeps automatic restore on time",
                 onClick = if (!isBatteryUnrestricted) onBatteryOptimizationClick else null,
                 trailing = {
                     Text(

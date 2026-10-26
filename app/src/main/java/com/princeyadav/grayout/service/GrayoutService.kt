@@ -318,7 +318,7 @@ class GrayoutService : Service() {
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_tile)
-            .setContentTitle("Grayscale enforcement")
+            .setContentTitle("Grayout")
             .setColor(BrandAccentArgb)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -326,16 +326,16 @@ class GrayoutService : Service() {
         if (countdownTarget != null && countdownTarget > SystemClock.elapsedRealtime()) {
             val targetTime = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
                 .format(java.util.Date(System.currentTimeMillis() + countdownTarget - SystemClock.elapsedRealtime()))
-            builder.setContentText("Re-enabling around $targetTime")
+            builder.setContentText("Grayscale comes back around $targetTime")
                 .setShowWhen(false)
         } else if (exclusionOnly) {
-            builder.setContentText("Watching excluded apps")
+            builder.setContentText("Keeping chosen apps in color")
                 .setShowWhen(false)
         } else if (interval > 0) {
-            builder.setContentText("Enforcement active")
+            builder.setContentText("Automatic restore every $interval min")
                 .setShowWhen(false)
         } else {
-            builder.setContentText("Stopping enforcement")
+            builder.setContentText("Stopping")
                 .setShowWhen(false)
         }
 

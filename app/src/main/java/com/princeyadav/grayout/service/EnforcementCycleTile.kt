@@ -49,9 +49,9 @@ class EnforcementCycleTile : TileService() {
         )
         val interval = prefs.getInterval()
         tile.state = if (interval > 0) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-        tile.label = "Enforcement"
+        tile.label = "Automatic restore"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            tile.subtitle = if (interval > 0) "Every $interval min" else "Off"
+            tile.subtitle = if (interval > 0) "$interval min" else "Off"
         }
         tile.icon = Icon.createWithResource(this, R.drawable.ic_tile)
         tile.updateTile()
