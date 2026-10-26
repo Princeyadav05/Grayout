@@ -224,8 +224,6 @@ class ScheduleViewModelTest {
 
         val viewModel = vm()
         advanceUntilIdle()
-        val conflicts = mutableListOf<String>()
-        val job = launch { viewModel.enableConflict.collect { conflicts.add(it) } }
         val baselineRescheduleCalls = alarm.rescheduleCallCount
 
         viewModel.toggleEnabled(dao.getById(id)!!)
@@ -233,8 +231,7 @@ class ScheduleViewModelTest {
 
         assertFalse("must not enable into an overlap", dao.getById(id)!!.isEnabled)
         assertEquals("no reschedule when the enable is refused", baselineRescheduleCalls, alarm.rescheduleCallCount)
-        assertEquals(listOf("Conflicts with \"Live\""), conflicts)
-        job.cancel()
+        assertEquals(id to "Overlaps with \"Live\"", viewModel.enableError.value)
     }
 
     @Test
@@ -242,19 +239,16 @@ class ScheduleViewModelTest {
         var granted = false
         val id = dao.insert(makeSchedule(isEnabled = false))
         val viewModel = ScheduleViewModel(repository, alarm, canWriteSecureSettings = { granted })
-        val errors = mutableListOf<String>()
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            viewModel.enableConflict.collect { errors.add(it) }
-        }
         viewModel.toggleEnabled(dao.getById(id)!!)
         advanceUntilIdle()
         assertFalse(dao.getById(id)!!.isEnabled)
         assertEquals(0, alarm.rescheduleCallCount)
-        assertEquals(listOf("Grant grayscale permission in Set up permission before enabling schedules."), errors)
+        assertEquals(id to "Turn on the grayscale permission first.", viewModel.enableError.value)
 
         granted = true
         viewModel.toggleEnabled(dao.getById(id)!!)
         advanceUntilIdle()
+        assertEquals(null, viewModel.enableError.value) // The next toggle clears the inline error.
         assertTrue(dao.getById(id)!!.isEnabled)
         assertEquals(1, alarm.rescheduleCallCount)
     }

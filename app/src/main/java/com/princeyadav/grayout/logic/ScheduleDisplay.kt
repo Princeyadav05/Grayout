@@ -2,10 +2,15 @@ package com.princeyadav.grayout.logic
 
 import com.princeyadav.grayout.model.Schedule
 import com.princeyadav.grayout.model.daysOfWeekList
+import java.time.DayOfWeek
+import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.format.TextStyle
+import java.util.Locale
 
 /**
  * What Home says about schedules: the one running now (with its configured end), or the soonest
@@ -55,4 +60,47 @@ private fun windows(schedule: Schedule, now: Instant, zone: ZoneId): List<Window
         val until = localEnd.atZone(zone).toInstant()
         if (from.isBefore(until)) Window(from, until, localEnd) else null
     }
+}
+
+private val WEEKDAYS = DayOfWeek.entries.take(5).toSet()
+private val WEEKEND = setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
+
+/** "Every day", "Weekdays", "Weekends", or "Mon, Wed, Fri" in Monday-first order. */
+internal fun daysInWords(days: Collection<DayOfWeek>): String {
+    val set = days.toSet()
+    return when {
+        set.size == 7 -> "Every day"
+        set == WEEKDAYS -> "Weekdays"
+        set == WEEKEND -> "Weekends"
+        set.isEmpty() -> "No days"
+        else -> DayOfWeek.entries.filter { it in set }
+            .joinToString(", ") { it.getDisplayName(TextStyle.SHORT, Locale.ENGLISH) }
+    }
+}
+
+/** A schedule's share of today, as fractions of the real day length (23 or 25 hours on DST days). */
+internal data class DaySegment(val scheduleId: Long, val start: Float, val end: Float)
+
+/** Everything the Today strip shows: [now] as a fraction of the day, the windows, and the Home-style line. */
+internal data class TodayState(val date: LocalDate, val now: Float, val segments: List<DaySegment>, val line: ScheduleLine?)
+
+internal fun todayState(schedules: List<Schedule>, now: Instant, zone: ZoneId): TodayState {
+    val date = now.atZone(zone).toLocalDate()
+    val dayStart = date.atStartOfDay(zone).toInstant()
+    val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant()
+    val dayMillis = Duration.between(dayStart, dayEnd).toMillis().toFloat()
+    fun fraction(at: Instant) = Duration.between(dayStart, at).toMillis() / dayMillis
+
+    val segments = schedules.filter { it.isEnabled }.flatMap { schedule ->
+        windows(schedule, now, zone)
+            .filter { it.until.isAfter(dayStart) && it.from.isBefore(dayEnd) }
+            .map {
+                DaySegment(
+                    scheduleId = schedule.id,
+                    start = fraction(maxOf(it.from, dayStart)),
+                    end = fraction(minOf(it.until, dayEnd)),
+                )
+            }
+    }
+    return TodayState(date, fraction(now), segments, scheduleLine(schedules, now, zone))
 }

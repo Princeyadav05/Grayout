@@ -5,7 +5,7 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -87,12 +87,8 @@ class DayDotsSemanticsTest {
             }
         }
 
-        // The read-only dots collapse into a single focusable node listing the days,
-        // in Mon..Sun order, using the same SHORT names production renders.
-        val expected = listOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY)
-            .joinToString(", ") { it.getDisplayName(TextStyle.SHORT, Locale.getDefault()) }
-
-        composeRule.onNode(hasContentDescription(expected))
+        // The list row names the selected days in words, Monday first, in one text node.
+        composeRule.onNode(hasText("Mon, Wed, Fri", substring = true))
             .assertIsDisplayed()
     }
 

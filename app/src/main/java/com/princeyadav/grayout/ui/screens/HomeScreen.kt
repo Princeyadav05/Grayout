@@ -554,7 +554,7 @@ private fun KeptInColorCard(
 }
 
 @Composable
-private fun TextAction(label: String, onClick: () -> Unit) {
+internal fun TextAction(label: String, onClick: () -> Unit) {
     val dimens = GrayoutTheme.dimens
     Box(
         modifier = Modifier

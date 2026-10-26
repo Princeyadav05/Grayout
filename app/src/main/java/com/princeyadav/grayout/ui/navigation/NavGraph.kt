@@ -8,7 +8,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings as AndroidSettings
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -72,6 +71,27 @@ private fun installedVersionName(context: Context): String = try {
     info.versionName?.takeIf { it.isNotBlank() } ?: "unknown"
 } catch (_: PackageManager.NameNotFoundException) {
     "unknown"
+}
+
+private fun exactAlarmAccessNeeded(context: Context) = needsExactAlarmAccess(
+    Build.VERSION.SDK_INT,
+    Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+        context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms(),
+)
+
+/** Granting re-arms schedules through SystemScheduleReceiver. */
+private fun openExactAlarmSettings(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+    try {
+        context.startActivity(
+            Intent(
+                AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                Uri.fromParts("package", context.packageName, null),
+            )
+        )
+    } catch (_: ActivityNotFoundException) {
+        context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
+    }
 }
 
 private fun openNotificationSettings(context: Context) {
@@ -232,9 +252,12 @@ fun GrayoutNavGraph(
                 }
             }
 
-            LaunchedEffect(viewModel) {
-                viewModel.enableConflict.collect { message ->
-                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            val today by viewModel.today.collectAsStateWithLifecycle()
+            val enableError by viewModel.enableError.collectAsStateWithLifecycle()
+            var needsExactAlarms by remember { mutableStateOf(exactAlarmAccessNeeded(context)) }
+            LaunchedEffect(lifecycleOwner) {
+                lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                    needsExactAlarms = exactAlarmAccessNeeded(context)
                 }
             }
 
@@ -246,6 +269,10 @@ fun GrayoutNavGraph(
                 onAddSchedule = { navController.navigate("schedule_editor?id=0") },
                 onEditSchedule = { id -> navController.navigate("schedule_editor?id=$id") },
                 onToggleEnabled = viewModel::toggleEnabled,
+                today = today,
+                enableError = enableError,
+                needsExactAlarms = needsExactAlarms,
+                onAllowExactAlarms = { openExactAlarmSettings(context) },
             )
         }
         composable(
@@ -325,12 +352,7 @@ fun GrayoutNavGraph(
             var isUsageAccessGranted by remember {
                 mutableStateOf(UsageAccess.isGranted(context))
             }
-            fun exactAlarmAccessNeeded() = needsExactAlarmAccess(
-                Build.VERSION.SDK_INT,
-                Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-                    context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms(),
-            )
-            var needsExactAlarms by remember { mutableStateOf(exactAlarmAccessNeeded()) }
+            var needsExactAlarms by remember { mutableStateOf(exactAlarmAccessNeeded(context)) }
             var notificationsOn by remember {
                 mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled())
             }
@@ -341,7 +363,7 @@ fun GrayoutNavGraph(
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                     isUsageAccessGranted = UsageAccess.isGranted(context)
-                    needsExactAlarms = exactAlarmAccessNeeded()
+                    needsExactAlarms = exactAlarmAccessNeeded(context)
                     notificationsOn = NotificationManagerCompat.from(context).areNotificationsEnabled()
                 }
             }
@@ -357,21 +379,7 @@ fun GrayoutNavGraph(
                 onNotificationsClick = { openNotificationSettings(context) },
                 onBatteryOptimizationClick = onBatteryOptimizationClick,
                 onUsageAccessClick = { openUsageAccessSettings(context) },
-                onExactAlarmAccessClick = {
-                    // Granting re-arms schedules through SystemScheduleReceiver.
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        try {
-                            context.startActivity(
-                                Intent(
-                                    AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                                    Uri.fromParts("package", context.packageName, null),
-                                )
-                            )
-                        } catch (_: ActivityNotFoundException) {
-                            context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
-                        }
-                    }
-                },
+                onExactAlarmAccessClick = { openExactAlarmSettings(context) },
             )
         }
         composable(Routes.EXCLUSION_LIST) {

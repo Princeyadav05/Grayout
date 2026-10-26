@@ -3,8 +3,10 @@ package com.princeyadav.grayout.logic
 import com.princeyadav.grayout.model.Schedule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -59,7 +61,43 @@ class ScheduleDisplayTest {
         val schedules = listOf(schedule(1, "Early", "SUN", 1, 2))
         val now = Instant.parse("2026-11-01T06:15:00Z") // 01:15 EST, the repeated hour
         val next = nextScheduleLineChange(schedules, now, ny)!!
-        assert(next.isAfter(now))
+        assertTrue(next.isAfter(now))
+    }
+
+    @Test
+    fun daysReadAsWords() {
+        val d = java.time.DayOfWeek.entries
+        assertEquals("Every day", daysInWords(d))
+        assertEquals("Weekdays", daysInWords(d.take(5)))
+        assertEquals("Weekends", daysInWords(d.takeLast(2)))
+        assertEquals("Mon, Wed, Fri", daysInWords(listOf(d[4], d[0], d[2])))
+    }
+
+    @Test
+    fun todayStripSplitsOvernightWindowsAcrossMidnight() {
+        // Sunday 22:00 to Monday 06:00, and Monday 22:00 to Tuesday 06:00, seen on Monday noon.
+        val night = schedule(1, "Night", "SUN,MON", 22, 6)
+        val state = todayState(listOf(night), Instant.parse("2026-04-13T12:00:00Z"), utc)
+        assertEquals(listOf(DaySegment(1, 0f, 0.25f), DaySegment(1, 22f / 24f, 1f)), state.segments)
+        assertEquals(0.5f, state.now)
+    }
+
+    @Test
+    fun todayRollsOverAtMidnight() {
+        val focus = listOf(schedule(1, "Focus", "MON", 9, 10))
+        val monday = todayState(focus, Instant.parse("2026-04-13T23:59:00Z"), utc)
+        val tuesday = todayState(focus, Instant.parse("2026-04-14T00:01:00Z"), utc)
+        assertEquals(1, monday.segments.size)
+        assertEquals(LocalDate.parse("2026-04-14"), tuesday.date)
+        assertEquals(emptyList<DaySegment>(), tuesday.segments)
+    }
+
+    @Test
+    fun zoneChangeMovesNowAndWindows() {
+        val focus = listOf(schedule(1, "Focus", "MON", 9, 10))
+        val at = Instant.parse("2026-04-13T09:30:00Z")
+        assertEquals(true, todayState(focus, at, utc).line?.isActive)
+        assertEquals(false, todayState(focus, at, ZoneOffset.ofHours(2)).line?.isActive) // 11:30 local
     }
 
     @Test

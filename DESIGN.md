@@ -151,6 +151,13 @@ Three cards, each fact shown once:
 - Thumb: `bg` when on, `offText` when off.
 - Animates on `GrayoutMotion.Fast`. Haptic tick on press.
 
+### Schedules list
+- Header "Schedules" + filled "+ Add" pill.
+- **Today card**: `labelSmall` "Today", a `stripHeight` strip (`bg` fill, 1dp `border`, `radiusSm`) with today's windows in each schedule's color and a 2dp `text` now marker, axis labels in `labelXSmall` `textMuted`, and one sentence ("Daily focus is on until 11:00 PM" / "Next: Work at 9:00 AM" / "Nothing else scheduled today"). The card reads as one node: "Today. <sentence>". It refreshes every minute while visible.
+- **Rows** in one card, hairline dividers: schedule color dot (`dotSize`), bold name, lavender "Now" pill when running, `monoSmall` "9:00 PM → 11:00 PM · Every day" (days in words: Every day, Weekdays, Weekends, or "Mon, Wed, Fri"), switch at the end. Off rows stay fully readable; the switch is the only on/off signal.
+- Labels only for problems, under the row: warning icon + "Needs the grayscale permission" + "Fix"; info icon + "Might start a few minutes late" + "Allow" (exact alarms); a refused enable ("Overlaps with \"Work\"") as a polite live region.
+- Schedule colors come from `schedulePalette`, picked by `scheduleColorIndex(id)`, so they never shift when another schedule is deleted.
+
 ### Status value and problem rows (Settings)
 - `StatusValue(text, isProblem)`: healthy is a plain word ("Granted", "Unrestricted") in `success`; a problem is the Material warning icon (`iconSm`) + the word in `warning`.
 - Optional settings that are off (Notifications) show a neutral "Off" in `textMuted`, not a problem.
