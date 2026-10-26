@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -79,6 +80,7 @@ fun HomeScreen(
     isPermissionGranted: Boolean,
     toggleFailedTarget: Boolean?,
     onShowSetup: () -> Unit,
+    onRetryToggle: () -> Unit,
     onFixUsageAccess: () -> Unit,
     onlyDuringSchedules: Boolean,
     onOnlyDuringSchedulesChange: (Boolean) -> Unit,
@@ -105,6 +107,7 @@ fun HomeScreen(
                 scheduleLine = scheduleLine,
                 toggleFailedTarget = toggleFailedTarget,
                 onToggle = onToggle,
+                onRetryToggle = onRetryToggle,
                 onScheduleClick = onNavigateToSchedules,
             )
         } else {
@@ -209,6 +212,7 @@ private fun StatusCard(
     scheduleLine: HomeScheduleLine?,
     toggleFailedTarget: Boolean?,
     onToggle: () -> Unit,
+    onRetryToggle: () -> Unit,
     onScheduleClick: () -> Unit,
 ) {
     val colors = GrayoutTheme.colors
@@ -242,7 +246,7 @@ private fun StatusCard(
             }
 
             if (toggleFailedTarget != null) {
-                ToggleFailureRow(target = toggleFailedTarget, onRetry = onToggle)
+                ToggleFailureRow(target = toggleFailedTarget, onRetry = onRetryToggle)
             }
 
             HorizontalDivider(
@@ -307,7 +311,7 @@ internal fun NowPill() {
         color = colors.bg,
         modifier = Modifier
             .background(colors.accent, RoundedCornerShape(dimens.radiusFull))
-            .padding(horizontal = dimens.tightGap, vertical = 2.dp),
+            .padding(horizontal = dimens.tightGap, vertical = dimens.microGap),
     )
 }
 
@@ -587,7 +591,7 @@ internal fun TextAction(label: String, onClick: () -> Unit) {
     val dimens = GrayoutTheme.dimens
     Box(
         modifier = Modifier
-            .heightIn(min = dimens.minTouch)
+            .sizeIn(minWidth = dimens.minTouch, minHeight = dimens.minTouch)
             .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

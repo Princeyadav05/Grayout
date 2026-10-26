@@ -92,10 +92,21 @@ class HomeViewModel(
 
     fun refreshGrayscaleStateFromSystem() {
         _isGrayscaleOn.value = grayscaleManager.isGrayscaleEnabled()
+        // Something else (a schedule, a restore tick, the tile) reached the failed target.
+        if (_toggleFailedTarget.value == _isGrayscaleOn.value) _toggleFailedTarget.value = null
     }
 
-    fun toggleGrayscale() {
-        val newValue = !_isGrayscaleOn.value
+    fun toggleGrayscale() = setGrayscaleTo(!_isGrayscaleOn.value)
+
+    /** "Try again" aims at the state that failed, never the opposite of whatever is showing now. */
+    fun retryFailedToggle() {
+        _toggleFailedTarget.value?.let(::setGrayscaleTo)
+    }
+
+    /** The setup guide's "Try grayscale": turn it on, even if a toggle already did. */
+    fun turnGrayscaleOn() = setGrayscaleTo(true)
+
+    private fun setGrayscaleTo(newValue: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             val success = grayscaleManager.setGrayscale(newValue)
             if (!success) {

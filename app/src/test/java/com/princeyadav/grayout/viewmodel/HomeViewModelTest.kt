@@ -122,6 +122,50 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `error clears when something else reaches the failed target`() = runTest {
+        val homeViewModel = vm(canWrite = true)
+        grayscale.failWrites = true
+        homeViewModel.toggleGrayscale()
+        advanceUntilIdle()
+        assertEquals(true, homeViewModel.toggleFailedTarget.value)
+
+        grayscale.grayscaleEnabled = true // e.g. a schedule start or a restore tick
+        homeViewModel.refreshGrayscaleStateFromSystem()
+
+        assertEquals(null, homeViewModel.toggleFailedTarget.value)
+        assertTrue(homeViewModel.isGrayscaleOn.value)
+    }
+
+    @Test
+    fun `retry aims at the failed target, not the opposite of the current state`() = runTest {
+        val homeViewModel = vm(canWrite = true)
+        grayscale.failWrites = true
+        homeViewModel.toggleGrayscale() // tried to turn ON
+        advanceUntilIdle()
+
+        grayscale.failWrites = false
+        homeViewModel.retryFailedToggle()
+        advanceUntilIdle()
+        homeViewModel.retryFailedToggle() // no error left: a second tap does nothing
+        advanceUntilIdle()
+
+        assertTrue(grayscale.grayscaleEnabled)
+        assertEquals(null, homeViewModel.toggleFailedTarget.value)
+    }
+
+    @Test
+    fun `turnGrayscaleOn never turns grayscale off`() = runTest {
+        val homeViewModel = vm(canWrite = true)
+        grayscale.grayscaleEnabled = true
+        homeViewModel.refreshGrayscaleStateFromSystem()
+
+        homeViewModel.turnGrayscaleOn()
+        advanceUntilIdle()
+
+        assertTrue(grayscale.grayscaleEnabled)
+    }
+
+    @Test
     fun `successful retry clears the inline error`() = runTest {
         val homeViewModel = vm(canWrite = true)
         grayscale.failWrites = true

@@ -182,7 +182,7 @@ fun GrayoutNavGraph(
                 AdbCommandSheet(
                     isGranted = isPermissionGrantedHome,
                     onDismiss = { showSetup = false },
-                    onTryGrayscale = homeViewModel::toggleGrayscale,
+                    onTryGrayscale = homeViewModel::turnGrayscaleOn,
                 )
             }
 
@@ -207,6 +207,7 @@ fun GrayoutNavGraph(
                 isPermissionGranted = isPermissionGrantedHome,
                 toggleFailedTarget = toggleFailedTarget,
                 onShowSetup = { showSetup = true },
+                onRetryToggle = homeViewModel::retryFailedToggle,
                 onFixUsageAccess = { openUsageAccessSettings(context) },
                 onlyDuringSchedules = onlyDuringSchedules,
                 onOnlyDuringSchedulesChange = homeViewModel::setOnlyDuringSchedules,

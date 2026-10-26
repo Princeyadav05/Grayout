@@ -82,7 +82,7 @@ fun StatusValue(text: String, isProblem: Boolean) {
     val dimens = GrayoutTheme.dimens
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(dimens.microGap),
     ) {
         if (isProblem) {
             Icon(

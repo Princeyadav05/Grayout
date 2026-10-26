@@ -767,6 +767,7 @@ private fun TimePickerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = dimens.cardPadLarge)
                 .padding(bottom = dimens.sectionGap),
             horizontalAlignment = Alignment.CenterHorizontally,

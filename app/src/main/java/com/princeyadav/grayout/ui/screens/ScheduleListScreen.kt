@@ -145,7 +145,7 @@ internal fun ScheduleListScreen(
         } else {
             if (today != null) {
                 item {
-                    TodayCard(today = today, schedules = schedules, is24Hour = is24Hour)
+                    TodayCard(today = today, schedules = schedules, is24Hour = is24Hour, isPermissionGranted = isPermissionGranted)
                     Spacer(modifier = Modifier.height(dimens.cardGap))
                 }
             }
@@ -181,12 +181,13 @@ internal fun ScheduleListScreen(
 
 /** A 24-hour strip of today's windows in schedule colors, a now marker, and one sentence. */
 @Composable
-private fun TodayCard(today: TodayState, schedules: List<Schedule>, is24Hour: Boolean) {
+private fun TodayCard(today: TodayState, schedules: List<Schedule>, is24Hour: Boolean, isPermissionGranted: Boolean) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
     val line = today.line
     val sentence = when {
+        !isPermissionGranted -> "Schedules need the grayscale permission to run"
         line == null -> "Nothing scheduled"
         line.isActive -> "${line.name} is on until ${formatTime(line.at.hour, line.at.minute, is24Hour)}"
         line.at.toLocalDate() == today.date -> "Next: ${line.name} at ${formatTime(line.at.hour, line.at.minute, is24Hour)}"
@@ -223,7 +224,7 @@ private fun TodayCard(today: TodayState, schedules: List<Schedule>, is24Hour: Bo
                     size = Size(markerWidth, size.height),
                 )
             }
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(dimens.microGap))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 val marks = if (is24Hour) listOf("00", "06", "12", "18", "24") else listOf("12a", "6a", "12p", "6p", "12a")
                 marks.forEach { Text(text = it, style = typography.labelXSmall, color = colors.textMuted) }

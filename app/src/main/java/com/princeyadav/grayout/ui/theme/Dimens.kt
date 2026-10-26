@@ -13,6 +13,7 @@ data class GrayoutDimens(
     val cardGap: Dp = 12.dp,
     val sectionGap: Dp = 16.dp,
     val tightGap: Dp = 8.dp,
+    val microGap: Dp = 4.dp,
     val radius: Dp = 16.dp,
     val radiusSm: Dp = 10.dp,
     val radiusFull: Dp = 999.dp,

@@ -91,6 +91,7 @@ All in `Dimens.kt` on `GrayoutTheme.dimens`.
 | `cardPadLarge` | 24dp   | Reserved for tall hero cards                         |
 | `cardGap`      | 12dp   | Gap between cards                                    |
 | `sectionGap`   | 16dp   | Gap between sections inside a card                   |
+| `microGap`     | 4dp    | Inside pills and between an icon and its word        |
 | `tightGap`     | 8dp    | The one "small gap" token. Replaces the old `itemGap`, `chipGap`, and `dayDotGap` — use this for any inside-a-component small gap. |
 | `radius`       | 16dp   | Cards                                                |
 | `radiusSm`     | 10dp   | Inner containers, inputs                             |
