@@ -11,6 +11,13 @@ class EnforcementPrefs(private val prefs: SharedPreferences) {
         prefs.edit().putInt(KEY_INTERVAL, minutes).apply()
     }
 
+    /** "Only during schedules": outside a schedule window, automatic restore leaves grayscale off. */
+    fun isOnlyDuringSchedules(): Boolean = prefs.getBoolean(KEY_ONLY_DURING_SCHEDULES, false)
+
+    fun setOnlyDuringSchedules(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_ONLY_DURING_SCHEDULES, enabled).apply()
+    }
+
     /** True once the user answered the in-app notification prompt (either button), so it never nags. */
     fun isNotificationPromptDone(): Boolean = prefs.getBoolean(KEY_NOTIFICATION_PROMPT_DONE, false)
 
@@ -25,5 +32,6 @@ class EnforcementPrefs(private val prefs: SharedPreferences) {
         private const val KEY_INTERVAL = "enforcement_interval_minutes"
         private const val DEFAULT_INTERVAL = 0
         private const val KEY_NOTIFICATION_PROMPT_DONE = "notification_prompt_done"
+        private const val KEY_ONLY_DURING_SCHEDULES = "restore_only_during_schedules"
     }
 }

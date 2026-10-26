@@ -145,6 +145,20 @@ fun applyEnforcementTick(
 }
 
 /**
+ * The one automatic-restore rule. [restoreMomentInWindow] is schedule coverage at the
+ * instant grayscale would come back (the alarm's deadline when arming, now when firing);
+ * it only matters when the user chose "Only during schedules".
+ */
+fun shouldAutoRestore(
+    intervalMinutes: Int,
+    onlyDuringSchedules: Boolean,
+    restoreMomentInWindow: Boolean,
+    excludedAppActive: Boolean,
+    grayscaleOn: Boolean,
+): Boolean = intervalMinutes > 0 && !excludedAppActive && !grayscaleOn &&
+    (!onlyDuringSchedules || restoreMomentInWindow)
+
+/**
  * Delay before retrying a grayscale write that did not stick. A transient failure
  * keeps its normal cadence. A revoked WRITE_SECURE_SETTINGS fails every attempt
  * until it is re-granted, so back off instead of waking every minute.
