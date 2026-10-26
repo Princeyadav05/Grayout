@@ -48,6 +48,7 @@ class HomeViewModelTest {
         serviceRunning: Boolean = false,
         clock: () -> Clock = { Clock.systemDefaultZone() },
         is24HourFormat: () -> Boolean = { false },
+        notificationsAllowed: Boolean = true,
     ): HomeViewModel {
         grayscale.canWrite = canWrite
         this.serviceRunning.value = serviceRunning
@@ -64,6 +65,7 @@ class HomeViewModelTest {
             onEnforcementIntervalChanged = intervalCommands::add,
             clock = clock,
             is24HourFormat = is24HourFormat,
+            notificationsAllowed = { notificationsAllowed },
         )
     }
 
@@ -172,6 +174,34 @@ class HomeViewModelTest {
         assertEquals(0, enforcementPrefs.getInterval())
         assertEquals(0, homeViewModel.enforcementInterval.value)
         assertTrue(intervalCommands.isEmpty())
+    }
+
+    @Test
+    fun `turning restore on asks for notifications once when they are off`() = runTest {
+        val home = vm(notificationsAllowed = false)
+
+        home.setEnforcementInterval(5)
+        assertTrue(home.showNotificationPrompt.value)
+
+        home.dismissNotificationPrompt()
+        assertFalse(home.showNotificationPrompt.value)
+        home.setEnforcementInterval(0)
+        home.setEnforcementInterval(5)
+        assertFalse(home.showNotificationPrompt.value) // Answered once, never again.
+        assertTrue(enforcementPrefs.isNotificationPromptDone())
+    }
+
+    @Test
+    fun `changing an active interval or having notifications on never prompts`() = runTest {
+        enforcementPrefs.setInterval(5)
+        val off = vm(notificationsAllowed = false)
+        off.setEnforcementInterval(10)
+        assertFalse(off.showNotificationPrompt.value)
+
+        val on = vm(notificationsAllowed = true)
+        on.setEnforcementInterval(0)
+        on.setEnforcementInterval(5)
+        assertFalse(on.showNotificationPrompt.value)
     }
 
     @Test

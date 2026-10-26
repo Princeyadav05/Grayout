@@ -80,6 +80,9 @@ fun HomeScreen(
     toggleFailedTarget: Boolean?,
     onShowSetup: () -> Unit,
     onFixUsageAccess: () -> Unit,
+    showNotificationPrompt: Boolean,
+    onAllowNotifications: () -> Unit,
+    onDismissNotificationPrompt: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val dimens = GrayoutTheme.dimens
@@ -112,6 +115,11 @@ fun HomeScreen(
             enforcementInterval = enforcementInterval,
             onIntervalChange = onEnforcementIntervalChange,
         )
+
+        if (showNotificationPrompt) {
+            Spacer(modifier = Modifier.height(dimens.cardGap))
+            NotificationPromptCard(onAllow = onAllowNotifications, onDismiss = onDismissNotificationPrompt)
+        }
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
 
@@ -434,6 +442,31 @@ private fun RestoreCard(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Asked once, right after automatic restore is first turned on, instead of at app launch. */
+@Composable
+private fun NotificationPromptCard(onAllow: () -> Unit, onDismiss: () -> Unit) {
+    val colors = GrayoutTheme.colors
+    val typography = GrayoutTheme.typography
+    val dimens = GrayoutTheme.dimens
+
+    GrayoutCard(isActive = true) {
+        Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
+            Text(text = "See when grayscale comes back?", style = typography.titleMedium, color = colors.text)
+            Spacer(modifier = Modifier.height(dimens.tightGap))
+            Text(
+                text = "Grayout can show a countdown and tell you if a permission stops working.",
+                style = typography.bodyMedium,
+                color = colors.textMuted,
+            )
+            Spacer(modifier = Modifier.height(dimens.cardGap))
+            Row(horizontalArrangement = Arrangement.spacedBy(dimens.tightGap)) {
+                PillButton(label = "Allow notifications", primary = true, onClick = onAllow)
+                PillButton(label = "Not now", onClick = onDismiss)
             }
         }
     }

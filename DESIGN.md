@@ -139,6 +139,7 @@ Three cards, each fact shown once:
   - Before the grayscale permission is granted the card is replaced by the **Setup** card: "One-time setup", one sentence, and a filled "Show the command" pill that opens the setup guide.
   - If a write fails while the permission is granted, an inline row under the switch shows the warning icon + "Couldn't turn on grayscale" in `danger` + an underlined "Try again". Polite live region.
 - **Automatic restore**: the current value in `mono` ("5 min" / "Off") with an outlined "Change" pill, plus one `labelSmall` helper line. "Change" opens a bottom sheet with a radio list (Off, 1, 5, 10, 15, 30 min); radios use `accent`.
+- **Notification prompt** (only once, right after automatic restore is first turned on while notifications are off): an active card, "See when grayscale comes back?", one sentence, "Allow notifications" (filled) and "Not now" (outlined). Either answer is remembered. The app never asks at launch.
 - **Kept in color**: "3 apps" / "No apps yet", up to three app icons, "+N", chevron. When apps are kept in color but usage access is off: warning icon + "Paused: usage access is off" in `warning` + "Fix".
 
 ### Wordmark (home header)
@@ -152,8 +153,9 @@ Three cards, each fact shown once:
 
 ### Status value and problem rows (Settings)
 - `StatusValue(text, isProblem)`: healthy is a plain word ("Granted", "Unrestricted") in `success`; a problem is the Material warning icon (`iconSm`) + the word in `warning`.
+- Optional settings that are off (Notifications) show a neutral "Off" in `textMuted`, not a problem.
 - Problem rows add a `labelSmall` subtitle that says why it matters ("Needed to keep apps in color") and open the fix on tap. Healthy rows have no icon and no subtitle.
-- Settings has two cards: PERMISSIONS (grayscale permission, usage access, alarms & reminders when needed, battery) and ABOUT ("Grayout 1.4.0", "Running in the background").
+- Settings has two cards: PERMISSIONS (grayscale permission, usage access, alarms & reminders when needed, notifications, battery) and ABOUT ("Grayout 1.4.0", "Running in the background").
 
 ### Bottom navigation
 - 3 tabs: Home, Schedules, Settings.

@@ -12,12 +12,12 @@ import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import android.text.format.DateFormat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -43,10 +43,6 @@ import com.princeyadav.grayout.viewmodel.HomeViewModelFactory
 import kotlinx.coroutines.Dispatchers
 
 class MainActivity : ComponentActivity() {
-
-    private val notificationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { /* no-op — if denied, service still works, just no visible notification */ }
 
     private val enforcementPrefs by lazy {
         EnforcementPrefs(getSharedPreferences(EnforcementPrefs.PREFS_NAME, MODE_PRIVATE))
@@ -92,6 +88,7 @@ class MainActivity : ComponentActivity() {
                 )
             },
             is24HourFormat = { DateFormat.is24HourFormat(applicationContext) },
+            notificationsAllowed = { NotificationManagerCompat.from(applicationContext).areNotificationsEnabled() },
         )
     }
 
@@ -116,14 +113,7 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(Bg.toArgb()),
         )
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-
+        // Notifications are asked for in context (first time automatic restore is turned on), not here.
         startForegroundService(Intent(this, GrayoutService::class.java))
 
         (application as GrayoutApp).recoverScheduleAlarms()

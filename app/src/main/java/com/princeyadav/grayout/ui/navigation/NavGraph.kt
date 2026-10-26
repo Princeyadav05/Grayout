@@ -9,6 +9,8 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings as AndroidSettings
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -18,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -69,6 +72,17 @@ private fun installedVersionName(context: Context): String = try {
     info.versionName?.takeIf { it.isNotBlank() } ?: "unknown"
 } catch (_: PackageManager.NameNotFoundException) {
     "unknown"
+}
+
+private fun openNotificationSettings(context: Context) {
+    try {
+        context.startActivity(
+            Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(AndroidSettings.EXTRA_APP_PACKAGE, context.packageName),
+        )
+    } catch (_: ActivityNotFoundException) {
+        context.startActivity(Intent(AndroidSettings.ACTION_SETTINGS))
+    }
 }
 
 private fun openUsageAccessSettings(context: Context) {
@@ -136,6 +150,10 @@ fun GrayoutNavGraph(
             val isPermissionGrantedHome by rememberSecureSettingsPermission()
             val toggleFailedTarget by homeViewModel.toggleFailedTarget.collectAsStateWithLifecycle()
             var showSetup by remember { mutableStateOf(false) }
+            val showNotificationPrompt by homeViewModel.showNotificationPrompt.collectAsStateWithLifecycle()
+            val notificationPermission = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission(),
+            ) { homeViewModel.dismissNotificationPrompt() }
             LaunchedEffect(homeViewModel) {
                 homeViewModel.setupRequests.collect { showSetup = true }
             }
@@ -169,6 +187,20 @@ fun GrayoutNavGraph(
                 toggleFailedTarget = toggleFailedTarget,
                 onShowSetup = { showSetup = true },
                 onFixUsageAccess = { openUsageAccessSettings(context) },
+                showNotificationPrompt = showNotificationPrompt,
+                onAllowNotifications = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+                        PackageManager.PERMISSION_GRANTED
+                    ) {
+                        notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        // Granted but switched off in system settings: send the user there.
+                        openNotificationSettings(context)
+                        homeViewModel.dismissNotificationPrompt()
+                    }
+                },
+                onDismissNotificationPrompt = homeViewModel::dismissNotificationPrompt,
             )
         }
         composable(Routes.SCHEDULES) {
@@ -299,6 +331,9 @@ fun GrayoutNavGraph(
                     context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms(),
             )
             var needsExactAlarms by remember { mutableStateOf(exactAlarmAccessNeeded()) }
+            var notificationsOn by remember {
+                mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled())
+            }
             val isServiceRunning by homeViewModel.isServiceRunning.collectAsStateWithLifecycle()
             val versionName = remember(context) { installedVersionName(context) }
             val isAdbPermissionGranted by rememberSecureSettingsPermission()
@@ -307,6 +342,7 @@ fun GrayoutNavGraph(
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                     isUsageAccessGranted = UsageAccess.isGranted(context)
                     needsExactAlarms = exactAlarmAccessNeeded()
+                    notificationsOn = NotificationManagerCompat.from(context).areNotificationsEnabled()
                 }
             }
 
@@ -317,6 +353,8 @@ fun GrayoutNavGraph(
                 isUsageAccessGranted = isUsageAccessGranted,
                 isBatteryUnrestricted = isBatteryUnrestricted,
                 needsExactAlarmAccess = needsExactAlarms,
+                notificationsOn = notificationsOn,
+                onNotificationsClick = { openNotificationSettings(context) },
                 onBatteryOptimizationClick = onBatteryOptimizationClick,
                 onUsageAccessClick = { openUsageAccessSettings(context) },
                 onExactAlarmAccessClick = {

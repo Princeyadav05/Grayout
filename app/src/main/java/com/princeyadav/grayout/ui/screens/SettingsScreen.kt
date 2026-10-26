@@ -33,6 +33,8 @@ fun SettingsScreen(
     isUsageAccessGranted: Boolean,
     isBatteryUnrestricted: Boolean,
     needsExactAlarmAccess: Boolean,
+    notificationsOn: Boolean,
+    onNotificationsClick: () -> Unit,
     onBatteryOptimizationClick: () -> Unit,
     onUsageAccessClick: () -> Unit,
     onExactAlarmAccessClick: () -> Unit,
@@ -63,6 +65,8 @@ fun SettingsScreen(
             isUsageAccessGranted = isUsageAccessGranted,
             isBatteryUnrestricted = isBatteryUnrestricted,
             needsExactAlarmAccess = needsExactAlarmAccess,
+            notificationsOn = notificationsOn,
+            onNotificationsClick = onNotificationsClick,
             onBatteryOptimizationClick = onBatteryOptimizationClick,
             onUsageAccessClick = onUsageAccessClick,
             onExactAlarmAccessClick = onExactAlarmAccessClick,
@@ -101,6 +105,8 @@ private fun PermissionsCard(
     isUsageAccessGranted: Boolean,
     isBatteryUnrestricted: Boolean,
     needsExactAlarmAccess: Boolean,
+    notificationsOn: Boolean,
+    onNotificationsClick: () -> Unit,
     onBatteryOptimizationClick: () -> Unit,
     onUsageAccessClick: () -> Unit,
     onExactAlarmAccessClick: () -> Unit,
@@ -150,6 +156,22 @@ private fun PermissionsCard(
                     trailing = { StatusValue(text = "Not granted", isProblem = true) },
                 )
             }
+
+            HorizontalDivider(thickness = 1.dp, color = colors.border)
+
+            // Optional, so "Off" is neutral rather than a problem.
+            SettingsRow(
+                label = "Notifications",
+                subtitle = if (notificationsOn) null else "Turn on to see when grayscale comes back",
+                onClick = onNotificationsClick,
+                trailing = {
+                    if (notificationsOn) {
+                        StatusValue(text = "On", isProblem = false)
+                    } else {
+                        Text(text = "Off", style = GrayoutTheme.typography.bodyMedium, color = colors.textMuted)
+                    }
+                },
+            )
 
             HorizontalDivider(thickness = 1.dp, color = colors.border)
 
