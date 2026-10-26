@@ -113,11 +113,16 @@ class Device:
 
     def change_hour(self, current_text, hour):
         self.tap(current_text)
-        # The native radial picker exposes virtual hour nodes without clickable=true.
-        self.tap_node(self.find(str(hour % 12 or 12), "content-desc"))
-        self.tap("AM" if hour < 12 else "PM")
-        self.tap("OK")
+        # The Material 3 picker labels dial hours "N o'clock" (not clickable; the
+        # dial copy is the last match) and AM/PM as plain text nodes.
+        self.tap_node(self.find(f"{hour % 12 or 12} o'clock", "content-desc"))
+        self.tap_node(self.find("AM" if hour < 12 else "PM"))
+        self.tap("Set")
         self.find(f"{hour % 12 or 12}:00 {'AM' if hour < 12 else 'PM'}")
+
+    def shows(self, fragment):
+        """Home folds times into sentences ("Next: Morning, 9:00 AM"), so match a fragment."""
+        return any(fragment in (n.get("text") or "") for n in self.nodes())
 
     def add_schedule(self, name, start, end):
         self.tap("+ Add")
@@ -202,7 +207,7 @@ def run(args):
         device.tap("Grayscale", "content-desc")
         wait_for(lambda: not device.gray(), "UI toggle must restore color")
         device.tap("Settings")
-        device.find("ADB permission", scroll=True)
+        device.find("Grayscale permission", scroll=True)
         device.tap("Home")
         passed("navigation and real display writes")
 
@@ -230,15 +235,15 @@ def run(args):
         passed("Room create edit toggle and process restart persistence")
 
         device.set_time(8, 59, 50)
-        device.find("9:00 AM")
+        wait_for(lambda: device.shows("9:00 AM"), "Home must show the next start")
         assert not device.gray(), "schedule must remain off before its start"
         assert device.live_alarm("SCHEDULE_FIRE"), "timed start needs a real registered alarm"
         wait_for(device.gray, "real schedule start must fire", seconds=25)
-        wait_for(lambda: any(n.get("text") == "11:00 AM" for n in device.nodes()), "Home next start must advance")
+        wait_for(lambda: device.shows("until 10:00 AM"), "Home must show the running schedule and its end")
         device.set_time(9, 59, 55)
         assert device.gray(), "schedule must remain on before its end"
         wait_for(lambda: not device.gray(), "real schedule end must fire", seconds=20)
-        passed("real schedule start end and live Home next-start label")
+        passed("real schedule start end and live Home schedule line")
 
         # UTC 10:00 is inside Later after moving the device zone one hour east.
         device.shell("cmd", "alarm", "set-timezone", "Etc/GMT-1")
@@ -251,7 +256,7 @@ def run(args):
         clock = next((p for p in ("com.google.android.deskclock", "com.android.deskclock")
                       if device.shell("pm", "path", p, check=False)), None)
         assert clock, "No Clock app installed to test exclusions with"
-        device.tap("EXCLUSIONS", scroll=True)
+        device.tap("KEPT IN COLOR", scroll=True)
         device.text("Clock")
         device.tap("Exclude Clock", "content-desc")
         device.shell("input", "keyevent", "KEYCODE_BACK")
@@ -296,6 +301,7 @@ def run(args):
         wait_for(device.gray, "one-minute real enforcement alarm must apply grayscale", seconds=75)
         passed("real enforcement alarm delivery")
         device.launch()
+        device.tap("Change")
         device.tap("Off")
         device.tap("Schedules")
         device.tap("Morning edited")
