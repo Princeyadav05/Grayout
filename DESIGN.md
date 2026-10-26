@@ -173,7 +173,7 @@ No spring physics, no bounce, no custom easings. If you need a duration, pick `F
 - A horizontally scrolling row under the search field: `All`, then one chip per category (`Camera`, `Photos`, `Maps`) that has at least one installed app. The row is hidden when no category has apps.
 - Active and inactive colors match the enforcement pills (`text` fill / `bg` label / ExtraBold vs transparent / `textMuted` / 1dp `border`), animated on `GrayoutMotion.Fast`.
 - Unlike the enforcement pills, chips are wrap-content: the painted pill uses `cardGap` horizontal and `tightGap` vertical padding, centered inside a 48dp-tall touch target.
-- Label in `bodyMedium`; app count after it in `labelXSmall`, `textDim` (inactive) or `bg` at 0.5 alpha (active), `tightGap` apart.
+- Label in `bodyMedium`; app count after it in `labelXSmall`, `textMuted` (inactive) or opaque `bg` (active), `tightGap` apart.
 - Radio semantics: the row is a `selectableGroup`, each chip is `selectable` with `Role.RadioButton`.
 
 ### Header action pill

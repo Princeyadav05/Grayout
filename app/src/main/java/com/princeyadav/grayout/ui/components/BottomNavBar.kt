@@ -111,7 +111,7 @@ private fun NavTabItem(
         label = "pillColor",
     )
     val iconTint by animateColorAsState(
-        targetValue = if (isActive) colors.bg else colors.offText,
+        targetValue = if (isActive) colors.bg else colors.textMuted,
         animationSpec = tween(
             durationMillis = GrayoutMotion.Fast,
             easing = GrayoutMotion.Easing,
@@ -119,7 +119,7 @@ private fun NavTabItem(
         label = "iconTint",
     )
     val labelColor by animateColorAsState(
-        targetValue = if (isActive) colors.text else colors.offText,
+        targetValue = if (isActive) colors.text else colors.textMuted,
         animationSpec = tween(
             durationMillis = GrayoutMotion.Fast,
             easing = GrayoutMotion.Easing,

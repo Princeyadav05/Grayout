@@ -25,7 +25,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -269,15 +268,13 @@ private fun ScheduleCard(
                 )
             }
 
-            val contentAlpha = if (schedule.isEnabled) 1f else 0.5f
-
             Spacer(modifier = Modifier.height(dimens.tightGap))
 
-            Column(modifier = Modifier.alpha(contentAlpha)) {
+            Column {
                 Text(
                     text = schedule.name,
                     style = typography.titleMedium,
-                    color = if (schedule.isEnabled) colors.text else colors.textMuted,
+                    color = colors.text,
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))

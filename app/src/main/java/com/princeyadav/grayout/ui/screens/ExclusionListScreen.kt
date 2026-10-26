@@ -345,7 +345,7 @@ fun ExclusionListScreen(
                     Text(
                         text = "Missing an app? Find it under All.",
                         style = typography.labelSmall,
-                        color = colors.textDim,
+                        color = colors.textMuted,
                         modifier = Modifier.padding(top = dimens.tightGap),
                     )
                 }
@@ -482,7 +482,7 @@ private fun CategoryChip(
                 Text(
                     text = count.toString(),
                     style = typography.labelXSmall,
-                    color = if (isActive) colors.bg.copy(alpha = 0.5f) else colors.textDim,
+                    color = if (isActive) colors.bg else colors.textMuted,
                 )
             }
         }
