@@ -80,6 +80,8 @@ fun HomeScreen(
     toggleFailedTarget: Boolean?,
     onShowSetup: () -> Unit,
     onFixUsageAccess: () -> Unit,
+    onlyDuringSchedules: Boolean,
+    onOnlyDuringSchedulesChange: (Boolean) -> Unit,
     showNotificationPrompt: Boolean,
     onAllowNotifications: () -> Unit,
     onDismissNotificationPrompt: () -> Unit,
@@ -114,6 +116,8 @@ fun HomeScreen(
         RestoreCard(
             enforcementInterval = enforcementInterval,
             onIntervalChange = onEnforcementIntervalChange,
+            onlyDuringSchedules = onlyDuringSchedules,
+            onOnlyDuringSchedulesChange = onOnlyDuringSchedulesChange,
         )
 
         if (showNotificationPrompt) {
@@ -353,6 +357,8 @@ private fun ToggleFailureRow(target: Boolean, onRetry: () -> Unit) {
 private fun RestoreCard(
     enforcementInterval: Int,
     onIntervalChange: (Int) -> Unit,
+    onlyDuringSchedules: Boolean,
+    onOnlyDuringSchedulesChange: (Boolean) -> Unit,
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
@@ -375,10 +381,10 @@ private fun RestoreCard(
                 PillButton(label = "Change", onClick = { showSheet = true })
             }
             Text(
-                text = if (enforcementInterval > 0) {
-                    "Turns grayscale back on if you turn it off."
-                } else {
-                    "Grayscale stays however you leave it."
+                text = when {
+                    enforcementInterval <= 0 -> "Grayscale stays however you leave it."
+                    onlyDuringSchedules -> "Turns grayscale back on during schedules."
+                    else -> "Turns grayscale back on if you turn it off."
                 },
                 style = typography.labelSmall,
                 color = colors.textMuted,
@@ -441,6 +447,29 @@ private fun RestoreCard(
                             )
                         }
                     }
+                }
+                HorizontalDivider(
+                    thickness = 1.dp,
+                    color = colors.border,
+                    modifier = Modifier.padding(vertical = dimens.tightGap),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = dimens.minTouch),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "Only during schedules", style = typography.bodyMedium, color = colors.text)
+                        Text(
+                            text = "Outside a schedule, off stays off.",
+                            style = typography.labelSmall,
+                            color = colors.textMuted,
+                        )
+                    }
+                    GrayoutToggle(
+                        checked = onlyDuringSchedules,
+                        onCheckedChange = onOnlyDuringSchedulesChange,
+                        contentDescription = "Only during schedules",
+                    )
                 }
             }
         }

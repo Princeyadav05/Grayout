@@ -96,4 +96,38 @@ class EnforcementTickTest {
         assertEquals(15 * 60_000L, writeRetryDelayMs(60_000L, canWriteSecureSettings = false))
         assertEquals(30 * 60_000L, writeRetryDelayMs(30 * 60_000L, canWriteSecureSettings = false))
     }
+
+    @Test
+    fun `schedule-only restore skips outside a schedule window`() {
+        enforcementPrefs.setInterval(5)
+        enforcementPrefs.setOnlyDuringSchedules(true)
+        grayscale.grayscaleEnabled = false
+
+        val result = applyEnforcementTick(enforcementPrefs, exclusionPrefs, grayscale, restoreMomentInWindow = false)
+
+        assertEquals(EnforcementTickResult.Skipped, result)
+        assertFalse(grayscale.grayscaleEnabled)
+    }
+
+    @Test
+    fun `schedule-only restore applies inside a schedule window`() {
+        enforcementPrefs.setInterval(5)
+        enforcementPrefs.setOnlyDuringSchedules(true)
+        grayscale.grayscaleEnabled = false
+
+        val result = applyEnforcementTick(enforcementPrefs, exclusionPrefs, grayscale, restoreMomentInWindow = true)
+
+        assertEquals(EnforcementTickResult.Applied, result)
+        assertTrue(grayscale.grayscaleEnabled)
+    }
+
+    @Test
+    fun `coverage is ignored unless schedule-only restore is on`() {
+        enforcementPrefs.setInterval(5)
+        grayscale.grayscaleEnabled = false
+
+        val result = applyEnforcementTick(enforcementPrefs, exclusionPrefs, grayscale, restoreMomentInWindow = false)
+
+        assertEquals(EnforcementTickResult.Applied, result)
+    }
 }

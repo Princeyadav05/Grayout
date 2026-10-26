@@ -101,6 +101,11 @@ class ScheduleAlarmManager(
             }
             if (!decision.rearmed) replaceNextAlarm(schedules, decision.at, decision.zone)
             if (reconciliationState.read() != null) scheduleReconciliationRetry()
+            // Clock, zone and update changes can move coverage without any grayscale write.
+            val restore = EnforcementPrefs(prefs)
+            if (restore.getInterval() > 0 && restore.isOnlyDuringSchedules()) {
+                context.startForegroundServiceSafely(Intent(context, GrayoutService::class.java))
+            }
         }
     }
 
@@ -216,10 +221,10 @@ class ScheduleAlarmManager(
 
         if (reconciliationState.read() != null) scheduleReconciliationRetry()
 
-        if (isCurrentlyInSchedule) {
-            if (EnforcementPrefs(prefs).getInterval() > 0) {
-                context.startForegroundServiceSafely(Intent(context, GrayoutService::class.java))
-            }
+        val restore = EnforcementPrefs(prefs)
+        // Schedule-only restore must re-check a pending countdown whenever coverage may have changed.
+        if (restore.getInterval() > 0 && (isCurrentlyInSchedule || restore.isOnlyDuringSchedules())) {
+            context.startForegroundServiceSafely(Intent(context, GrayoutService::class.java))
         }
     }
 

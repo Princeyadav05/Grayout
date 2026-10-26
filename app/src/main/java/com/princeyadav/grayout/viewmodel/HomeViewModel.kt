@@ -42,6 +42,7 @@ class HomeViewModel(
     private val clock: () -> Clock = { Clock.systemDefaultZone() },
     private val is24HourFormat: () -> Boolean = { false },
     private val notificationsAllowed: () -> Boolean = { true },
+    private val onRestoreSettingsChanged: () -> Unit = {},
 ) : ViewModel() {
 
     private val _isGrayscaleOn = MutableStateFlow(false)
@@ -71,6 +72,9 @@ class HomeViewModel(
     private val _toggleFailedTarget = MutableStateFlow<Boolean?>(null)
     val toggleFailedTarget: StateFlow<Boolean?> = _toggleFailedTarget.asStateFlow()
 
+    private val _onlyDuringSchedules = MutableStateFlow(false)
+    val onlyDuringSchedules: StateFlow<Boolean> = _onlyDuringSchedules.asStateFlow()
+
     /** In-app ask for notifications, raised the first time automatic restore is turned on. */
     private val _showNotificationPrompt = MutableStateFlow(false)
     val showNotificationPrompt: StateFlow<Boolean> = _showNotificationPrompt.asStateFlow()
@@ -83,6 +87,7 @@ class HomeViewModel(
     fun refreshSystemState() {
         refreshGrayscaleStateFromSystem()
         _enforcementInterval.value = enforcementPrefs.getInterval()
+        _onlyDuringSchedules.value = enforcementPrefs.isOnlyDuringSchedules()
     }
 
     fun refreshGrayscaleStateFromSystem() {
@@ -122,6 +127,13 @@ class HomeViewModel(
         // Only explicit user changes command the service. Replaying UI state on
         // resume must not overwrite a newer interval set by the Quick Settings tile.
         onEnforcementIntervalChanged(minutes)
+    }
+
+    /** "Only during schedules". The service re-checks any pending countdown against it. */
+    fun setOnlyDuringSchedules(enabled: Boolean) {
+        enforcementPrefs.setOnlyDuringSchedules(enabled)
+        _onlyDuringSchedules.value = enabled
+        onRestoreSettingsChanged()
     }
 
     /** Either prompt button. The answer is remembered so the card never comes back. */
@@ -192,6 +204,7 @@ class HomeViewModelFactory(
     private val onEnforcementIntervalChanged: (Int) -> Unit,
     private val is24HourFormat: () -> Boolean,
     private val notificationsAllowed: () -> Boolean,
+    private val onRestoreSettingsChanged: () -> Unit,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -205,6 +218,7 @@ class HomeViewModelFactory(
             onEnforcementIntervalChanged,
             is24HourFormat = is24HourFormat,
             notificationsAllowed = notificationsAllowed,
+            onRestoreSettingsChanged = onRestoreSettingsChanged,
         ) as T
     }
 }

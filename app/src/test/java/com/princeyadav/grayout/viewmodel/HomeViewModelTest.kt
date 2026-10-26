@@ -41,6 +41,7 @@ class HomeViewModelTest {
     private lateinit var exclusionPrefs: ExclusionPrefs
     private val serviceRunning = MutableStateFlow(false)
     private val intervalCommands = mutableListOf<Int>()
+    private var restoreSettingChanges = 0
     private var iconLoads = 0
 
     private fun vm(
@@ -66,6 +67,7 @@ class HomeViewModelTest {
             clock = clock,
             is24HourFormat = is24HourFormat,
             notificationsAllowed = { notificationsAllowed },
+            onRestoreSettingsChanged = { restoreSettingChanges++ },
         )
     }
 
@@ -174,6 +176,19 @@ class HomeViewModelTest {
         assertEquals(0, enforcementPrefs.getInterval())
         assertEquals(0, homeViewModel.enforcementInterval.value)
         assertTrue(intervalCommands.isEmpty())
+    }
+
+    @Test
+    fun `only during schedules persists and tells the service to re-check`() = runTest {
+        val home = vm()
+        assertFalse(home.onlyDuringSchedules.value)
+
+        home.setOnlyDuringSchedules(true)
+
+        assertTrue(home.onlyDuringSchedules.value)
+        assertTrue(enforcementPrefs.isOnlyDuringSchedules())
+        assertEquals(1, restoreSettingChanges)
+        assertTrue(vm().onlyDuringSchedules.value) // A fresh screen reads the saved choice.
     }
 
     @Test

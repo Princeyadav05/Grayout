@@ -89,6 +89,11 @@ class MainActivity : ComponentActivity() {
             },
             is24HourFormat = { DateFormat.is24HourFormat(applicationContext) },
             notificationsAllowed = { NotificationManagerCompat.from(applicationContext).areNotificationsEnabled() },
+            onRestoreSettingsChanged = {
+                if (enforcementPrefs.getInterval() > 0) {
+                    applicationContext.startForegroundService(Intent(applicationContext, GrayoutService::class.java))
+                }
+            },
         )
     }
 

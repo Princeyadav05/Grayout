@@ -171,6 +171,7 @@ fun GrayoutNavGraph(
             val toggleFailedTarget by homeViewModel.toggleFailedTarget.collectAsStateWithLifecycle()
             var showSetup by remember { mutableStateOf(false) }
             val showNotificationPrompt by homeViewModel.showNotificationPrompt.collectAsStateWithLifecycle()
+            val onlyDuringSchedules by homeViewModel.onlyDuringSchedules.collectAsStateWithLifecycle()
             val notificationPermission = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestPermission(),
             ) { homeViewModel.dismissNotificationPrompt() }
@@ -207,6 +208,8 @@ fun GrayoutNavGraph(
                 toggleFailedTarget = toggleFailedTarget,
                 onShowSetup = { showSetup = true },
                 onFixUsageAccess = { openUsageAccessSettings(context) },
+                onlyDuringSchedules = onlyDuringSchedules,
+                onOnlyDuringSchedulesChange = homeViewModel::setOnlyDuringSchedules,
                 showNotificationPrompt = showNotificationPrompt,
                 onAllowNotifications = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
