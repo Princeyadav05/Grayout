@@ -165,6 +165,23 @@ No spring physics, no bounce, no custom easings. If you need a duration, pick `F
 - Bar background: `bg`. Top border: 1dp `border`.
 - Labels use `labelXSmall`.
 
+### Category chips (exclusions)
+- A horizontally scrolling row under the search field: `All`, then one chip per category (`Camera`, `Photos`, `Maps`) that has at least one installed app. The row is hidden when no category has apps.
+- Active and inactive colors match the enforcement pills (`text` fill / `bg` label / ExtraBold vs transparent / `textMuted` / 1dp `border`), animated on `GrayoutMotion.Fast`.
+- Unlike the enforcement pills, chips are wrap-content: the painted pill uses `cardGap` horizontal and `tightGap` vertical padding, centered inside a 48dp-tall touch target.
+- Label in `bodyMedium`; app count after it in `labelXSmall`, `textDim` (inactive) or `bg` at 0.5 alpha (active), `tightGap` apart.
+- Radio semantics: the row is a `selectableGroup`, each chip is `selectable` with `Role.RadioButton`.
+
+### Header action pill
+- A small outlined pill on the right of a section header (`Exclude all` on a category section).
+- 1dp `borderActive` outline, `text` label in `labelSmall` ExtraBold, `radiusFull`, `cardGap` / `tightGap` padding inside a 48dp touch target.
+- Done state (`All excluded`): `border` outline, `textMuted` label, SemiBold, disabled.
+
+### Undo snackbar
+- Bottom of the screen, `screenPad` horizontal inset: `surface` background, 1dp `borderActive`, `radiusSm` corners.
+- Message in `bodyMedium` `text`; action (`Undo`) in `bodyMedium` ExtraBold `text` with a 48dp touch target.
+- Short duration. Polite live region so TalkBack announces it.
+
 ### Buttons
 - Primary (Save): `text` background, `bg` label, `radius` corners, 16dp vertical padding.
 - Destructive (Delete): transparent background, `danger` label, `bodyMedium`.
