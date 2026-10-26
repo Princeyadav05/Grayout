@@ -18,12 +18,14 @@ class FakeGrayscaleController : GrayscaleController {
     var grayscaleEnabled = false
     var canWrite = true
     var setGrayscaleCallCount = 0
+    /** Simulates a rejected or unverified write while the permission is granted. */
+    var failWrites = false
 
     override fun isGrayscaleEnabled() = grayscaleEnabled
 
     override fun setGrayscale(enabled: Boolean): Boolean {
         setGrayscaleCallCount++
-        if (!canWrite) return false
+        if (!canWrite || failWrites) return false
         grayscaleEnabled = enabled
         return true
     }

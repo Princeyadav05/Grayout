@@ -31,7 +31,6 @@ class HomeViewModel(
     private val grayscaleManager: GrayscaleController,
     private val enforcementPrefs: EnforcementPrefs,
     private val exclusionPrefs: ExclusionPrefs,
-    private val isBatteryUnrestricted: () -> Boolean,
     private val loadExcludedIcons: (List<String>) -> Pair<List<Bitmap>, Int>,
     private val ioDispatcher: CoroutineDispatcher,
     private val usageAccessProbe: () -> Boolean,
@@ -62,8 +61,13 @@ class HomeViewModel(
     /** Live service-running status for the Settings diagnostics row. */
     val isServiceRunning: StateFlow<Boolean> = serviceRunning
 
-    private val _navigateToSetup = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val navigateToSetup: SharedFlow<Unit> = _navigateToSetup.asSharedFlow()
+    /** Opens the setup guide on Home: the grayscale permission is missing. */
+    private val _setupRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val setupRequests: SharedFlow<Unit> = _setupRequests.asSharedFlow()
+
+    /** The grayscale state the last toggle failed to reach while the permission was granted, or null. */
+    private val _toggleFailedTarget = MutableStateFlow<Boolean?>(null)
+    val toggleFailedTarget: StateFlow<Boolean?> = _toggleFailedTarget.asStateFlow()
 
     init {
         refreshSystemState()
@@ -84,16 +88,23 @@ class HomeViewModel(
         viewModelScope.launch(ioDispatcher) {
             val success = grayscaleManager.setGrayscale(newValue)
             if (!success) {
-                _navigateToSetup.tryEmit(Unit)
+                if (grayscaleManager.canWriteSecureSettings()) {
+                    _toggleFailedTarget.value = newValue
+                } else {
+                    _toggleFailedTarget.value = null
+                    _setupRequests.tryEmit(Unit)
+                }
+                _isGrayscaleOn.value = grayscaleManager.isGrayscaleEnabled()
                 return@launch
             }
+            _toggleFailedTarget.value = null
             _isGrayscaleOn.value = grayscaleManager.isGrayscaleEnabled()
         }
     }
 
     fun setEnforcementInterval(minutes: Int) {
         if (minutes != 0 && !grayscaleManager.canWriteSecureSettings()) {
-            _navigateToSetup.tryEmit(Unit)
+            _setupRequests.tryEmit(Unit)
             return
         }
         enforcementPrefs.setInterval(minutes)
@@ -113,10 +124,10 @@ class HomeViewModel(
 
     fun refreshAttentionCount() {
         viewModelScope.launch(ioDispatcher) {
+            // Only what blocks a feature the user set up. Battery and unused usage access live in Settings.
             var count = 0
             if (!grayscaleManager.canWriteSecureSettings()) count++
-            if (!usageAccessProbe()) count++
-            if (!isBatteryUnrestricted()) count++
+            if (exclusionPrefs.getExcludedCount() > 0 && !usageAccessProbe()) count++
             _needsAttentionCount.value = count
         }
     }
@@ -153,7 +164,6 @@ class HomeViewModelFactory(
     private val grayscaleManager: GrayscaleController,
     private val enforcementPrefs: EnforcementPrefs,
     private val exclusionPrefs: ExclusionPrefs,
-    private val isBatteryUnrestricted: () -> Boolean,
     private val loadExcludedIcons: (List<String>) -> Pair<List<Bitmap>, Int>,
     private val ioDispatcher: CoroutineDispatcher,
     private val usageAccessProbe: () -> Boolean,
@@ -167,7 +177,6 @@ class HomeViewModelFactory(
             grayscaleManager,
             enforcementPrefs,
             exclusionPrefs,
-            isBatteryUnrestricted,
             loadExcludedIcons,
             ioDispatcher,
             usageAccessProbe,

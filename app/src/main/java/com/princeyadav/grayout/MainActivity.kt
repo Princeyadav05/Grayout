@@ -64,9 +64,6 @@ class MainActivity : ComponentActivity() {
             grayscaleManager = grayscaleManager,
             enforcementPrefs = enforcementPrefs,
             exclusionPrefs = exclusionPrefs,
-            isBatteryUnrestricted = {
-                getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
-            },
             loadExcludedIcons = { packages ->
                 val pm = applicationContext.packageManager
                 val icons = mutableListOf<Bitmap>()

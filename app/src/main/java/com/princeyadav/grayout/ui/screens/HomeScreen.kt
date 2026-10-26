@@ -23,7 +23,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Image
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,12 +39,15 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.R
 import com.princeyadav.grayout.service.EnforcementPrefs
@@ -68,6 +74,9 @@ fun HomeScreen(
     excludedOverflowCount: Int,
     needsAttentionCount: Int,
     onAttentionClick: () -> Unit,
+    isPermissionGranted: Boolean,
+    toggleFailedTarget: Boolean?,
+    onShowSetup: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val dimens = GrayoutTheme.dimens
@@ -90,13 +99,18 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(dimens.cardGap))
         }
 
-        StatusHeroCard(
-            isGrayscaleOn = isGrayscaleOn,
-            enforcementInterval = enforcementInterval,
-            nextScheduleText = nextScheduleText,
-            onToggle = onToggle,
-            onNextScheduleClick = onNavigateToSchedules,
-        )
+        if (isPermissionGranted) {
+            StatusHeroCard(
+                isGrayscaleOn = isGrayscaleOn,
+                enforcementInterval = enforcementInterval,
+                nextScheduleText = nextScheduleText,
+                toggleFailedTarget = toggleFailedTarget,
+                onToggle = onToggle,
+                onNextScheduleClick = onNavigateToSchedules,
+            )
+        } else {
+            SetupCard(onShowSetup = onShowSetup)
+        }
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
 
@@ -194,11 +208,101 @@ private fun NeedsAttentionStrip(
     }
 }
 
+/** Replaces the status card until the grayscale permission is granted, so the switch never fails silently. */
+@Composable
+private fun SetupCard(onShowSetup: () -> Unit) {
+    val colors = GrayoutTheme.colors
+    val typography = GrayoutTheme.typography
+    val dimens = GrayoutTheme.dimens
+
+    GrayoutCard(isActive = true, wash = true) {
+        Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
+            Text(
+                text = "SETUP",
+                style = typography.labelSmall,
+                color = BrandAccent.copy(alpha = 0.75f),
+            )
+            Spacer(modifier = Modifier.height(dimens.tightGap))
+            Text(
+                text = "One-time setup",
+                style = typography.headingLarge,
+                color = colors.text,
+            )
+            Spacer(modifier = Modifier.height(dimens.tightGap))
+            Text(
+                text = "Grayout needs one permission that only a computer can grant. It takes about 2 minutes, once.",
+                style = typography.bodyMedium,
+                color = colors.textMuted,
+            )
+            Spacer(modifier = Modifier.height(dimens.sectionGap))
+            Box(
+                modifier = Modifier
+                    .heightIn(min = dimens.minTouch)
+                    .clip(RoundedCornerShape(dimens.radiusFull))
+                    .background(colors.text, RoundedCornerShape(dimens.radiusFull))
+                    .clickable(role = Role.Button, onClick = onShowSetup)
+                    .padding(horizontal = dimens.sectionGap),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Show the command",
+                    style = typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
+                    color = colors.bg,
+                )
+            }
+        }
+    }
+}
+
+/** Inline failure under the switch. Shown only when the permission is granted but the write still failed. */
+@Composable
+private fun ToggleFailureRow(target: Boolean, onRetry: () -> Unit) {
+    val colors = GrayoutTheme.colors
+    val typography = GrayoutTheme.typography
+    val dimens = GrayoutTheme.dimens
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = dimens.tightGap)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Warning,
+            contentDescription = null,
+            tint = colors.danger,
+            modifier = Modifier.size(dimens.iconSm),
+        )
+        Text(
+            text = if (target) "Couldn't turn on grayscale" else "Couldn't turn off grayscale",
+            style = typography.bodyMedium,
+            color = colors.danger,
+            modifier = Modifier.weight(1f),
+        )
+        Box(
+            modifier = Modifier
+                .heightIn(min = dimens.minTouch)
+                .clickable(role = Role.Button, onClick = onRetry),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "Try again",
+                style = typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
+                color = colors.text,
+                textDecoration = TextDecoration.Underline,
+            )
+        }
+    }
+}
+
 @Composable
 private fun StatusHeroCard(
     isGrayscaleOn: Boolean,
     enforcementInterval: Int,
     nextScheduleText: String,
+    toggleFailedTarget: Boolean?,
     onToggle: () -> Unit,
     onNextScheduleClick: () -> Unit,
 ) {
@@ -303,6 +407,10 @@ private fun StatusHeroCard(
                     },
                     contentDescription = "Grayscale",
                 )
+            }
+
+            if (toggleFailedTarget != null) {
+                ToggleFailureRow(target = toggleFailedTarget, onRetry = onToggle)
             }
         }
     }

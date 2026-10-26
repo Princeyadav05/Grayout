@@ -127,14 +127,18 @@ fun GrayoutNavGraph(
                 }
             }
 
+            val isPermissionGrantedHome by rememberSecureSettingsPermission()
+            val toggleFailedTarget by homeViewModel.toggleFailedTarget.collectAsStateWithLifecycle()
+            var showSetup by remember { mutableStateOf(false) }
             LaunchedEffect(homeViewModel) {
-                homeViewModel.navigateToSetup.collect {
-                    navController.navigate(Routes.SETTINGS) {
-                        popUpTo(Routes.HOME) { saveState = true }
-                        restoreState = true
-                        launchSingleTop = true
-                    }
-                }
+                homeViewModel.setupRequests.collect { showSetup = true }
+            }
+            if (showSetup) {
+                AdbCommandSheet(
+                    isGranted = isPermissionGrantedHome,
+                    onDismiss = { showSetup = false },
+                    onTryGrayscale = homeViewModel::toggleGrayscale,
+                )
             }
 
             HomeScreen(
@@ -163,6 +167,9 @@ fun GrayoutNavGraph(
                         launchSingleTop = true
                     }
                 },
+                isPermissionGranted = isPermissionGrantedHome,
+                toggleFailedTarget = toggleFailedTarget,
+                onShowSetup = { showSetup = true },
             )
         }
         composable(Routes.SCHEDULES) {

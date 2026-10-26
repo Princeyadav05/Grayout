@@ -39,7 +39,6 @@ class HomeViewModelTest {
     private lateinit var grayscale: FakeGrayscaleController
     private lateinit var enforcementPrefs: EnforcementPrefs
     private lateinit var exclusionPrefs: ExclusionPrefs
-    private var batteryUnrestricted = true // true = exempt/granted
     private val serviceRunning = MutableStateFlow(false)
     private val intervalCommands = mutableListOf<Int>()
     private var iconLoads = 0
@@ -47,19 +46,16 @@ class HomeViewModelTest {
     private fun vm(
         canWrite: Boolean = true,
         usageAccessGranted: Boolean = true,
-        isBatteryUnrestricted: Boolean = true,
         serviceRunning: Boolean = false,
         clock: () -> Clock = { Clock.systemDefaultZone() },
         is24HourFormat: () -> Boolean = { false },
     ): HomeViewModel {
         grayscale.canWrite = canWrite
-        batteryUnrestricted = isBatteryUnrestricted
         this.serviceRunning.value = serviceRunning
         return HomeViewModel(
             grayscaleManager = grayscale,
             enforcementPrefs = enforcementPrefs,
             exclusionPrefs = exclusionPrefs,
-            isBatteryUnrestricted = { batteryUnrestricted },
             loadExcludedIcons = { _ ->
                 iconLoads++
                 emptyList<android.graphics.Bitmap>() to 0
@@ -95,16 +91,48 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `toggleGrayscale emits navigateToSetup and leaves state unchanged when ADB not granted`() = runTest {
+    fun `toggleGrayscale requests setup and leaves state unchanged when ADB not granted`() = runTest {
         val homeViewModel = vm(canWrite = false)
         advanceUntilIdle()
 
-        homeViewModel.navigateToSetup.test {
+        homeViewModel.setupRequests.test {
             homeViewModel.toggleGrayscale()
             advanceUntilIdle()
             awaitItem() // asserts one emission
         }
         assertFalse(homeViewModel.isGrayscaleOn.value)
+        assertEquals(null, homeViewModel.toggleFailedTarget.value)
+    }
+
+    @Test
+    fun `failed write with permission granted shows an inline error instead of setup`() = runTest {
+        val homeViewModel = vm(canWrite = true)
+        grayscale.failWrites = true
+        advanceUntilIdle()
+
+        homeViewModel.setupRequests.test {
+            homeViewModel.toggleGrayscale()
+            advanceUntilIdle()
+            expectNoEvents()
+        }
+        assertEquals(true, homeViewModel.toggleFailedTarget.value)
+        assertFalse(homeViewModel.isGrayscaleOn.value)
+    }
+
+    @Test
+    fun `successful retry clears the inline error`() = runTest {
+        val homeViewModel = vm(canWrite = true)
+        grayscale.failWrites = true
+        homeViewModel.toggleGrayscale()
+        advanceUntilIdle()
+        assertEquals(true, homeViewModel.toggleFailedTarget.value)
+
+        grayscale.failWrites = false
+        homeViewModel.toggleGrayscale()
+        advanceUntilIdle()
+
+        assertEquals(null, homeViewModel.toggleFailedTarget.value)
+        assertTrue(homeViewModel.isGrayscaleOn.value)
     }
 
     @Test
@@ -134,11 +162,11 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `setEnforcementInterval five emits navigateToSetup and does not persist when ADB not granted`() = runTest {
+    fun `setEnforcementInterval five requests setup and does not persist when ADB not granted`() = runTest {
         val homeViewModel = vm(canWrite = false)
         advanceUntilIdle()
 
-        homeViewModel.navigateToSetup.test {
+        homeViewModel.setupRequests.test {
             homeViewModel.setEnforcementInterval(5)
             advanceUntilIdle()
             awaitItem() // asserts one emission
@@ -188,27 +216,20 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `refreshAttentionCount returns 3 when ADB, usage access, and battery all missing`() = runTest {
-        val homeViewModel = vm(
-            canWrite = false,
-            usageAccessGranted = false,
-            isBatteryUnrestricted = false,
-        )
+    fun `refreshAttentionCount counts ADB and usage access only when apps are excluded`() = runTest {
+        exclusionPrefs.setExcludedPackages(setOf("com.example.maps"))
+        val homeViewModel = vm(canWrite = false, usageAccessGranted = false)
         advanceUntilIdle()
 
         homeViewModel.refreshAttentionCount()
         advanceUntilIdle()
 
-        assertEquals(3, homeViewModel.needsAttentionCount.value)
+        assertEquals(2, homeViewModel.needsAttentionCount.value)
     }
 
     @Test
-    fun `refreshAttentionCount returns 0 when all permissions granted`() = runTest {
-        val homeViewModel = vm(
-            canWrite = true,
-            usageAccessGranted = true,
-            isBatteryUnrestricted = true,
-        )
+    fun `refreshAttentionCount ignores usage access when nothing is excluded`() = runTest {
+        val homeViewModel = vm(canWrite = true, usageAccessGranted = false)
         advanceUntilIdle()
 
         homeViewModel.refreshAttentionCount()
@@ -218,33 +239,15 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `refreshAttentionCount returns 1 when only battery optimization is restricted`() = runTest {
-        val homeViewModel = vm(
-            canWrite = true,
-            usageAccessGranted = true,
-            isBatteryUnrestricted = false,
-        )
+    fun `refreshAttentionCount returns 0 when all permissions granted`() = runTest {
+        exclusionPrefs.setExcludedPackages(setOf("com.example.maps"))
+        val homeViewModel = vm(canWrite = true, usageAccessGranted = true)
         advanceUntilIdle()
 
         homeViewModel.refreshAttentionCount()
         advanceUntilIdle()
 
-        assertEquals(1, homeViewModel.needsAttentionCount.value)
-    }
-
-    @Test
-    fun `refreshAttentionCount returns 1 when only usage access missing`() = runTest {
-        val homeViewModel = vm(
-            canWrite = true,
-            usageAccessGranted = false,
-            isBatteryUnrestricted = true,
-        )
-        advanceUntilIdle()
-
-        homeViewModel.refreshAttentionCount()
-        advanceUntilIdle()
-
-        assertEquals(1, homeViewModel.needsAttentionCount.value)
+        assertEquals(0, homeViewModel.needsAttentionCount.value)
     }
 
     @Test
