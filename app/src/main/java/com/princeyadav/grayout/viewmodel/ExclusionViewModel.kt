@@ -24,6 +24,8 @@ class ExclusionViewModel(
     private val onExclusionListChanged: () -> Unit,
     private val loadApps: () -> List<AppInfo>,
     private val ioDispatcher: CoroutineDispatcher,
+    /** The last list [loadApps] returned in this process, shown until the refresh lands. */
+    initialApps: List<AppInfo> = emptyList(),
 ) : ViewModel() {
 
     private val _apps = MutableStateFlow<List<AppInfo>>(emptyList())
@@ -68,16 +70,36 @@ class ExclusionViewModel(
 
     private var refreshJob: Job? = null
 
+    // init already loads, so the screen's first resume would only repeat it.
+    private var skipNextResumeRefresh = true
+
+    init {
+        // Start loading during the enter transition rather than after it, and show
+        // the last known list meanwhile.
+        if (initialApps.isNotEmpty()) publish(initialApps)
+        refreshApps()
+    }
+
+    /** Called on every screen resume, to pick up permission changes and app installs. */
+    fun onScreenResumed() {
+        checkUsageAccess()
+        if (skipNextResumeRefresh) skipNextResumeRefresh = false else refreshApps()
+    }
+
     fun refreshApps() {
         if (refreshJob?.isActive == true) return
         refreshJob = viewModelScope.launch {
             val apps = withContext(ioDispatcher) { loadApps() }
             // Loading icons can outlive a toggle. Publish on Main using the
             // current preferences so an old snapshot cannot undo the UI change.
-            val excludedPackages = exclusionPrefs.getExcludedPackages()
-            _apps.value = apps.map { app ->
-                app.copy(isExcluded = app.packageName in excludedPackages)
-            }
+            publish(apps)
+        }
+    }
+
+    private fun publish(apps: List<AppInfo>) {
+        val excludedPackages = exclusionPrefs.getExcludedPackages()
+        _apps.value = apps.map { app ->
+            app.copy(isExcluded = app.packageName in excludedPackages)
         }
     }
 
@@ -163,6 +185,7 @@ class ExclusionViewModelFactory(
     private val onExclusionListChanged: () -> Unit,
     private val loadApps: () -> List<AppInfo>,
     private val ioDispatcher: CoroutineDispatcher,
+    private val initialApps: List<AppInfo>,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -172,6 +195,7 @@ class ExclusionViewModelFactory(
             onExclusionListChanged,
             loadApps,
             ioDispatcher,
+            initialApps,
         ) as T
     }
 }

@@ -116,7 +116,7 @@ class ExclusionViewModelTest {
             onExclusionListChanged = { changedCount++ },
             loadApps = { fakeApps },
             ioDispatcher = dispatcherRule.dispatcher,
-        ).also { it.refreshApps() }
+        )
     }
 
     @Before
@@ -184,7 +184,7 @@ class ExclusionViewModelTest {
     }
 
     @Test
-    fun `screen resume triggers initial load and overlapping refreshes are coalesced`() = runTest {
+    fun `construction loads once, the first resume does not repeat it and later resumes reload`() = runTest {
         var loadCount = 0
         val loaderDispatcher = QueuedAppLoaderDispatcher()
         val viewModel = ExclusionViewModel(
@@ -195,22 +195,50 @@ class ExclusionViewModelTest {
             ioDispatcher = loaderDispatcher,
         )
         runCurrent()
-        assertEquals("Construction must not duplicate the screen's resume load", 0, loadCount)
-
-        viewModel.refreshApps()
-        runCurrent()
-        viewModel.refreshApps()
-        viewModel.refreshApps()
         loaderDispatcher.completeLoad()
         runCurrent()
         assertEquals(1, loadCount)
 
-        // A later resume must reload packages to detect installs and removals.
-        viewModel.refreshApps()
+        // The enter transition ends after a fast load has already finished.
+        viewModel.onScreenResumed()
         runCurrent()
+        assertEquals("The first resume must not repeat the construction load", 1, loadCount)
+
+        // A later resume must reload packages to detect installs and removals,
+        // and refreshes overlapping it are coalesced.
+        viewModel.onScreenResumed()
+        runCurrent()
+        viewModel.refreshApps()
+        viewModel.refreshApps()
         loaderDispatcher.completeLoad()
         runCurrent()
         assertEquals(2, loadCount)
+    }
+
+    @Test
+    fun `cached apps show at once with current exclusions until the refresh replaces them`() = runTest {
+        exclusionPrefs.addExcludedPackage(gallery.packageName)
+        val loaderDispatcher = QueuedAppLoaderDispatcher()
+        val viewModel = ExclusionViewModel(
+            exclusionPrefs = exclusionPrefs,
+            usageAccessProbe = { true },
+            onExclusionListChanged = {},
+            loadApps = { listOf(camera) },
+            ioDispatcher = loaderDispatcher,
+            initialApps = listOf(camera, gallery),
+        )
+        keepCollecting(viewModel.filteredApps)
+        runCurrent()
+
+        // The cache never stores exclusion flags; they come from the preferences.
+        assertEquals(
+            listOf("cam.pkg" to false, "gal.pkg" to true),
+            viewModel.filteredApps.value.map { it.packageName to it.isExcluded },
+        )
+
+        loaderDispatcher.completeLoad()
+        runCurrent()
+        assertEquals(listOf("cam.pkg"), viewModel.filteredApps.value.map { it.packageName })
     }
 
     @Test
@@ -227,7 +255,6 @@ class ExclusionViewModelTest {
 
         viewModel.filteredApps.test {
             assertTrue(awaitItem().isEmpty())
-            viewModel.refreshApps()
             runCurrent()
             loaderDispatcher.completeLoad()
 
