@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
 import android.os.Build
 import android.provider.MediaStore
 import androidx.compose.ui.graphics.asImageBitmap
@@ -27,11 +28,17 @@ fun loadInstalledApps(context: Context): List<AppInfo> {
     val gallery = pm.handlers(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_GALLERY))
     val maps = pm.handlers(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MAPS))
 
-    return pm.getInstalledApplications(0)
-        .filter { info ->
-            pm.getLaunchIntentForPackage(info.packageName) != null &&
-                info.packageName != context.packageName
-        }
+    // The apps getLaunchIntentForPackage would accept (it tries INFO, then LAUNCHER),
+    // in two queries instead of one call per installed package.
+    val launchable = (
+        pm.activities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_INFO)) +
+            pm.activities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER))
+        )
+        .map { it.activityInfo.applicationInfo }
+        .distinctBy { it.packageName }
+        .filter { it.packageName != context.packageName }
+
+    return launchable
         .map { info ->
             AppInfo(
                 packageName = info.packageName,
@@ -52,12 +59,13 @@ fun loadInstalledApps(context: Context): List<AppInfo> {
         .sortedBy { it.appName.lowercase() }
 }
 
-private fun PackageManager.handlers(intent: Intent): Set<String> {
-    val matches = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+private fun PackageManager.handlers(intent: Intent): Set<String> =
+    activities(intent).mapTo(HashSet()) { it.activityInfo.packageName }
+
+private fun PackageManager.activities(intent: Intent): List<ResolveInfo> =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0))
     } else {
         @Suppress("DEPRECATION")
         queryIntentActivities(intent, 0)
     }
-    return matches.mapTo(HashSet()) { it.activityInfo.packageName }
-}

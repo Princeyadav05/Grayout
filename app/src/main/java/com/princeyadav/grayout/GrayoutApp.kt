@@ -6,6 +6,7 @@ import android.os.PowerManager
 import android.util.Log
 import com.princeyadav.grayout.data.GrayoutDatabase
 import com.princeyadav.grayout.data.ScheduleRepository
+import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.scheduling.ScheduleAlarmManager
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
@@ -18,6 +19,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 class GrayoutApp : Application() {
+    // Last launchable-app list (exclusion flags unset), so the exclusion screen reopens
+    // instantly while it refreshes. The foreground service keeps this process alive for
+    // hours, long enough for PackageManager's own label and icon caches to be collected.
+    @Volatile
+    internal var installedApps: List<AppInfo>? = null
+
     // A launcher activity may finish while recovery waits for Room or the shared
     // schedule mutex. Keep that work alive for the lifetime of the process.
     internal val scheduleRecoveryScope = CoroutineScope(

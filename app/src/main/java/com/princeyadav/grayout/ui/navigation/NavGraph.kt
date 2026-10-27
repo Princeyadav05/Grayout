@@ -30,6 +30,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.princeyadav.grayout.GrayoutApp
 import com.princeyadav.grayout.data.GrayoutDatabase
 import com.princeyadav.grayout.data.ScheduleRepository
 import com.princeyadav.grayout.data.loadInstalledApps
@@ -394,6 +395,7 @@ fun GrayoutNavGraph(
             }
             val exclusionPrefs = remember { ExclusionPrefs(prefs) }
             val applicationContext = context.applicationContext
+            val app = applicationContext as GrayoutApp
             val viewModel: ExclusionViewModel = viewModel(
                 factory = ExclusionViewModelFactory(
                     exclusionPrefs = exclusionPrefs,
@@ -403,8 +405,9 @@ fun GrayoutNavGraph(
                             Intent(applicationContext, GrayoutService::class.java)
                         )
                     },
-                    loadApps = { loadInstalledApps(applicationContext) },
+                    loadApps = { loadInstalledApps(app).also { app.installedApps = it } },
                     ioDispatcher = kotlinx.coroutines.Dispatchers.IO,
+                    initialApps = app.installedApps.orEmpty(),
                 )
             )
 
@@ -419,9 +422,7 @@ fun GrayoutNavGraph(
 
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                    viewModel.checkUsageAccess()
-                    // Also performs the initial load, keeping one refresh per resume.
-                    viewModel.refreshApps()
+                    viewModel.onScreenResumed()
                 }
             }
 
