@@ -4,24 +4,6 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// Read version from git tag when building for release; fall back to a dev version for local builds.
-// Tag format: v<major>.<minor>.<patch> (e.g. v1.2.3). Set by CI as RELEASE_VERSION env var.
-fun versionFromTag(): Pair<String, Int> {
-    val tag = System.getenv("RELEASE_VERSION")
-        ?: return "1.0.0-dev" to 1
-    val semver = tag.removePrefix("v")
-    val parts = semver.split(".")
-    require(parts.size == 3) { "Version must be M.m.p (got $semver)" }
-    val (major, minor, patch) = parts.map { it.toInt() }
-    require(major in 0..99 && minor in 0..99 && patch in 0..99) {
-        "Version components must be 0–99 (got $semver)"
-    }
-    val code = major * 10_000 + minor * 100 + patch
-    return semver to code
-}
-
-val (appVersionName, appVersionCode) = versionFromTag()
-
 android {
     namespace = "com.princeyadav.grayout"
     compileSdk {
@@ -34,16 +16,17 @@ android {
         applicationId = "com.princeyadav.grayout"
         minSdk = 26
         targetSdk = 36
-        versionCode = appVersionCode
-        versionName = appVersionName
+        // Bump both in a release commit before tagging (see RELEASING.md). F-Droid reads these
+        // literals from the tagged source, so they must stay plain numbers and strings here.
+        versionCode = 10401
+        versionName = "1.4.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
         create("release") {
-            // Populated from env vars in CI; left null locally so release builds fail fast
-            // instead of silently producing an unsigned or debug-signed APK.
+            // Populated from env vars in CI. Never falls back to the debug key.
             storeFile = System.getenv("SIGNING_KEYSTORE_PATH")?.let { file(it) }
             storePassword = System.getenv("SIGNING_STORE_PASSWORD")
             keyAlias = System.getenv("SIGNING_KEY_ALIAS")
@@ -57,8 +40,15 @@ android {
             isShrinkResources = true
             // Android entry points and AndroidX reflection use the platform/library rules.
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-            signingConfig = signingConfigs.getByName("release")
+            // Without a keystore (F-Droid's build server, local builds) the APK is left unsigned;
+            // F-Droid signs it with its own key. CI fails earlier if the keystore secret is missing.
+            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
         }
+    }
+    // The dependency-info block is encrypted for Google only; F-Droid and Izzy scanners flag it.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -66,6 +56,18 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+}
+
+// CI sets RELEASE_VERSION to the pushed tag. Refuse to build a release whose tag does not
+// match the committed version, or whose versionCode breaks the M*10000 + m*100 + p scheme.
+System.getenv("RELEASE_VERSION")?.let { tag ->
+    val name = checkNotNull(android.defaultConfig.versionName)
+    val code = android.defaultConfig.versionCode
+    require(tag == "v$name") { "Tag $tag does not match versionName $name. Bump app/build.gradle.kts first." }
+    val (major, minor, patch) = name.split(".").map { it.toInt() }
+    require(minor in 0..99 && patch in 0..99 && code == major * 10_000 + minor * 100 + patch) {
+        "versionCode $code does not match versionName $name (expected M*10000 + m*100 + p)."
     }
 }
 

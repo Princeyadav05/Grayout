@@ -1,6 +1,6 @@
 # Releasing Grayout
 
-Releases are cut from tags. Push `vX.Y.Z`, and `.github/workflows/release.yml` does the rest — builds, signs, publishes.
+Releases are cut from tags. Bump the version in a commit, push `vX.Y.Z`, and `.github/workflows/release.yml` does the rest: builds, signs, publishes. F-Droid picks up the same tag and builds its own copy from source.
 
 ## Before you tag (sanity pass, ~2 min)
 
@@ -21,7 +21,11 @@ First-ever GitHub release is `v1.0.0`.
 
 ## Cut the release
 
+Bump `versionName` and `versionCode` in `app/build.gradle.kts`, merge that to `main`, then tag the merged commit. `versionCode` is `major*10000 + minor*100 + patch` (for example `1.1.0` is `10100`). The release build fails if the tag does not match.
+
 ```bash
+# in app/build.gradle.kts: versionCode = 10100, versionName = "1.1.0"
+git commit -am "chore(release): v1.1.0"   # via a PR, like any other change
 git tag v1.1.0
 git push origin v1.1.0
 gh run watch     # optional: follow the workflow live
@@ -38,13 +42,14 @@ gh run watch     # optional: follow the workflow live
 
 | Scenario | Fix |
 |---|---|
+| Workflow failed with "Tag vX.Y.Z does not match versionName" | Delete the tag, bump `app/build.gradle.kts` in a commit, re-tag that commit. |
 | Workflow failed before release was created | Fix the cause, delete the tag (`git tag -d vX.Y.Z && git push origin :refs/tags/vX.Y.Z`), push a new commit, re-tag. |
 | Release published but APK is broken | Delete the broken release in the GitHub UI. Cut a patch (`vX.Y.Z+1`) with the fix. Do not amend a published release. |
 | Keystore or secrets leaked | Rotate: generate a new keystore, update all 4 GitHub secrets, bump major version, document uninstall-reinstall requirement for existing users in the README. |
 
 ## What's under the hood
 
-- `versionCode` and `versionName` are derived from the tag by `versionFromTag()` in `app/build.gradle.kts`. Never bump them manually.
+- `versionCode` and `versionName` are literals in `app/build.gradle.kts`. F-Droid's update checker reads them from each tag, so keep them as plain values. With `RELEASE_VERSION` set (CI), the build checks them against the tag.
 - Keystore lives in GitHub Secrets (`SIGNING_KEYSTORE_BASE64` + alias/store/key passwords), decoded into a runner-scoped temp file at build time.
 - Release notes group conventional commits between tags into Features / Fixes / Other.
 - Universal APK only. No AAB, no per-ABI splits.
@@ -66,9 +71,9 @@ pull requests to catch R8 build failures without production secrets.
 
 Use a dedicated emulator or test device with no production Grayout installation.
 Each invocation uses a new key, so installing over a differently signed copy will
-fail. The script does not install or remove apps. Production `assembleRelease`
-still requires the configured `SIGNING_*` environment variables; it does not fall
-back to this local key or debug signing.
+fail. The script does not install or remove apps. Without the `SIGNING_*` environment
+variables, `assembleRelease` produces an unsigned APK (this is what F-Droid's
+build server needs). It never falls back to this local key or debug signing.
 
 Install the printed APK and grant the permissions used by the smoke checks:
 
