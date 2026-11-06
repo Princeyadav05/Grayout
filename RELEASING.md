@@ -71,9 +71,10 @@ pull requests to catch R8 build failures without production secrets.
 
 Use a dedicated emulator or test device with no production Grayout installation.
 Each invocation uses a new key, so installing over a differently signed copy will
-fail. The script does not install or remove apps. Without the `SIGNING_*` environment
-variables, `assembleRelease` produces an unsigned APK (this is what F-Droid's
-build server needs). It never falls back to this local key or debug signing.
+fail. The script does not install or remove apps. Production `assembleRelease`
+still requires the configured `SIGNING_*` environment variables; it does not fall
+back to this local key or debug signing. F-Droid's build server removes the
+signing config before it builds, so it does not need these variables.
 
 Install the printed APK and grant the permissions used by the smoke checks:
 

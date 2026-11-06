@@ -26,7 +26,8 @@ android {
 
     signingConfigs {
         create("release") {
-            // Populated from env vars in CI. Never falls back to the debug key.
+            // Populated from env vars in CI; left null locally so release builds fail fast
+            // instead of silently producing an unsigned or debug-signed APK.
             storeFile = System.getenv("SIGNING_KEYSTORE_PATH")?.let { file(it) }
             storePassword = System.getenv("SIGNING_STORE_PASSWORD")
             keyAlias = System.getenv("SIGNING_KEY_ALIAS")
@@ -40,9 +41,9 @@ android {
             isShrinkResources = true
             // Android entry points and AndroidX reflection use the platform/library rules.
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-            // Without a keystore (F-Droid's build server, local builds) the APK is left unsigned;
-            // F-Droid signs it with its own key. CI fails earlier if the keystore secret is missing.
-            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
+            // Keep this line and the signingConfigs block in this exact shape: F-Droid's build
+            // server removes both with a line regex before building, then signs with its own key.
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     // The dependency-info block is encrypted for Google only; F-Droid and Izzy scanners flag it.

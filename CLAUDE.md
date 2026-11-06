@@ -85,4 +85,4 @@ app/src/main/java/com/princeyadav/grayout/
 - Signing keystore lives in GitHub Secrets (`SIGNING_KEYSTORE_BASE64` + `SIGNING_KEY_ALIAS` + `SIGNING_STORE_PASSWORD` + `SIGNING_KEY_PASSWORD`). Never commit keystores, passwords, or `local.properties`. `.gitignore` already covers `*.jks` and `*.keystore`.
 - Release notes auto-generate from conventional commits between tags — another reason the `type(scope): desc` format is required.
 - Universal APK only. No AAB, no per-ABI splits, no Play Store.
-- F-Droid builds from source and signs with its own key. A release build without `SIGNING_KEYSTORE_PATH` produces an unsigned APK for that reason; it never falls back to debug signing.
+- F-Droid builds from source and signs with its own key. Its build server strips the `signingConfigs` block and the `signingConfig = signingConfigs.getByName("release")` line with a regex, so keep both in that plain shape (a `.takeIf { }` on that line broke its build).
