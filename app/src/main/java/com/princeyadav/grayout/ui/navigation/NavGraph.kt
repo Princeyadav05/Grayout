@@ -58,7 +58,7 @@ import com.princeyadav.grayout.viewmodel.ScheduleViewModel
 import com.princeyadav.grayout.viewmodel.ScheduleViewModelFactory
 
 /**
- * The installed APK's versionName (git-tag-derived at release, "1.0.0-dev" locally),
+ * The installed APK's versionName (committed in app/build.gradle.kts),
  * or "unknown" if unavailable. Reads the real artifact instead of a hardcoded string.
  */
 private fun installedVersionName(context: Context): String = try {
