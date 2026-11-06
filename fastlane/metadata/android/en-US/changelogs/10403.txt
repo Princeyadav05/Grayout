@@ -1,0 +1,1 @@
+Fixes the build so F-Droid can build and publish Grayout. No changes to how the app works.
