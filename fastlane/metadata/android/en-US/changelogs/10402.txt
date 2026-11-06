@@ -1,0 +1,1 @@
+Packaging changes so Grayout can be built and published on F-Droid. No changes to how the app works.

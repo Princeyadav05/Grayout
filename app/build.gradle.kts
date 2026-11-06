@@ -18,8 +18,8 @@ android {
         targetSdk = 36
         // Bump both in a release commit before tagging (see RELEASING.md). F-Droid reads these
         // literals from the tagged source, so they must stay plain numbers and strings here.
-        versionCode = 10401
-        versionName = "1.4.1"
+        versionCode = 10402
+        versionName = "1.4.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
