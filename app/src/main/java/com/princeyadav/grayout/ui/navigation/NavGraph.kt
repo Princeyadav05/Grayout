@@ -41,6 +41,7 @@ import com.princeyadav.grayout.service.ExclusionPrefs
 import com.princeyadav.grayout.service.GrayscaleManager
 import com.princeyadav.grayout.service.GrayoutService
 import com.princeyadav.grayout.service.UsageAccess
+import com.princeyadav.grayout.service.shouldServiceRun
 import com.princeyadav.grayout.ui.components.AdbCommandSheet
 import com.princeyadav.grayout.ui.rememberSecureSettingsPermission
 import com.princeyadav.grayout.ui.systemTimeChanges
@@ -154,6 +155,7 @@ fun GrayoutNavGraph(
             val db = remember { GrayoutDatabase.getInstance(context) }
             val scheduleRepository = remember { ScheduleRepository(db.scheduleDao()) }
             val scheduleLine by homeViewModel.scheduleLine.collectAsStateWithLifecycle()
+            val homeToday by homeViewModel.today.collectAsStateWithLifecycle()
             val excludedAppIcons by homeViewModel.excludedAppIcons.collectAsStateWithLifecycle()
             val excludedOverflowCount by homeViewModel.excludedOverflowCount.collectAsStateWithLifecycle()
 
@@ -203,6 +205,7 @@ fun GrayoutNavGraph(
                     }
                 },
                 scheduleLine = scheduleLine,
+                today = homeToday,
                 excludedAppIcons = excludedAppIcons,
                 excludedOverflowCount = excludedOverflowCount,
                 isPermissionGranted = isPermissionGrantedHome,
@@ -362,6 +365,13 @@ fun GrayoutNavGraph(
                 mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled())
             }
             val isServiceRunning by homeViewModel.isServiceRunning.collectAsStateWithLifecycle()
+            val isGrayscaleOnSettings by homeViewModel.isGrayscaleOn.collectAsStateWithLifecycle()
+            val exclusionPrefsSettings = remember {
+                ExclusionPrefs(
+                    context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                )
+            }
+            var excludedCountSettings by remember { mutableIntStateOf(exclusionPrefsSettings.getExcludedCount()) }
             val versionName = remember(context) { installedVersionName(context) }
             val isAdbPermissionGranted by rememberSecureSettingsPermission()
 
@@ -370,11 +380,14 @@ fun GrayoutNavGraph(
                     isUsageAccessGranted = UsageAccess.isGranted(context)
                     needsExactAlarms = exactAlarmAccessNeeded(context)
                     notificationsOn = NotificationManagerCompat.from(context).areNotificationsEnabled()
+                    excludedCountSettings = exclusionPrefsSettings.getExcludedCount()
                 }
             }
 
             SettingsScreen(
+                isGrayscaleOn = isGrayscaleOnSettings,
                 isServiceRunning = isServiceRunning,
+                isServiceExpected = shouldServiceRun(enforcementInterval, excludedCountSettings),
                 versionName = versionName,
                 isAdbPermissionGranted = isAdbPermissionGranted,
                 isUsageAccessGranted = isUsageAccessGranted,

@@ -44,7 +44,7 @@ fun GrayoutToggle(
         label = "trackColor",
     )
     val thumbColor by animateColorAsState(
-        targetValue = if (checked) colors.bg else colors.offText,
+        targetValue = if (checked) colors.bg else colors.textMuted,
         animationSpec = tween(
             durationMillis = GrayoutMotion.Fast,
             easing = GrayoutMotion.Easing,

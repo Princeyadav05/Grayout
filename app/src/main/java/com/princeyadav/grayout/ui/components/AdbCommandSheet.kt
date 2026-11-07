@@ -258,7 +258,7 @@ private fun SetupStep(
                 color = if (state == SetupStepState.Upcoming) colors.textMuted else colors.text,
             )
             if (detail != null) {
-                Text(text = detail, style = typography.labelSmall, color = colors.textMuted)
+                Text(text = detail, style = typography.bodyRegular, color = colors.textMuted)
             }
             Spacer(modifier = Modifier.height(dimens.tightGap))
             content()

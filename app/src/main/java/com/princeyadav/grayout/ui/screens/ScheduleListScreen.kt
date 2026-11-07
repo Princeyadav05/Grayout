@@ -1,8 +1,6 @@
 package com.princeyadav.grayout.ui.screens
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,8 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -38,11 +34,15 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.logic.TodayState
+import com.princeyadav.grayout.logic.activeSchedulesText
 import com.princeyadav.grayout.logic.daysInWords
+import com.princeyadav.grayout.logic.endsNextDay
 import com.princeyadav.grayout.logic.scheduleColorIndex
 import com.princeyadav.grayout.model.Schedule
 import com.princeyadav.grayout.model.daysOfWeekList
@@ -50,6 +50,8 @@ import com.princeyadav.grayout.model.formatTime
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
 import com.princeyadav.grayout.ui.components.HapticAction
+import com.princeyadav.grayout.ui.components.SectionLabel
+import com.princeyadav.grayout.ui.components.TodayStrip
 import com.princeyadav.grayout.ui.components.performHaptic
 import com.princeyadav.grayout.ui.rememberIs24HourFormat
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
@@ -145,7 +147,7 @@ internal fun ScheduleListScreen(
         } else {
             if (today != null) {
                 item {
-                    TodayCard(today = today, schedules = schedules, is24Hour = is24Hour, isPermissionGranted = isPermissionGranted)
+                    TodayCard(today = today, is24Hour = is24Hour, isPermissionGranted = isPermissionGranted)
                     Spacer(modifier = Modifier.height(dimens.cardGap))
                 }
             }
@@ -179,9 +181,9 @@ internal fun ScheduleListScreen(
     }
 }
 
-/** A 24-hour strip of today's windows in schedule colors, a now marker, and one sentence. */
+/** The Today strip and one sentence. */
 @Composable
-private fun TodayCard(today: TodayState, schedules: List<Schedule>, is24Hour: Boolean, isPermissionGranted: Boolean) {
+private fun TodayCard(today: TodayState, is24Hour: Boolean, isPermissionGranted: Boolean) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
@@ -189,46 +191,21 @@ private fun TodayCard(today: TodayState, schedules: List<Schedule>, is24Hour: Bo
     val sentence = when {
         !isPermissionGranted -> "Schedules need the grayscale permission to run"
         line == null -> "Nothing scheduled"
+        today.active.size > 1 -> "On now: " + activeSchedulesText(
+            today.active.map { it.name to formatTime(it.at.hour, it.at.minute, is24Hour) },
+        )
         line.isActive -> "${line.name} is on until ${formatTime(line.at.hour, line.at.minute, is24Hour)}"
         line.at.toLocalDate() == today.date -> "Next: ${line.name} at ${formatTime(line.at.hour, line.at.minute, is24Hour)}"
         else -> "Nothing else scheduled today"
     }
-    val idToColor = schedules.associate { it.id to colors.schedulePalette[scheduleColorIndex(it.id)] }
 
     GrayoutCard(
         modifier = Modifier.clearAndSetSemantics { contentDescription = "Today. $sentence" },
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
-            Text(text = "Today", style = typography.labelSmall, color = colors.textMuted)
+            SectionLabel("Today")
             Spacer(modifier = Modifier.height(dimens.tightGap))
-            Canvas(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(dimens.stripHeight)
-                    .clip(RoundedCornerShape(dimens.radiusSm))
-                    .background(colors.bg)
-                    .border(1.dp, colors.border, RoundedCornerShape(dimens.radiusSm)),
-            ) {
-                today.segments.forEach { segment ->
-                    val color = idToColor[segment.scheduleId] ?: return@forEach
-                    drawRect(
-                        color = color,
-                        topLeft = Offset(segment.start * size.width, 0f),
-                        size = Size((segment.end - segment.start) * size.width, size.height),
-                    )
-                }
-                val markerWidth = 2.dp.toPx()
-                drawRect(
-                    color = colors.text,
-                    topLeft = Offset(today.now * size.width - markerWidth / 2, 0f),
-                    size = Size(markerWidth, size.height),
-                )
-            }
-            Spacer(modifier = Modifier.height(dimens.microGap))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                val marks = if (is24Hour) listOf("00", "06", "12", "18", "24") else listOf("12a", "6a", "12p", "6p", "12a")
-                marks.forEach { Text(text = it, style = typography.labelXSmall, color = colors.textMuted) }
-            }
+            TodayStrip(today = today, is24Hour = is24Hour)
             Spacer(modifier = Modifier.height(dimens.tightGap))
             Text(text = sentence, style = typography.bodyMedium, color = colors.text)
         }
@@ -252,8 +229,17 @@ private fun ScheduleRow(
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
     val view = LocalView.current
-    val times = "${formatTime(schedule.startTimeHour, schedule.startTimeMinute, is24Hour)} → " +
-        formatTime(schedule.endTimeHour, schedule.endTimeMinute, is24Hour)
+    val overnight = endsNextDay(
+        schedule.startTimeHour, schedule.startTimeMinute, schedule.endTimeHour, schedule.endTimeMinute,
+    )
+    // Times in the main text color; an overnight end adds "next day" in the muted body voice.
+    val times = buildAnnotatedString {
+        append("${formatTime(schedule.startTimeHour, schedule.startTimeMinute, is24Hour)} → ")
+        append(formatTime(schedule.endTimeHour, schedule.endTimeMinute, is24Hour))
+        if (overnight) {
+            withStyle(typography.bodyRegular.toSpanStyle().copy(color = colors.textMuted)) { append(" next day") }
+        }
+    }
 
     Row(
         modifier = Modifier
@@ -281,11 +267,8 @@ private fun ScheduleRow(
                 )
                 if (isFiringNow) NowPill()
             }
-            Text(
-                text = "$times · ${daysInWords(schedule.daysOfWeekList)}",
-                style = typography.monoSmall,
-                color = colors.textMuted,
-            )
+            Text(text = times, style = typography.monoSmall, color = colors.text)
+            Text(text = daysInWords(schedule.daysOfWeekList), style = typography.labelSmall, color = colors.textMuted)
             when {
                 error != null -> ProblemLine(Icons.Filled.Warning, error, colors.warning, live = true)
                 needsPermission -> ProblemLine(
@@ -327,7 +310,7 @@ private fun ProblemLine(
         Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(dimens.iconSm))
         Text(
             text = text,
-            style = GrayoutTheme.typography.labelSmall,
+            style = GrayoutTheme.typography.bodyRegular,
             color = color,
             modifier = Modifier.weight(1f, fill = false),
         )

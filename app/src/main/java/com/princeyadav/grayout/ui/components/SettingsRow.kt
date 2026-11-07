@@ -6,18 +6,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 
 @Composable
@@ -32,44 +32,50 @@ fun SettingsRow(
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
 
-    Row(
+    // The label and status share the top line; the subtitle sits under both and may use the full width.
+    Column(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = dimens.minTouch)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(vertical = dimens.tightGap),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(vertical = dimens.cardGap),
+        verticalArrangement = Arrangement.Center,
     ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center,
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = label,
                 style = typography.bodyMedium,
                 color = colors.text,
+                modifier = Modifier.weight(1f),
             )
-            if (subtitle != null) {
-                Text(
-                    text = subtitle,
-                    style = typography.labelSmall,
-                    color = colors.textMuted,
-                )
+            if (trailing != null) {
+                Spacer(modifier = Modifier.width(dimens.cardGap))
+                trailing()
+            }
+            // Every row you can tap shows the chevron; rows you cannot tap show none.
+            if (onClick != null) {
+                Spacer(modifier = Modifier.width(dimens.microGap))
+                Chevron()
             }
         }
-        if (trailing != null) {
-            Spacer(modifier = Modifier.width(dimens.cardGap))
-            trailing()
-        }
-        if (onClick != null && subtitle != null) {
-            Spacer(modifier = Modifier.width(4.dp))
+        if (subtitle != null) {
             Text(
-                text = "›",
-                style = typography.bodyMedium,
+                text = subtitle,
+                style = typography.bodyRegular,
                 color = colors.textMuted,
-                modifier = Modifier.clearAndSetSemantics {},
             )
         }
     }
+}
+
+/** Trailing "opens something" chevron. Decorative: the row's click label carries the meaning. */
+@Composable
+internal fun Chevron() {
+    Icon(
+        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+        contentDescription = null,
+        tint = GrayoutTheme.colors.textMuted,
+    )
 }
 
 /**

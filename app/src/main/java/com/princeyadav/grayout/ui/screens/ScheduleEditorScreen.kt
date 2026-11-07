@@ -29,6 +29,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TimePickerDefaults
@@ -53,17 +54,21 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.unit.dp
+import com.princeyadav.grayout.logic.endsNextDay
 import com.princeyadav.grayout.model.formatTime
 import com.princeyadav.grayout.ui.rememberIs24HourFormat
 import com.princeyadav.grayout.ui.components.DayLabels
 import com.princeyadav.grayout.ui.components.GrayoutCard
+import com.princeyadav.grayout.ui.components.SectionLabel
 import com.princeyadav.grayout.ui.components.HapticAction
 import com.princeyadav.grayout.ui.components.SchedulePermissionNotice
 import com.princeyadav.grayout.ui.components.performHaptic
@@ -265,11 +270,8 @@ fun ScheduleEditorScreen(
         if (isEditMode) {
             Spacer(modifier = Modifier.height(dimens.sectionGap))
 
-            Text(
-                text = "Delete schedule",
-                style = typography.bodyMedium,
-                color = if (canDelete) colors.danger else colors.offText,
-                textAlign = TextAlign.Center,
+            val deleteColor = if (canDelete) colors.danger else colors.offText
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .sizeIn(minHeight = 48.dp)
@@ -283,7 +285,17 @@ fun ScheduleEditorScreen(
                         showDeleteConfirm = true
                     }
                     .padding(vertical = 12.dp),
-            )
+                horizontalArrangement = Arrangement.spacedBy(dimens.tightGap, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = null,
+                    tint = deleteColor,
+                    modifier = Modifier.size(dimens.iconSm),
+                )
+                Text(text = "Delete schedule", style = typography.bodyMedium, color = deleteColor)
+            }
         }
 
         Spacer(modifier = Modifier.height(dimens.sectionGap))
@@ -319,11 +331,7 @@ private fun NameCard(
                 .fillMaxWidth()
                 .padding(dimens.cardPad),
         ) {
-            Text(
-                text = "NAME",
-                style = typography.labelSmall,
-                color = colors.textMuted,
-            )
+            SectionLabel("NAME")
 
             Spacer(modifier = Modifier.height(dimens.tightGap))
 
@@ -389,82 +397,104 @@ private fun TimeCard(
                 .fillMaxWidth()
                 .padding(dimens.cardPad),
         ) {
-            Text(
-                text = "TIME RANGE",
-                style = typography.labelSmall,
-                color = colors.textMuted,
-            )
+            SectionLabel("TIME RANGE")
 
             Spacer(modifier = Modifier.height(dimens.sectionGap))
+
+            val start = formatTime(startHour, startMinute, is24Hour)
+            val end = formatTime(endHour, endMinute, is24Hour)
+            val overnight = endsNextDay(startHour, startMinute, endHour, endMinute)
+
+            // Three rows sharing one grid: two equal weight(1f) columns around a minTouch-wide arrow
+            // column, so START, the boxes and "Ends next day" line up and both boxes are the same width.
+            Row(modifier = Modifier.fillMaxWidth()) {
+                TimeLabel("START", Modifier.weight(1f))
+                Spacer(modifier = Modifier.width(dimens.minTouch))
+                TimeLabel("END", Modifier.weight(1f))
+            }
+
+            Spacer(modifier = Modifier.height(dimens.microGap))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "START",
-                        style = typography.labelSmall,
-                        color = colors.textMuted,
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    val start = formatTime(startHour, startMinute, is24Hour)
-                    Text(
-                        text = start,
-                        style = typography.mono,
-                        color = colors.text,
-                        modifier = Modifier
-                            .semantics { contentDescription = "Start time, $start" }
-                            .sizeIn(minHeight = dimens.minTouch)
-                            .clickable(
-                                enabled = enabled,
-                                role = Role.Button,
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) { onStartTimeClick() }
-                            .padding(vertical = 8.dp),
-                    )
-                }
-
+                TimeBox(
+                    time = start,
+                    description = "Start time, $start",
+                    enabled = enabled,
+                    onClick = onStartTimeClick,
+                    modifier = Modifier.weight(1f),
+                )
                 Text(
                     text = "\u2192",
                     style = typography.headingMedium,
-                    color = colors.textDim,
-                    modifier = Modifier.clearAndSetSemantics {},
+                    color = colors.textMuted,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(dimens.minTouch).clearAndSetSemantics {},
                 )
+                TimeBox(
+                    time = end,
+                    description = if (overnight) "End time, $end, next day" else "End time, $end",
+                    enabled = enabled,
+                    onClick = onEndTimeClick,
+                    modifier = Modifier.weight(1f),
+                )
+            }
 
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (overnight) {
+                Spacer(modifier = Modifier.height(dimens.microGap))
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.width(dimens.minTouch))
                     Text(
-                        text = "END",
-                        style = typography.labelSmall,
+                        text = "Ends next day",
+                        style = typography.bodyRegular,
                         color = colors.textMuted,
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    val end = formatTime(endHour, endMinute, is24Hour)
-                    Text(
-                        text = end,
-                        style = typography.mono,
-                        color = colors.text,
-                        modifier = Modifier
-                            .semantics { contentDescription = "End time, $end" }
-                            .sizeIn(minHeight = dimens.minTouch)
-                            .clickable(
-                                enabled = enabled,
-                                role = Role.Button,
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) { onEndTimeClick() }
-                            .padding(vertical = 8.dp),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.weight(1f).clearAndSetSemantics {},
                     )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun TimeLabel(text: String, modifier: Modifier) {
+    Text(
+        text = text,
+        style = GrayoutTheme.typography.labelSmall,
+        color = GrayoutTheme.colors.textMuted,
+        textAlign = TextAlign.Center,
+        modifier = modifier,
+    )
+}
+
+/** An outlined, tappable time. Fills its column, so the start and end boxes are always the same width. */
+@Composable
+private fun TimeBox(time: String, description: String, enabled: Boolean, onClick: () -> Unit, modifier: Modifier) {
+    val colors = GrayoutTheme.colors
+    val dimens = GrayoutTheme.dimens
+    Text(
+        text = time,
+        style = GrayoutTheme.typography.mono,
+        color = colors.text,
+        textAlign = TextAlign.Center,
+        modifier = modifier
+            .semantics { contentDescription = description }
+            .sizeIn(minHeight = dimens.minTouch)
+            .border(1.dp, colors.border, RoundedCornerShape(dimens.radiusSm))
+            .clip(RoundedCornerShape(dimens.radiusSm))
+            .clickable(
+                enabled = enabled,
+                role = Role.Button,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = dimens.cardGap, vertical = dimens.tightGap),
+    )
 }
 
 @Composable
@@ -491,20 +521,14 @@ private fun DaysCard(
                 .fillMaxWidth()
                 .padding(dimens.cardPad),
         ) {
-            Text(
-                text = "REPEAT ON",
-                style = typography.labelSmall,
-                color = colors.textMuted,
-            )
+            SectionLabel("REPEAT ON")
 
             Spacer(modifier = Modifier.height(dimens.sectionGap))
 
-            // Wraps to a second row on narrow screens or large text instead of shrinking targets.
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
-                verticalArrangement = Arrangement.spacedBy(dimens.tightGap),
-            ) {
+            // One row of seven equal cells, so the week never wraps. Each cell is 1/7 of the row wide
+            // (about 43dp on a 392dp phone) and minTouch tall; the cells tile the row, so every tap
+            // lands on a day. The circle shrinks below DayCircleSize only if a cell gets narrower.
+            Row(modifier = Modifier.fillMaxWidth()) {
                 val view = LocalView.current
                 DayLabels.forEach { (day, label) ->
                     val isSelected = day in selectedDays
@@ -513,7 +537,8 @@ private fun DaysCard(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(dimens.minTouch)
+                            .weight(1f)
+                            .height(dimens.minTouch)
                             .toggleable(
                                 value = isSelected,
                                 enabled = enabled,
@@ -529,7 +554,9 @@ private fun DaysCard(
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
-                                .size(40.dp)
+                                .widthIn(max = DayCircleSize)
+                                .fillMaxWidth()
+                                .aspectRatio(1f)
                                 .background(
                                     if (isSelected) colors.text else Color.Transparent,
                                     CircleShape,
@@ -833,3 +860,6 @@ private fun SheetButton(label: String, primary: Boolean = false, onClick: () -> 
         )
     }
 }
+
+/** Largest size of the visible day circle inside its day cell. */
+private val DayCircleSize = 40.dp

@@ -57,6 +57,12 @@ data class GrayoutTypography(
         fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
     ),
+    /** Supporting paragraphs (setup explanation, banner sentence): body size, regular weight. */
+    val bodyRegular: TextStyle = TextStyle(
+        fontFamily = GeistFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+    ),
     val labelSmall: TextStyle = TextStyle(
         fontFamily = GeistFamily,
         fontWeight = FontWeight.Normal,
