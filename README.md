@@ -14,16 +14,16 @@ A personal Android app that enforces grayscale mode to reduce phone addiction.
 ## Screenshots and demo
 
 <p>
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/01-home.png" width="250" alt="Grayout home screen with grayscale enabled, five-minute enforcement, and three app exceptions" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/02-schedule.png" width="250" alt="Creating a weekday grayscale schedule from 9 AM to 5 PM" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/03-exclusions.png" width="250" alt="Searching for Maps and excluding it from grayscale" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/01-home.png" width="250" alt="Grayout home screen with grayscale on, a running weekday schedule on a Today timeline, five-minute automatic restore, and three apps kept in color" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/02-schedule.png" width="250" alt="Schedules list with a Today timeline, a running 9 AM to 5 PM weekday schedule, and an overnight schedule that ends the next day" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/03-exclusions.png" width="250" alt="Kept in color screen with Camera, Maps, and Photos kept in color above the full app list" />
 </p>
 
 https://github.com/user-attachments/assets/5f85c34d-405d-41eb-a71b-f4bc7a790485
 
 [Download the walkthrough (MP4)](https://github.com/Princeyadav05/Grayout/releases/download/v1.2.0/grayout-demo-v1.2.0.mp4)
 
-Captured from v1.2.0 on a OnePlus 9 Pro running Android 16, using sample settings. These captures show the app interface; the phone's display-level grayscale effect is not reproduced in the screenshots or recording.
+Screenshots captured from v1.5.0 on an Android 12 emulator with sample data. The walkthrough was recorded from v1.2.0 on a OnePlus 9 Pro running Android 16, so it shows the earlier interface. These captures show the app interface; the phone's display-level grayscale effect is not reproduced in the screenshots or recording.
 
 ## Requirements
 
