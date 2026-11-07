@@ -1,7 +1,9 @@
 package com.princeyadav.grayout.logic
 
 import com.princeyadav.grayout.model.Schedule
+import com.princeyadav.grayout.model.formatTime
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -37,6 +39,21 @@ class ScheduleDisplayTest {
         val schedules = listOf(schedule(1, "Later", "MON", 14, 15), schedule(2, "Sooner", "MON", 9, 10))
         val line = scheduleLine(schedules, monday0859, utc)
         assertEquals(ScheduleLine(2, "Sooner", LocalDateTime.parse("2026-04-13T09:00"), isActive = false), line)
+    }
+
+    @Test
+    fun overlappingSchedulesAreAllNamedWithTheirEnds() {
+        val schedules = listOf(
+            schedule(1, "Focus", "MON", 9, 11),
+            schedule(2, "Off", "MON", 9, 12, enabled = false),
+            schedule(3, "Night", "SUN", 22, 10), // Sunday's overnight window runs into Monday morning
+        )
+        val active = activeScheduleLines(schedules, Instant.parse("2026-04-13T09:30:00Z"), utc)
+        assertEquals(listOf("Focus", "Night"), active.map { it.name })
+        assertEquals(
+            "Focus until 11:00 AM, Night until 10:00 AM",
+            activeSchedulesText(active.map { it.name to formatTime(it.at.hour, it.at.minute, is24Hour = false) }),
+        )
     }
 
     @Test
@@ -103,5 +120,39 @@ class ScheduleDisplayTest {
     @Test
     fun colorIndexComesFromTheIdAndCycles() {
         assertEquals(listOf(0, 1, 2, 0), (1L..4L).map { scheduleColorIndex(it) })
+    }
+
+    @Test
+    fun overlappingSegmentsGetSeparateLanesAndOthersKeepFullHeight() {
+        val night = DaySegment(3, 0f, 0.3f) // yesterday's overnight window
+        val touching = DaySegment(1, 0.3f, 0.4f) // starts where night ends: no overlap
+        val work = DaySegment(1, 0.875f, 1f)
+        val wind = DaySegment(3, 0.917f, 1f)
+        val third = DaySegment(2, 0.95f, 0.97f)
+        val laned = stripLanes(listOf(wind, third, night, work, touching)).associateBy { it.segment }
+
+        assertEquals(LanedSegment(night, 0, 1), laned[night])
+        assertEquals(LanedSegment(touching, 0, 1), laned[touching])
+        assertEquals(LanedSegment(work, 0, 3), laned[work])
+        assertEquals(LanedSegment(wind, 1, 3), laned[wind])
+        assertEquals(LanedSegment(third, 2, 3), laned[third])
+    }
+
+    @Test
+    fun aLaneIsReusedOnceItsSegmentEnds() {
+        val long = DaySegment(1, 0.1f, 0.9f)
+        val early = DaySegment(2, 0.2f, 0.3f)
+        val late = DaySegment(3, 0.5f, 0.6f)
+        val laned = stripLanes(listOf(long, early, late)).associateBy { it.segment }
+        assertEquals(listOf(0, 1, 1), listOf(long, early, late).map { laned.getValue(it).lane })
+        assertTrue(laned.values.all { it.lanes == 2 })
+    }
+
+    @Test
+    fun `endsNextDay is true only when the end is not after the start`() {
+        assertTrue(endsNextDay(22, 0, 7, 0))
+        assertTrue(endsNextDay(9, 0, 9, 0))
+        assertFalse(endsNextDay(9, 0, 17, 0))
+        assertFalse(endsNextDay(23, 0, 23, 30))
     }
 }

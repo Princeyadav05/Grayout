@@ -1,10 +1,12 @@
 package com.princeyadav.grayout.ui.screens
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -15,19 +17,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.princeyadav.grayout.logic.aboutStatusLine
 import com.princeyadav.grayout.ui.components.AdbCommandSheet
 import com.princeyadav.grayout.ui.components.GrayoutCard
+import com.princeyadav.grayout.ui.components.SectionLabel
 import com.princeyadav.grayout.ui.components.SettingsRow
 import com.princeyadav.grayout.ui.components.StatusValue
-import com.princeyadav.grayout.ui.theme.BrandAccent
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 
 @Composable
 fun SettingsScreen(
+    /** The same grayscale state Home shows, so About never contradicts it. */
+    isGrayscaleOn: Boolean,
     isServiceRunning: Boolean,
+    /** False when the service stops by design: automatic restore is off and no app is kept in color. */
+    isServiceExpected: Boolean,
+    isAnyScheduleEnabled: Boolean,
     versionName: String,
     isAdbPermissionGranted: Boolean,
     isUsageAccessGranted: Boolean,
@@ -52,11 +61,17 @@ fun SettingsScreen(
     ) {
         Spacer(modifier = Modifier.height(dimens.sectionGap))
 
-        Text(
-            text = "Settings",
-            style = typography.headingMedium,
-            color = colors.text,
-        )
+        // Same 48dp header row as Schedules, so the title sits at the same height on every tab.
+        Row(
+            modifier = Modifier.fillMaxWidth().heightIn(min = dimens.minTouch),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Settings",
+                style = typography.headingMedium,
+                color = colors.text,
+            )
+        }
 
         Spacer(modifier = Modifier.height(dimens.sectionGap))
 
@@ -74,13 +89,16 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(dimens.cardGap))
 
-        AboutCard(versionName = versionName, isServiceRunning = isServiceRunning)
+        AboutCard(
+            versionName = versionName,
+            status = aboutStatusLine(isGrayscaleOn, isServiceRunning, isServiceExpected, isAnyScheduleEnabled),
+        )
 
         Spacer(modifier = Modifier.height(dimens.sectionGap))
 
         Text(
             text = "Reduce screen addiction, one shade at a time",
-            style = typography.labelSmall,
+            style = typography.bodyRegular,
             color = colors.textMuted,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
@@ -88,15 +106,6 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(dimens.sectionGap))
     }
-}
-
-@Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = GrayoutTheme.typography.labelSmall,
-        color = BrandAccent.copy(alpha = 0.75f),
-    )
 }
 
 @Composable
@@ -118,7 +127,7 @@ private fun PermissionsCard(
 
     GrayoutCard {
         Column(modifier = Modifier.padding(dimens.cardPad)) {
-            SectionHeader("PERMISSIONS")
+            SectionLabel("PERMISSIONS")
 
             SettingsRow(
                 label = "Grayscale permission",
@@ -198,16 +207,16 @@ private fun PermissionsCard(
 }
 
 @Composable
-private fun AboutCard(versionName: String, isServiceRunning: Boolean) {
+private fun AboutCard(versionName: String, status: String) {
     val dimens = GrayoutTheme.dimens
 
     GrayoutCard {
         Column(modifier = Modifier.padding(dimens.cardPad)) {
-            SectionHeader("ABOUT")
+            SectionLabel("ABOUT")
 
             SettingsRow(
                 label = "Grayout $versionName",
-                subtitle = if (isServiceRunning) "Running in the background" else "Not running",
+                subtitle = status,
             )
         }
     }

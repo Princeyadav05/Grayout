@@ -8,16 +8,17 @@ val Bg = Color(0xFF0B0B0B)
 val Surface = Color(0xFF161616)
 val Border = Color(0xFF2A2A2A)
 val BorderActive = Color(0xFF555555)
+/** Darkest neutral gray at 3:1 on both surface (3.01) and bg (3.28): outlines of unselected controls. */
+val ControlOutline = Color(0xFF636363)
 val TextPrimary = Color(0xFFE8E8E8)
 val TextMuted = Color(0xFF999999)
-val TextDim = Color(0xFF4A4A4A)
 val Off = Color(0xFF3A3A3A)
-val OffText = Color(0xFF666666)
+val OffText = Color(0xFF6B6B6B)
 val Danger = Color(0xFFFF6B6B)
 val Success = Color(0xFF6BE8A0)
 val Warning = Color(0xFFFFC857)
-val ScheduleTeal = Color(0xFF5FD4C4)
-val SchedulePeach = Color(0xFFF4A78B)
+val ScheduleTeal = Color(0xFF238174)
+val SchedulePeach = Color(0xFFF8C6B4)
 
 /**
  * Brand accent as a raw ARGB int. Single source of truth shared by the Compose
@@ -35,9 +36,9 @@ data class GrayoutColors(
     val surface: Color = Surface,
     val border: Color = Border,
     val borderActive: Color = BorderActive,
+    val controlOutline: Color = ControlOutline,
     val text: Color = TextPrimary,
     val textMuted: Color = TextMuted,
-    val textDim: Color = TextDim,
     val off: Color = Off,
     val offText: Color = OffText,
     val danger: Color = Danger,

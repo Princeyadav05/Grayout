@@ -52,7 +52,7 @@ class SchedulePermissionTest {
     fun savingEnabledScheduleWithoutPermissionKeepsDraftAndExplainsSetup() {
         ActivityScenario.launch(MainActivity::class.java).use {
             composeRule.onNodeWithText("Schedules").performClick()
-            composeRule.onNodeWithText("+ Add").performClick()
+            composeRule.onNodeWithText("Add").performClick()
             composeRule.onNode(hasSetTextAction()).performTextReplacement("My first schedule")
             composeRule.onNodeWithText("Every day").performScrollTo().performClick()
             composeRule.onNodeWithText("Save").performScrollTo().performClick()
@@ -94,7 +94,7 @@ class SchedulePermissionTest {
     fun saveAsOffPreservesDraftWithoutPermission() {
         ActivityScenario.launch(MainActivity::class.java).use {
             composeRule.onNodeWithText("Schedules").performClick()
-            composeRule.onNodeWithText("+ Add").performClick()
+            composeRule.onNodeWithText("Add").performClick()
             composeRule.onNode(hasSetTextAction()).performTextReplacement("My off schedule")
             composeRule.onNodeWithText("Every day").performScrollTo().performClick()
             composeRule.onNodeWithText("Save as off").performScrollTo().performClick()

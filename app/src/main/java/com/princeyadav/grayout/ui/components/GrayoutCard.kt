@@ -38,7 +38,7 @@ fun GrayoutCard(
         label = "cardBorder",
     )
     val borderWidth by animateDpAsState(
-        targetValue = if (isActive) 2.dp else 1.dp,
+        targetValue = if (isActive) dimens.borderThick else 1.dp,
         animationSpec = tween(
             durationMillis = GrayoutMotion.Slow,
             easing = GrayoutMotion.Easing,

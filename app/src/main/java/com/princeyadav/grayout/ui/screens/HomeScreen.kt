@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,21 +52,29 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.R
+import com.princeyadav.grayout.logic.TodayState
 import com.princeyadav.grayout.service.EnforcementPrefs
+import com.princeyadav.grayout.ui.components.Chevron
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
 import com.princeyadav.grayout.ui.components.HapticAction
+import com.princeyadav.grayout.ui.components.SectionLabel
+import com.princeyadav.grayout.ui.components.TodayStrip
 import com.princeyadav.grayout.ui.components.performHaptic
 import com.princeyadav.grayout.ui.theme.BrandAccent
+import com.princeyadav.grayout.ui.rememberIs24HourFormat
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
+import com.princeyadav.grayout.viewmodel.HomeActiveSchedule
 import com.princeyadav.grayout.viewmodel.HomeScheduleLine
 
 @Composable
-fun HomeScreen(
+internal fun HomeScreen(
     isGrayscaleOn: Boolean,
     enforcementInterval: Int,
     excludedAppCount: Int,
@@ -75,6 +84,7 @@ fun HomeScreen(
     onNavigateToExclusions: () -> Unit,
     onNavigateToSchedules: () -> Unit,
     scheduleLine: HomeScheduleLine?,
+    today: TodayState?,
     excludedAppIcons: List<Bitmap>,
     excludedOverflowCount: Int,
     isPermissionGranted: Boolean,
@@ -105,6 +115,7 @@ fun HomeScreen(
             StatusCard(
                 isGrayscaleOn = isGrayscaleOn,
                 scheduleLine = scheduleLine,
+                today = today,
                 toggleFailedTarget = toggleFailedTarget,
                 onToggle = onToggle,
                 onRetryToggle = onRetryToggle,
@@ -121,6 +132,7 @@ fun HomeScreen(
             onIntervalChange = onEnforcementIntervalChange,
             onlyDuringSchedules = onlyDuringSchedules,
             onOnlyDuringSchedulesChange = onOnlyDuringSchedulesChange,
+            isPermissionGranted = isPermissionGranted,
         )
 
         if (showNotificationPrompt) {
@@ -135,6 +147,7 @@ fun HomeScreen(
             isUsageAccessGranted = isUsageAccessGranted,
             excludedAppIcons = excludedAppIcons,
             excludedOverflowCount = excludedOverflowCount,
+            isPermissionGranted = isPermissionGranted,
             onClick = onNavigateToExclusions,
             onFixUsageAccess = onFixUsageAccess,
         )
@@ -152,12 +165,12 @@ private fun AppHeader() {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
-        modifier = Modifier.padding(vertical = 12.dp),
+        modifier = Modifier.padding(vertical = dimens.cardGap),
     ) {
         Image(
             painter = painterResource(R.drawable.ic_grayout_foreground),
             contentDescription = null,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(dimens.iconLg),
             colorFilter = ColorFilter.tint(BrandAccent),
         )
 
@@ -169,15 +182,6 @@ private fun AppHeader() {
     }
 }
 
-@Composable
-private fun Eyebrow(text: String) {
-    Text(
-        text = text,
-        style = GrayoutTheme.typography.labelSmall,
-        color = BrandAccent.copy(alpha = 0.75f),
-    )
-}
-
 /** Replaces the status card until the grayscale permission is granted, so the switch never fails silently. */
 @Composable
 private fun SetupCard(onShowSetup: () -> Unit) {
@@ -187,7 +191,7 @@ private fun SetupCard(onShowSetup: () -> Unit) {
 
     GrayoutCard(isActive = true, wash = true) {
         Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
-            Eyebrow("SETUP")
+            SectionLabel("SETUP")
             Spacer(modifier = Modifier.height(dimens.tightGap))
             Text(
                 text = "One-time setup",
@@ -195,13 +199,16 @@ private fun SetupCard(onShowSetup: () -> Unit) {
                 color = colors.text,
             )
             Spacer(modifier = Modifier.height(dimens.tightGap))
+            // Grayscale may already be on through system settings, so the last sentence names what setup
+            // unlocks, never the current state.
             Text(
-                text = "Grayout needs one permission that only a computer can grant. It takes about 2 minutes, once.",
-                style = typography.bodyMedium,
+                text = "Grayout needs one permission that only a computer can grant. It takes about 2 minutes. " +
+                    "Until then, Grayout can't switch grayscale.",
+                style = typography.bodyRegular,
                 color = colors.textMuted,
             )
             Spacer(modifier = Modifier.height(dimens.sectionGap))
-            PillButton(label = "Show the command", primary = true, onClick = onShowSetup)
+            PillButton(label = "Start setup", primary = true, onClick = onShowSetup)
         }
     }
 }
@@ -210,6 +217,7 @@ private fun SetupCard(onShowSetup: () -> Unit) {
 private fun StatusCard(
     isGrayscaleOn: Boolean,
     scheduleLine: HomeScheduleLine?,
+    today: TodayState?,
     toggleFailedTarget: Boolean?,
     onToggle: () -> Unit,
     onRetryToggle: () -> Unit,
@@ -222,7 +230,7 @@ private fun StatusCard(
 
     GrayoutCard(isActive = isGrayscaleOn, wash = true) {
         Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
-            Eyebrow("STATUS")
+            SectionLabel("STATUS")
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -255,47 +263,108 @@ private fun StatusCard(
                 modifier = Modifier.padding(vertical = dimens.cardGap),
             )
 
-            ScheduleRow(line = scheduleLine, onClick = onScheduleClick)
+            ScheduleRow(line = scheduleLine, today = today, onClick = onScheduleClick)
         }
     }
 }
 
+/**
+ * Opens Schedules. One line per running schedule, each with its own color dot and end, so overlapping
+ * schedules stay apart; the chevron always shows. Under it, today's strip when a schedule runs today.
+ */
 @Composable
-private fun ScheduleRow(line: HomeScheduleLine?, onClick: () -> Unit) {
+private fun ScheduleRow(line: HomeScheduleLine?, today: TodayState?, onClick: () -> Unit) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
-
-    val text = when {
-        line == null -> "No upcoming schedules"
-        line.isActive -> "${line.name}, until ${line.time}"
-        else -> "Next: ${line.name}, ${line.dayPrefix?.let { "$it " }.orEmpty()}${line.time}"
+    val running = if (line?.isActive == true) {
+        line.active.ifEmpty { listOf(HomeActiveSchedule(line.name, line.colorIndex, line.time)) }
+    } else {
+        emptyList()
     }
-
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = dimens.minTouch)
             .clickable(onClickLabel = "Open schedules", role = Role.Button, onClick = onClick),
+    ) {
+        // Caption, dots and lines share one left edge. "until <end>" already says the schedule runs now,
+        // so the caption has no Now pill; the chevron ends the caption row.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = when {
+                    running.size > 1 -> "Active schedules"
+                    running.size == 1 -> "Active schedule"
+                    else -> "Schedule"
+                },
+                style = typography.caption,
+                color = colors.textMuted,
+                modifier = Modifier.weight(1f),
+            )
+            Chevron()
+        }
+        when {
+            running.isNotEmpty() -> running.forEach { schedule ->
+                RunningScheduleLine(schedule.name, schedule.end, schedule.colorIndex, typography.bodyMedium)
+            }
+            line != null -> ScheduleLineRow(colorIndex = line.colorIndex) {
+                Text(
+                    text = "Next: ${line.name}, ${line.dayPrefix?.let { "$it " }.orEmpty()}${line.time}",
+                    style = typography.bodyMedium,
+                    color = colors.text,
+                )
+            }
+            else -> Text(text = "No upcoming schedules", style = typography.bodyMedium, color = colors.text)
+        }
+        // Only when a schedule runs today; the strip shows windows, so no sentence repeats them.
+        if (today != null && today.segments.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(dimens.cardGap))
+            TodayStrip(
+                today = today,
+                is24Hour = rememberIs24HourFormat(),
+                modifier = Modifier.clearAndSetSemantics {},
+            )
+        }
+    }
+}
+
+/** A schedule color dot followed by one line of text. */
+@Composable
+private fun ScheduleLineRow(colorIndex: Int, content: @Composable RowScope.() -> Unit) {
+    val dimens = GrayoutTheme.dimens
+    Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
     ) {
-        if (line != null) {
-            Box(
-                modifier = Modifier
-                    .size(dimens.dotSize)
-                    .background(colors.schedulePalette[line.colorIndex], CircleShape),
-            )
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = "Schedule", style = typography.labelSmall, color = colors.textMuted)
-            Text(text = text, style = typography.bodyMedium, color = colors.text)
-        }
-        if (line?.isActive == true) {
-            NowPill()
-        } else {
-            Chevron()
-        }
+        Box(
+            modifier = Modifier
+                .size(dimens.dotSize)
+                .background(GrayoutTheme.colors.schedulePalette[colorIndex], CircleShape),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(dimens.microGap), content = content)
+    }
+}
+
+/**
+ * One running schedule: color dot, name, "until <end>". Shared by Home's Status card and the Schedules
+ * Today card. The name may ellipsize; the end time never wraps or hides.
+ */
+@Composable
+internal fun RunningScheduleLine(name: String, end: String, colorIndex: Int, style: TextStyle) {
+    val colors = GrayoutTheme.colors
+    ScheduleLineRow(colorIndex = colorIndex) {
+        Text(
+            text = name,
+            style = style,
+            color = colors.text,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        Text(text = "until $end", style = style, color = colors.text, softWrap = false)
     }
 }
 
@@ -312,16 +381,6 @@ internal fun NowPill() {
         modifier = Modifier
             .background(colors.accent, RoundedCornerShape(dimens.radiusFull))
             .padding(horizontal = dimens.tightGap, vertical = dimens.microGap),
-    )
-}
-
-@Composable
-private fun Chevron() {
-    Text(
-        text = "›",
-        style = GrayoutTheme.typography.headingMedium,
-        color = GrayoutTheme.colors.textDim,
-        modifier = Modifier.clearAndSetSemantics {},
     )
 }
 
@@ -363,6 +422,7 @@ private fun RestoreCard(
     onIntervalChange: (Int) -> Unit,
     onlyDuringSchedules: Boolean,
     onOnlyDuringSchedulesChange: (Boolean) -> Unit,
+    isPermissionGranted: Boolean,
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
@@ -371,28 +431,35 @@ private fun RestoreCard(
 
     GrayoutCard {
         Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
-            Eyebrow("AUTOMATIC RESTORE")
+            SectionLabel("AUTOMATIC RESTORE")
+            // Value and helper sit together, like the Kept in color card; the pill centers on both.
+            Spacer(modifier = Modifier.height(dimens.tightGap))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
             ) {
-                Text(
-                    text = intervalLabel(enforcementInterval),
-                    style = typography.mono,
-                    color = colors.text,
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = intervalLabel(enforcementInterval),
+                        // Mono only for a number ("5 min"); the word "Off" uses the title font.
+                        style = if (enforcementInterval <= 0) typography.titleMedium else typography.mono,
+                        color = colors.text,
+                    )
+                    Text(
+                        text = when {
+                            // Before setup nothing can turn grayscale on yet, so no line may imply it already works.
+                            !isPermissionGranted -> "Takes effect after setup."
+                            enforcementInterval <= 0 -> "Schedules still apply."
+                            onlyDuringSchedules -> "Only during schedules."
+                            else -> "Turns grayscale back on."
+                        },
+                        style = typography.bodyRegular,
+                        color = colors.textMuted,
+                    )
+                }
                 PillButton(label = "Change", onClick = { showSheet = true })
             }
-            Text(
-                text = when {
-                    enforcementInterval <= 0 -> "Grayscale stays however you leave it."
-                    onlyDuringSchedules -> "Turns grayscale back on during schedules."
-                    else -> "Turns grayscale back on if you turn it off."
-                },
-                style = typography.labelSmall,
-                color = colors.textMuted,
-            )
         }
     }
 
@@ -465,7 +532,7 @@ private fun RestoreCard(
                         Text(text = "Only during schedules", style = typography.bodyMedium, color = colors.text)
                         Text(
                             text = "Outside a schedule, off stays off.",
-                            style = typography.labelSmall,
+                            style = typography.bodyRegular,
                             color = colors.textMuted,
                         )
                     }
@@ -513,6 +580,7 @@ private fun KeptInColorCard(
     isUsageAccessGranted: Boolean,
     excludedAppIcons: List<Bitmap>,
     excludedOverflowCount: Int,
+    isPermissionGranted: Boolean,
     onClick: () -> Unit,
     onFixUsageAccess: () -> Unit,
 ) {
@@ -526,19 +594,22 @@ private fun KeptInColorCard(
             .clickable(onClickLabel = "Choose apps", onClick = onClick),
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
-            Eyebrow("KEPT IN COLOR")
+            SectionLabel("KEPT IN COLOR")
+            // No minTouch row here: the whole card is the tap target, so the padding stays even top and bottom.
+            Spacer(modifier = Modifier.height(dimens.tightGap))
             Row(
-                modifier = Modifier.fillMaxWidth().heightIn(min = dimens.minTouch),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
             ) {
                 Text(
                     text = when (count) {
-                        0 -> "No apps yet"
+                        0 -> "None yet"
                         1 -> "1 app"
                         else -> "$count apps"
                     },
-                    style = typography.bodyMedium,
+                    // The same value style as the restore card's "Off".
+                    style = typography.titleMedium,
                     color = colors.text,
                     modifier = Modifier.weight(1f),
                 )
@@ -547,8 +618,8 @@ private fun KeptInColorCard(
                         bitmap = remember(icon) { icon.asImageBitmap() },
                         contentDescription = null,
                         modifier = Modifier
-                            .size(20.dp)
-                            .clip(RoundedCornerShape(4.dp)),
+                            .size(dimens.iconMd)
+                            .clip(RoundedCornerShape(dimens.radiusXs)),
                     )
                 }
                 if (excludedOverflowCount > 0) {
@@ -559,6 +630,14 @@ private fun KeptInColorCard(
                     )
                 }
                 Chevron()
+            }
+
+            if (count == 0) {
+                Text(
+                    text = if (isPermissionGranted) "Grayscale applies to every app." else "Takes effect after setup.",
+                    style = typography.bodyRegular,
+                    color = colors.textMuted,
+                )
             }
 
             if (count > 0 && !isUsageAccessGranted) {
@@ -604,8 +683,9 @@ internal fun TextAction(label: String, onClick: () -> Unit) {
     }
 }
 
+/** Outlined (or filled when [primary]) pill action, like Home's "Change". Shared with the exclusions banner. */
 @Composable
-private fun PillButton(label: String, primary: Boolean = false, onClick: () -> Unit) {
+internal fun PillButton(label: String, primary: Boolean = false, onClick: () -> Unit) {
     val colors = GrayoutTheme.colors
     val dimens = GrayoutTheme.dimens
     val shape = RoundedCornerShape(dimens.radiusFull)
@@ -622,7 +702,7 @@ private fun PillButton(label: String, primary: Boolean = false, onClick: () -> U
             modifier = Modifier
                 .then(
                     if (primary) Modifier.background(colors.text, shape)
-                    else Modifier.border(1.dp, colors.borderActive, shape),
+                    else Modifier.border(1.dp, colors.controlOutline, shape),
                 )
                 .padding(horizontal = dimens.sectionGap, vertical = dimens.tightGap),
         )

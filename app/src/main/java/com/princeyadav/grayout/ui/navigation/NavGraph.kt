@@ -41,6 +41,7 @@ import com.princeyadav.grayout.service.ExclusionPrefs
 import com.princeyadav.grayout.service.GrayscaleManager
 import com.princeyadav.grayout.service.GrayoutService
 import com.princeyadav.grayout.service.UsageAccess
+import com.princeyadav.grayout.service.shouldServiceRun
 import com.princeyadav.grayout.ui.components.AdbCommandSheet
 import com.princeyadav.grayout.ui.rememberSecureSettingsPermission
 import com.princeyadav.grayout.ui.systemTimeChanges
@@ -56,6 +57,7 @@ import com.princeyadav.grayout.viewmodel.ScheduleEditorViewModel
 import com.princeyadav.grayout.viewmodel.ScheduleEditorViewModelFactory
 import com.princeyadav.grayout.viewmodel.ScheduleViewModel
 import com.princeyadav.grayout.viewmodel.ScheduleViewModelFactory
+import kotlinx.coroutines.flow.map
 
 /**
  * The installed APK's versionName (committed in app/build.gradle.kts),
@@ -154,6 +156,7 @@ fun GrayoutNavGraph(
             val db = remember { GrayoutDatabase.getInstance(context) }
             val scheduleRepository = remember { ScheduleRepository(db.scheduleDao()) }
             val scheduleLine by homeViewModel.scheduleLine.collectAsStateWithLifecycle()
+            val homeToday by homeViewModel.today.collectAsStateWithLifecycle()
             val excludedAppIcons by homeViewModel.excludedAppIcons.collectAsStateWithLifecycle()
             val excludedOverflowCount by homeViewModel.excludedOverflowCount.collectAsStateWithLifecycle()
 
@@ -203,6 +206,7 @@ fun GrayoutNavGraph(
                     }
                 },
                 scheduleLine = scheduleLine,
+                today = homeToday,
                 excludedAppIcons = excludedAppIcons,
                 excludedOverflowCount = excludedOverflowCount,
                 isPermissionGranted = isPermissionGrantedHome,
@@ -362,19 +366,35 @@ fun GrayoutNavGraph(
                 mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled())
             }
             val isServiceRunning by homeViewModel.isServiceRunning.collectAsStateWithLifecycle()
+            val isGrayscaleOnSettings by homeViewModel.isGrayscaleOn.collectAsStateWithLifecycle()
+            val exclusionPrefsSettings = remember {
+                ExclusionPrefs(
+                    context.getSharedPreferences(EnforcementPrefs.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                )
+            }
+            var excludedCountSettings by remember { mutableIntStateOf(exclusionPrefsSettings.getExcludedCount()) }
             val versionName = remember(context) { installedVersionName(context) }
             val isAdbPermissionGranted by rememberSecureSettingsPermission()
+            val isAnyScheduleEnabled by remember(context) {
+                ScheduleRepository(GrayoutDatabase.getInstance(context).scheduleDao())
+                    .getAllSchedules()
+                    .map { schedules -> schedules.any { it.isEnabled } }
+            }.collectAsStateWithLifecycle(initialValue = false)
 
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                     isUsageAccessGranted = UsageAccess.isGranted(context)
                     needsExactAlarms = exactAlarmAccessNeeded(context)
                     notificationsOn = NotificationManagerCompat.from(context).areNotificationsEnabled()
+                    excludedCountSettings = exclusionPrefsSettings.getExcludedCount()
                 }
             }
 
             SettingsScreen(
+                isGrayscaleOn = isGrayscaleOnSettings,
                 isServiceRunning = isServiceRunning,
+                isServiceExpected = shouldServiceRun(enforcementInterval, excludedCountSettings),
+                isAnyScheduleEnabled = isAnyScheduleEnabled,
                 versionName = versionName,
                 isAdbPermissionGranted = isAdbPermissionGranted,
                 isUsageAccessGranted = isUsageAccessGranted,

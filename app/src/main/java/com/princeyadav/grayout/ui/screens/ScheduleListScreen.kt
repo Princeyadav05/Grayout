@@ -1,8 +1,6 @@
 package com.princeyadav.grayout.ui.screens
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.HorizontalDivider
@@ -28,8 +27,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -42,7 +39,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.logic.TodayState
+import com.princeyadav.grayout.logic.activeSchedulesText
 import com.princeyadav.grayout.logic.daysInWords
+import com.princeyadav.grayout.logic.endsNextDay
 import com.princeyadav.grayout.logic.scheduleColorIndex
 import com.princeyadav.grayout.model.Schedule
 import com.princeyadav.grayout.model.daysOfWeekList
@@ -50,6 +49,8 @@ import com.princeyadav.grayout.model.formatTime
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
 import com.princeyadav.grayout.ui.components.HapticAction
+import com.princeyadav.grayout.ui.components.SectionLabel
+import com.princeyadav.grayout.ui.components.TodayStrip
 import com.princeyadav.grayout.ui.components.performHaptic
 import com.princeyadav.grayout.ui.rememberIs24HourFormat
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
@@ -101,14 +102,25 @@ internal fun ScheduleListScreen(
                         .clip(RoundedCornerShape(dimens.radiusFull))
                         .clickable(role = Role.Button, onClick = onAddSchedule),
                 ) {
-                    Text(
-                        text = "+ Add",
-                        style = typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
-                        color = colors.bg,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(dimens.microGap),
                         modifier = Modifier
                             .background(colors.text, RoundedCornerShape(dimens.radiusFull))
                             .padding(horizontal = dimens.sectionGap, vertical = dimens.tightGap),
-                    )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = null,
+                            tint = colors.bg,
+                            modifier = Modifier.size(dimens.iconSm),
+                        )
+                        Text(
+                            text = "Add",
+                            style = typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
+                            color = colors.bg,
+                        )
+                    }
                 }
             }
 
@@ -133,7 +145,7 @@ internal fun ScheduleListScreen(
                         )
                         Spacer(modifier = Modifier.height(dimens.tightGap))
                         Text(
-                            text = "Tap + Add to turn grayscale on at set times",
+                            text = "Tap Add to turn grayscale on at set times",
                             style = typography.bodyMedium,
                             color = colors.textMuted,
                             textAlign = TextAlign.Center,
@@ -145,7 +157,7 @@ internal fun ScheduleListScreen(
         } else {
             if (today != null) {
                 item {
-                    TodayCard(today = today, schedules = schedules, is24Hour = is24Hour, isPermissionGranted = isPermissionGranted)
+                    TodayCard(today = today, is24Hour = is24Hour, isPermissionGranted = isPermissionGranted)
                     Spacer(modifier = Modifier.height(dimens.cardGap))
                 }
             }
@@ -179,58 +191,44 @@ internal fun ScheduleListScreen(
     }
 }
 
-/** A 24-hour strip of today's windows in schedule colors, a now marker, and one sentence. */
+/** The Today strip, then one line per running schedule (like Home), or one sentence when none runs. */
 @Composable
-private fun TodayCard(today: TodayState, schedules: List<Schedule>, is24Hour: Boolean, isPermissionGranted: Boolean) {
+private fun TodayCard(today: TodayState, is24Hour: Boolean, isPermissionGranted: Boolean) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
     val line = today.line
+    val running = if (isPermissionGranted) today.active else emptyList()
     val sentence = when {
         !isPermissionGranted -> "Schedules need the grayscale permission to run"
         line == null -> "Nothing scheduled"
-        line.isActive -> "${line.name} is on until ${formatTime(line.at.hour, line.at.minute, is24Hour)}"
+        running.isNotEmpty() -> "On now: " + activeSchedulesText(
+            running.map { it.name to formatTime(it.at.hour, it.at.minute, is24Hour) },
+        )
         line.at.toLocalDate() == today.date -> "Next: ${line.name} at ${formatTime(line.at.hour, line.at.minute, is24Hour)}"
         else -> "Nothing else scheduled today"
     }
-    val idToColor = schedules.associate { it.id to colors.schedulePalette[scheduleColorIndex(it.id)] }
 
     GrayoutCard(
         modifier = Modifier.clearAndSetSemantics { contentDescription = "Today. $sentence" },
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
-            Text(text = "Today", style = typography.labelSmall, color = colors.textMuted)
+            SectionLabel("Today")
             Spacer(modifier = Modifier.height(dimens.tightGap))
-            Canvas(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(dimens.stripHeight)
-                    .clip(RoundedCornerShape(dimens.radiusSm))
-                    .background(colors.bg)
-                    .border(1.dp, colors.border, RoundedCornerShape(dimens.radiusSm)),
-            ) {
-                today.segments.forEach { segment ->
-                    val color = idToColor[segment.scheduleId] ?: return@forEach
-                    drawRect(
-                        color = color,
-                        topLeft = Offset(segment.start * size.width, 0f),
-                        size = Size((segment.end - segment.start) * size.width, size.height),
+            TodayStrip(today = today, is24Hour = is24Hour)
+            Spacer(modifier = Modifier.height(dimens.tightGap))
+            if (running.isEmpty()) {
+                Text(text = sentence, style = typography.bodyRegular, color = colors.text)
+            } else {
+                running.forEach {
+                    RunningScheduleLine(
+                        name = it.name,
+                        end = formatTime(it.at.hour, it.at.minute, is24Hour),
+                        colorIndex = scheduleColorIndex(it.scheduleId),
+                        style = typography.bodyRegular,
                     )
                 }
-                val markerWidth = 2.dp.toPx()
-                drawRect(
-                    color = colors.text,
-                    topLeft = Offset(today.now * size.width - markerWidth / 2, 0f),
-                    size = Size(markerWidth, size.height),
-                )
             }
-            Spacer(modifier = Modifier.height(dimens.microGap))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                val marks = if (is24Hour) listOf("00", "06", "12", "18", "24") else listOf("12a", "6a", "12p", "6p", "12a")
-                marks.forEach { Text(text = it, style = typography.labelXSmall, color = colors.textMuted) }
-            }
-            Spacer(modifier = Modifier.height(dimens.tightGap))
-            Text(text = sentence, style = typography.bodyMedium, color = colors.text)
         }
     }
 }
@@ -252,8 +250,13 @@ private fun ScheduleRow(
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
     val view = LocalView.current
+    val overnight = endsNextDay(
+        schedule.startTimeHour, schedule.startTimeMinute, schedule.endTimeHour, schedule.endTimeMinute,
+    )
     val times = "${formatTime(schedule.startTimeHour, schedule.startTimeMinute, is24Hour)} → " +
         formatTime(schedule.endTimeHour, schedule.endTimeMinute, is24Hour)
+    // An overnight end goes on the repeat line, so the time line holds only the two times.
+    val days = daysInWords(schedule.daysOfWeekList) + if (overnight) " · ends next day" else ""
 
     Row(
         modifier = Modifier
@@ -281,11 +284,8 @@ private fun ScheduleRow(
                 )
                 if (isFiringNow) NowPill()
             }
-            Text(
-                text = "$times · ${daysInWords(schedule.daysOfWeekList)}",
-                style = typography.monoSmall,
-                color = colors.textMuted,
-            )
+            Text(text = times, style = typography.monoSmall, color = colors.text)
+            Text(text = days, style = typography.caption, color = colors.textMuted)
             when {
                 error != null -> ProblemLine(Icons.Filled.Warning, error, colors.warning, live = true)
                 needsPermission -> ProblemLine(
@@ -327,7 +327,7 @@ private fun ProblemLine(
         Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(dimens.iconSm))
         Text(
             text = text,
-            style = GrayoutTheme.typography.labelSmall,
+            style = GrayoutTheme.typography.bodyRegular,
             color = color,
             modifier = Modifier.weight(1f, fill = false),
         )

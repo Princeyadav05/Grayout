@@ -5,9 +5,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.princeyadav.grayout.data.ScheduleRepository
+import com.princeyadav.grayout.logic.activeScheduleLines
 import com.princeyadav.grayout.logic.nextScheduleLineChange
 import com.princeyadav.grayout.logic.scheduleColorIndex
 import com.princeyadav.grayout.logic.scheduleLine
+import com.princeyadav.grayout.logic.TodayState
+import com.princeyadav.grayout.logic.todayState
 import com.princeyadav.grayout.model.formatTime
 import com.princeyadav.grayout.service.EnforcementPrefs
 import com.princeyadav.grayout.service.ExclusionPrefs
@@ -29,6 +32,7 @@ import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.Duration
 import java.time.format.TextStyle
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 class HomeViewModel(
@@ -54,6 +58,10 @@ class HomeViewModel(
     /** The schedule line on Home's status card; null when nothing is running or upcoming. */
     private val _scheduleLine = MutableStateFlow<HomeScheduleLine?>(null)
     val scheduleLine: StateFlow<HomeScheduleLine?> = _scheduleLine.asStateFlow()
+
+    /** Today's windows for the Status card strip; refreshed every minute while Home is resumed. */
+    private val _today = MutableStateFlow<TodayState?>(null)
+    internal val today: StateFlow<TodayState?> = _today.asStateFlow()
 
     private val _excludedAppIcons = MutableStateFlow<List<Bitmap>>(emptyList())
     val excludedAppIcons: StateFlow<List<Bitmap>> = _excludedAppIcons.asStateFlow()
@@ -174,36 +182,55 @@ class HomeViewModel(
                 val reading = clock()
                 val now = reading.instant()
                 val zone = reading.zone
+                val is24Hour = is24HourFormat()
                 _scheduleLine.value = scheduleLine(schedules, now, zone)?.let { line ->
                     val today = now.atZone(zone).toLocalDate()
                     HomeScheduleLine(
                         name = line.name,
                         colorIndex = scheduleColorIndex(line.scheduleId),
-                        time = formatTime(line.at.hour, line.at.minute, is24HourFormat()),
+                        time = formatTime(line.at.hour, line.at.minute, is24Hour),
                         isActive = line.isActive,
                         dayPrefix = if (!line.isActive && line.at.toLocalDate() != today) {
                             line.at.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
                         } else {
                             null
                         },
+                        active = activeScheduleLines(schedules, now, zone).map {
+                            HomeActiveSchedule(
+                                name = it.name,
+                                colorIndex = scheduleColorIndex(it.scheduleId),
+                                end = formatTime(it.at.hour, it.at.minute, is24Hour),
+                            )
+                        },
                     )
                 }
-                val next = nextScheduleLineChange(schedules, now, zone) ?: break
-                delay(Duration.between(now, next).toMillis().coerceAtLeast(1L))
+                _today.value = todayState(schedules, now, zone)
+                // The strip's now marker and date move every minute; schedule boundaries can come sooner.
+                val nextMinute = now.truncatedTo(ChronoUnit.MINUTES).plus(1, ChronoUnit.MINUTES)
+                val nextBoundary = nextScheduleLineChange(schedules, now, zone)
+                val wake = if (nextBoundary != null && nextBoundary.isBefore(nextMinute)) nextBoundary else nextMinute
+                delay(Duration.between(now, wake).toMillis().coerceAtLeast(1L))
             }
         }
     }
 
 }
 
-/** [time] is the end when [isActive], else the next start; [dayPrefix] ("Tue") when not today. */
+/**
+ * [time] is the end when [isActive], else the next start; [dayPrefix] ("Tue") when not today.
+ * [active] is every running schedule; more than one when windows overlap.
+ */
 data class HomeScheduleLine(
     val name: String,
     val colorIndex: Int,
     val time: String,
     val isActive: Boolean,
     val dayPrefix: String?,
+    val active: List<HomeActiveSchedule> = emptyList(),
 )
+
+/** One running schedule on Home: its name, palette index and formatted configured end. */
+data class HomeActiveSchedule(val name: String, val colorIndex: Int, val end: String)
 
 class HomeViewModelFactory(
     private val grayscaleManager: GrayscaleController,

@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.indication
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,11 +27,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarData
 import androidx.compose.material3.SnackbarDuration
@@ -38,6 +42,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -54,8 +59,10 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -64,8 +71,8 @@ import com.princeyadav.grayout.model.AppInfo
 import com.princeyadav.grayout.ui.components.GrayoutCard
 import com.princeyadav.grayout.ui.components.GrayoutToggle
 import com.princeyadav.grayout.ui.components.HapticAction
+import com.princeyadav.grayout.ui.components.SectionLabel
 import com.princeyadav.grayout.ui.components.performHaptic
-import com.princeyadav.grayout.ui.theme.BrandAccent
 import com.princeyadav.grayout.ui.theme.GrayoutMotion
 import com.princeyadav.grayout.ui.theme.GrayoutTheme
 import com.princeyadav.grayout.viewmodel.BulkExclusion
@@ -100,7 +107,7 @@ fun ExclusionListScreen(
         val op = pendingUndo ?: return@LaunchedEffect
         val count = op.packages.size
         val result = snackbarHostState.showSnackbar(
-            message = if (count == 1) "1 app excluded" else "$count apps excluded",
+            message = if (count == 1) "1 app kept in color" else "$count apps kept in color",
             actionLabel = "Undo",
             duration = SnackbarDuration.Short,
         )
@@ -125,8 +132,8 @@ fun ExclusionListScreen(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                            .size(48.dp)
+                            .sizeIn(minWidth = dimens.minTouch, minHeight = dimens.minTouch)
+                            .size(dimens.minTouch)
                             .background(colors.surface, RoundedCornerShape(dimens.radiusFull))
                             .border(1.dp, colors.border, RoundedCornerShape(dimens.radiusFull))
                             .clip(RoundedCornerShape(dimens.radiusFull))
@@ -139,14 +146,14 @@ fun ExclusionListScreen(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
                             tint = colors.textMuted,
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(dimens.iconMd),
                         )
                     }
 
                     Spacer(modifier = Modifier.width(dimens.cardGap))
 
                     Text(
-                        text = "Excluded Apps",
+                        text = "Kept in color",
                         style = typography.headingMedium,
                         color = colors.text,
                     )
@@ -158,49 +165,37 @@ fun ExclusionListScreen(
             if (!isUsageAccessGranted) {
                 item {
                     GrayoutCard {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    colors.danger.copy(alpha = 0.1f),
-                                    RoundedCornerShape(dimens.radius),
+                        Column(modifier = Modifier.fillMaxWidth().padding(dimens.cardPad)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Warning,
+                                    contentDescription = null,
+                                    tint = colors.warning,
+                                    modifier = Modifier.size(dimens.iconSm),
                                 )
-                                .border(
-                                    1.dp,
-                                    colors.danger.copy(alpha = 0.33f),
-                                    RoundedCornerShape(dimens.radius),
+                                Text(
+                                    text = "Usage access is off",
+                                    style = typography.bodyMedium,
+                                    color = colors.warning,
+                                    modifier = Modifier.weight(1f, fill = false),
                                 )
-                                .padding(dimens.cardPad),
-                        ) {
+                            }
                             Text(
-                                text = "Usage access required",
-                                style = typography.bodyMedium,
-                                color = colors.danger,
-                            )
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            Text(
-                                text = "Grant Usage access so Grayout can tell which app is open and pause grayscale for excluded apps",
-                                style = typography.bodyMedium,
+                                text = "Pick apps now. They work once access is on.",
+                                style = typography.bodyRegular,
                                 color = colors.textMuted,
                             )
 
-                            Spacer(modifier = Modifier.height(dimens.tightGap))
+                            Spacer(modifier = Modifier.height(dimens.microGap))
 
-                            Text(
-                                text = "Open Settings",
-                                style = typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
-                                color = colors.text,
-                                modifier = Modifier
-                                    .sizeIn(minHeight = 48.dp)
-                                    .clickable { onOpenUsageAccessSettings() }
-                                    .padding(vertical = 12.dp),
-                            )
+                            PillButton(label = "Allow usage access", onClick = onOpenUsageAccessSettings)
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(dimens.sectionGap))
+                    Spacer(modifier = Modifier.height(dimens.tightGap))
                 }
             }
 
@@ -222,20 +217,27 @@ fun ExclusionListScreen(
                                     RoundedCornerShape(dimens.radiusSm),
                                 )
                                 .border(
-                                    width = if (isFocused) 2.dp else 1.dp,
-                                    color = if (isFocused) colors.text else colors.border,
+                                    width = if (isFocused) dimens.borderThick else 1.dp,
+                                    color = if (isFocused) colors.text else colors.controlOutline,
                                     shape = RoundedCornerShape(dimens.radiusSm),
                                 )
                                 .padding(horizontal = dimens.cardPad),
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.heightIn(min = 48.dp),
+                                modifier = Modifier.heightIn(min = dimens.minTouch),
                             ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Search,
+                                    contentDescription = null,
+                                    tint = colors.textMuted,
+                                    modifier = Modifier.size(dimens.iconMd),
+                                )
+                                Spacer(modifier = Modifier.width(dimens.tightGap))
                                 Box(modifier = Modifier.weight(1f)) {
                                     if (searchQuery.isEmpty()) {
                                         Text(
-                                            text = "Search apps...",
+                                            text = "Search apps",
                                             style = typography.bodyLarge,
                                             color = colors.textMuted,
                                         )
@@ -247,7 +249,7 @@ fun ExclusionListScreen(
                                     Box(
                                         contentAlignment = Alignment.Center,
                                         modifier = Modifier
-                                            .size(40.dp)
+                                            .size(dimens.iconButton)
                                             .clickable(
                                                 interactionSource = remember { MutableInteractionSource() },
                                                 indication = null,
@@ -257,7 +259,7 @@ fun ExclusionListScreen(
                                             imageVector = Icons.Filled.Close,
                                             contentDescription = "Clear search",
                                             tint = colors.textMuted,
-                                            modifier = Modifier.size(20.dp),
+                                            modifier = Modifier.size(dimens.iconMd),
                                         )
                                     }
                                 }
@@ -269,7 +271,8 @@ fun ExclusionListScreen(
                         .onFocusChanged { isFocused = it.isFocused },
                 )
 
-                Spacer(modifier = Modifier.height(dimens.sectionGap))
+                // The chips below sit centered in a 48dp touch target, so a small gap still reads as one.
+                Spacer(modifier = Modifier.height(dimens.microGap))
             }
 
             if (categoryCounts.isNotEmpty()) {
@@ -290,7 +293,8 @@ fun ExclusionListScreen(
                         categoryCounts.forEach { (category, count) ->
                             CategoryChip(
                                 label = category.label,
-                                count = count,
+                                // A count of 1 adds nothing; show it only from 2 up.
+                                count = count.takeIf { it > 1 },
                                 isActive = selectedCategory == category,
                                 onClick = { onSelectCategory(category) },
                             )
@@ -337,14 +341,21 @@ fun ExclusionListScreen(
                 }
 
                 items(categoryApps, key = { "cat_${it.packageName}" }) { app ->
-                    AppRow(app = app, onToggle = onToggle, dimens = dimens, typography = typography, textColor = colors.text)
+                    AppRow(
+                        app = app,
+                        onToggle = onToggle,
+                        dimens = dimens,
+                        typography = typography,
+                        textColor = colors.text,
+                        paused = !isUsageAccessGranted,
+                    )
                 }
 
                 item(key = "category_hint") {
                     // Search is ANDed with the chip, so an untagged app is only reachable from All.
                     Text(
                         text = "Missing an app? Find it under All.",
-                        style = typography.labelSmall,
+                        style = typography.bodyRegular,
                         color = colors.textMuted,
                         modifier = Modifier.padding(top = dimens.tightGap),
                     )
@@ -353,14 +364,21 @@ fun ExclusionListScreen(
                 if (excludedApps.isNotEmpty()) {
                     item(key = "header_excluded") {
                         SectionHeader(
-                            text = "EXCLUDED · ${excludedApps.size}",
+                            text = "Kept in color · ${excludedApps.size}",
                             dimens = dimens,
                             typography = typography,
                         )
                     }
 
                     items(excludedApps, key = { "ex_${it.packageName}" }) { app ->
-                        AppRow(app = app, onToggle = onToggle, dimens = dimens, typography = typography, textColor = colors.text)
+                        AppRow(
+                        app = app,
+                        onToggle = onToggle,
+                        dimens = dimens,
+                        typography = typography,
+                        textColor = colors.text,
+                        paused = !isUsageAccessGranted,
+                    )
                     }
                 }
 
@@ -374,7 +392,14 @@ fun ExclusionListScreen(
                     }
 
                     items(allOtherApps, key = { "all_${it.packageName}" }) { app ->
-                        AppRow(app = app, onToggle = onToggle, dimens = dimens, typography = typography, textColor = colors.text)
+                        AppRow(
+                        app = app,
+                        onToggle = onToggle,
+                        dimens = dimens,
+                        typography = typography,
+                        textColor = colors.text,
+                        paused = !isUsageAccessGranted,
+                    )
                     }
                 }
             }
@@ -402,16 +427,9 @@ private fun SectionHeader(
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = dimens.sectionGap, bottom = dimens.tightGap),
+        modifier = Modifier.fillMaxWidth().padding(top = dimens.tightGap, bottom = dimens.tightGap),
     ) {
-        Text(
-            text = text,
-            style = typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-            color = BrandAccent.copy(alpha = 0.75f),
-            modifier = Modifier.weight(1f),
-        )
+        SectionLabel(text = text, modifier = Modifier.weight(1f))
         trailing?.invoke()
     }
 }
@@ -444,18 +462,20 @@ private fun CategoryChip(
         label = "categoryChipText",
     )
     val borderColor by animateColorAsState(
-        targetValue = if (isActive) Color.Transparent else colors.border,
+        targetValue = if (isActive) Color.Transparent else colors.controlOutline,
         animationSpec = animation,
         label = "categoryChipBorder",
     )
 
+    val shape = RoundedCornerShape(dimens.radiusFull)
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .heightIn(min = 48.dp)
+            .heightIn(min = dimens.minTouch)
             .selectable(
                 selected = isActive,
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
                 role = Role.RadioButton,
             ) {
@@ -463,12 +483,15 @@ private fun CategoryChip(
                 onClick()
             },
     ) {
+        // The 48dp target is taller than the pill, so the ripple is drawn on the painted pill only.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
             modifier = Modifier
-                .background(bg, RoundedCornerShape(dimens.radiusFull))
-                .border(1.dp, borderColor, RoundedCornerShape(dimens.radiusFull))
+                .clip(shape)
+                .background(bg, shape)
+                .border(1.dp, borderColor, shape)
+                .indication(interactionSource, ripple())
                 .padding(horizontal = dimens.cardGap, vertical = dimens.tightGap),
         ) {
             Text(
@@ -503,12 +526,12 @@ private fun ExcludeAllPill(
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .heightIn(min = 48.dp)
+            .heightIn(min = dimens.minTouch)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 enabled = !allExcluded,
-                onClickLabel = "Exclude all $categoryLabel apps",
+                onClickLabel = "Keep all $categoryLabel apps in color",
                 role = Role.Button,
             ) {
                 view.performHaptic(HapticAction.Commit)
@@ -516,8 +539,8 @@ private fun ExcludeAllPill(
             },
     ) {
         Text(
-            text = if (allExcluded) "All excluded" else "Exclude all",
-            style = typography.labelSmall.copy(
+            text = if (allExcluded) "All kept in color" else "Keep all in color",
+            style = typography.caption.copy(
                 fontWeight = if (allExcluded) FontWeight.SemiBold else FontWeight.ExtraBold,
             ),
             color = if (allExcluded) colors.textMuted else colors.text,
@@ -557,7 +580,7 @@ private fun UndoSnackbar(data: SnackbarData) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                    .sizeIn(minWidth = dimens.minTouch, minHeight = dimens.minTouch)
                     .clickable(role = Role.Button) { data.performAction() }
                     .padding(horizontal = dimens.cardPad),
             ) {
@@ -578,18 +601,31 @@ private fun AppRow(
     dimens: com.princeyadav.grayout.ui.theme.GrayoutDimens,
     typography: com.princeyadav.grayout.ui.theme.GrayoutTypography,
     textColor: androidx.compose.ui.graphics.Color,
+    /** Usage access is off: the toggle still works, so apps can be picked ahead of time. The banner explains it. */
+    paused: Boolean,
 ) {
+    // The whole row is one switch, so a tap anywhere toggles the app and TalkBack reads one control.
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
+            .heightIn(min = dimens.minTouch)
+            .toggleable(
+                value = app.isExcluded,
+                role = Role.Switch,
+                onValueChange = { onToggle(app.packageName) },
+            )
+            .semantics {
+                contentDescription = "Keep ${app.appName} in color"
+                stateDescription = (if (app.isExcluded) "On" else "Off") + if (paused) ", paused" else ""
+            }
+            .padding(vertical = dimens.cardGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Image(
             bitmap = app.icon,
-            contentDescription = app.appName,
+            contentDescription = null,
             modifier = Modifier
-                .size(40.dp)
+                .size(dimens.appIcon)
                 .clip(RoundedCornerShape(dimens.radiusSm)),
         )
 
@@ -604,10 +640,6 @@ private fun AppRow(
 
         Spacer(modifier = Modifier.width(dimens.cardGap))
 
-        GrayoutToggle(
-            checked = app.isExcluded,
-            onCheckedChange = { onToggle(app.packageName) },
-            contentDescription = "Exclude ${app.appName}",
-        )
+        GrayoutToggle(checked = app.isExcluded, onCheckedChange = null)
     }
 }
