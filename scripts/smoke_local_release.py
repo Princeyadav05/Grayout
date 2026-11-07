@@ -125,7 +125,7 @@ class Device:
         return any(fragment in (n.get("text") or "") for n in self.nodes())
 
     def add_schedule(self, name, start, end):
-        self.tap("+ Add")
+        self.tap("Add")
         self.text(name)
         if start != 9:
             self.change_hour("9:00 AM", start)
@@ -258,7 +258,7 @@ def run(args):
         assert clock, "No Clock app installed to test exclusions with"
         device.tap("KEPT IN COLOR", scroll=True)
         device.text("Clock")
-        device.tap("Exclude Clock", "content-desc")
+        device.tap("Keep Clock in color", "content-desc")
         device.shell("input", "keyevent", "KEYCODE_BACK")
         device.tap("Grayscale", "content-desc")
         wait_for(device.gray, "grayscale should start on")

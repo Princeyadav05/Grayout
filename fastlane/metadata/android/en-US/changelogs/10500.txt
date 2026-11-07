@@ -1,0 +1,1 @@
+A clearer look, built for grayscale. Home shows each running schedule with its end time and a Today timeline. Overnight schedules say when they end. Buttons, chips and fields have visible outlines. Settings and Home now agree on the grayscale state, and you can pick apps to keep in color before usage access is on.
