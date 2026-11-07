@@ -5,9 +5,9 @@ import org.junit.Test
 
 class AboutStatusTest {
     @Test
-    fun `idle service with grayscale on still says grayscale on`() {
+    fun `idle service with grayscale on still says grayscale is on`() {
         assertEquals(
-            "Grayscale on. Background service idle, nothing to watch.",
+            "Grayscale is on. Grayout runs in the background only when automatic restore or a kept-in-color app needs it.",
             aboutStatusLine(isGrayscaleOn = true, isServiceRunning = false, isServiceExpected = false),
         )
     }
@@ -15,7 +15,7 @@ class AboutStatusTest {
     @Test
     fun `running service`() {
         assertEquals(
-            "Grayscale off. Background service running.",
+            "Grayscale is off. Grayout is running in the background.",
             aboutStatusLine(isGrayscaleOn = false, isServiceRunning = true, isServiceExpected = true),
         )
     }
@@ -23,7 +23,7 @@ class AboutStatusTest {
     @Test
     fun `expected but stopped service`() {
         assertEquals(
-            "Grayscale on. Background service not running.",
+            "Grayscale is on. Grayout should be running in the background, but it stopped.",
             aboutStatusLine(isGrayscaleOn = true, isServiceRunning = false, isServiceExpected = true),
         )
     }

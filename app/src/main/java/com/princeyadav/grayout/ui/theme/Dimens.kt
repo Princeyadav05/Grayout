@@ -21,6 +21,7 @@ data class GrayoutDimens(
     val navBarPadV: Dp = 12.dp,
     val dotSize: Dp = 10.dp,
     val stripHeight: Dp = 28.dp,
+    val stripLaneMin: Dp = 16.dp,
     val stripGap: Dp = 2.dp,
     val stripMarker: Dp = 2.dp,
     val iconSm: Dp = 16.dp,

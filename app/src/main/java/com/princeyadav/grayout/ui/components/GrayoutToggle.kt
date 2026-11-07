@@ -32,11 +32,20 @@ fun GrayoutToggle(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
+    /**
+     * The setting is saved but cannot work yet (Kept in color without usage access). The toggle stays
+     * tappable and draws in the disabled tokens (`borderActive` track when on, `offText` thumb when off).
+     */
+    paused: Boolean = false,
 ) {
     val colors = GrayoutTheme.colors
 
     val trackColor by animateColorAsState(
-        targetValue = if (checked) colors.accent else colors.off,
+        targetValue = when {
+            !checked -> colors.off
+            paused -> colors.borderActive
+            else -> colors.accent
+        },
         animationSpec = tween(
             durationMillis = GrayoutMotion.Fast,
             easing = GrayoutMotion.Easing,
@@ -44,7 +53,11 @@ fun GrayoutToggle(
         label = "trackColor",
     )
     val thumbColor by animateColorAsState(
-        targetValue = if (checked) colors.bg else colors.textMuted,
+        targetValue = when {
+            checked -> colors.bg
+            paused -> colors.offText
+            else -> colors.textMuted
+        },
         animationSpec = tween(
             durationMillis = GrayoutMotion.Fast,
             easing = GrayoutMotion.Easing,
@@ -73,7 +86,7 @@ fun GrayoutToggle(
             )
             .semantics {
                 contentDescription?.let { this.contentDescription = it }
-                stateDescription = if (checked) "On" else "Off"
+                stateDescription = (if (checked) "On" else "Off") + if (paused) ", paused" else ""
             },
         contentAlignment = Alignment.Center,
     ) {

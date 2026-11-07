@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -34,9 +35,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.princeyadav.grayout.logic.TodayState
@@ -207,7 +206,7 @@ private fun TodayCard(today: TodayState, is24Hour: Boolean, isPermissionGranted:
             Spacer(modifier = Modifier.height(dimens.tightGap))
             TodayStrip(today = today, is24Hour = is24Hour)
             Spacer(modifier = Modifier.height(dimens.tightGap))
-            Text(text = sentence, style = typography.bodyMedium, color = colors.text)
+            Text(text = sentence, style = typography.bodyRegular, color = colors.text)
         }
     }
 }
@@ -232,14 +231,10 @@ private fun ScheduleRow(
     val overnight = endsNextDay(
         schedule.startTimeHour, schedule.startTimeMinute, schedule.endTimeHour, schedule.endTimeMinute,
     )
-    // Times in the main text color; an overnight end adds "next day" in the muted body voice.
-    val times = buildAnnotatedString {
-        append("${formatTime(schedule.startTimeHour, schedule.startTimeMinute, is24Hour)} → ")
-        append(formatTime(schedule.endTimeHour, schedule.endTimeMinute, is24Hour))
-        if (overnight) {
-            withStyle(typography.bodyRegular.toSpanStyle().copy(color = colors.textMuted)) { append(" next day") }
-        }
-    }
+    val times = "${formatTime(schedule.startTimeHour, schedule.startTimeMinute, is24Hour)} → " +
+        formatTime(schedule.endTimeHour, schedule.endTimeMinute, is24Hour)
+    // An overnight end goes on the repeat line, so the time line holds only the two times.
+    val days = daysInWords(schedule.daysOfWeekList) + if (overnight) " · ends next day" else ""
 
     Row(
         modifier = Modifier
@@ -265,10 +260,17 @@ private fun ScheduleRow(
                     color = colors.text,
                     modifier = Modifier.weight(1f, fill = false),
                 )
+                // Decorative: the row already announces "Edit <name>" as its click action.
+                Icon(
+                    imageVector = Icons.Outlined.Edit,
+                    contentDescription = null,
+                    tint = colors.textMuted,
+                    modifier = Modifier.size(dimens.iconSm),
+                )
                 if (isFiringNow) NowPill()
             }
             Text(text = times, style = typography.monoSmall, color = colors.text)
-            Text(text = daysInWords(schedule.daysOfWeekList), style = typography.labelSmall, color = colors.textMuted)
+            Text(text = days, style = typography.labelSmall, color = colors.textMuted)
             when {
                 error != null -> ProblemLine(Icons.Filled.Warning, error, colors.warning, live = true)
                 needsPermission -> ProblemLine(

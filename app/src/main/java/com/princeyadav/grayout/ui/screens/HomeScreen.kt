@@ -131,6 +131,7 @@ internal fun HomeScreen(
             onIntervalChange = onEnforcementIntervalChange,
             onlyDuringSchedules = onlyDuringSchedules,
             onOnlyDuringSchedulesChange = onOnlyDuringSchedulesChange,
+            isPermissionGranted = isPermissionGranted,
         )
 
         if (showNotificationPrompt) {
@@ -145,6 +146,7 @@ internal fun HomeScreen(
             isUsageAccessGranted = isUsageAccessGranted,
             excludedAppIcons = excludedAppIcons,
             excludedOverflowCount = excludedOverflowCount,
+            isPermissionGranted = isPermissionGranted,
             onClick = onNavigateToExclusions,
             onFixUsageAccess = onFixUsageAccess,
         )
@@ -276,28 +278,24 @@ private fun ScheduleRow(line: HomeScheduleLine?, today: TodayState?, onClick: ()
     } else {
         emptyList()
     }
-    // Lines below the caption start after a dot, so the caption lines up with their text.
-    val textInset = if (line != null) dimens.dotSize + dimens.tightGap else 0.dp
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = dimens.minTouch)
             .clickable(onClickLabel = "Open schedules", role = Role.Button, onClick = onClick),
     ) {
-        // The chevron sits on the caption row, so it lines up with "Schedule" and Now.
+        // Caption, dots and lines share one left edge. "until <end>" already says the schedule runs now,
+        // so the caption has no Now pill; the chevron ends the caption row.
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = textInset),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(dimens.tightGap),
         ) {
             Text(
                 text = if (running.size > 1) "Schedules" else "Schedule",
                 style = typography.labelSmall,
                 color = colors.textMuted,
+                modifier = Modifier.weight(1f),
             )
-            if (running.isNotEmpty()) NowPill()
-            Spacer(modifier = Modifier.weight(1f))
             Chevron()
         }
         when {
@@ -412,6 +410,7 @@ private fun RestoreCard(
     onIntervalChange: (Int) -> Unit,
     onlyDuringSchedules: Boolean,
     onOnlyDuringSchedulesChange: (Boolean) -> Unit,
+    isPermissionGranted: Boolean,
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
@@ -436,6 +435,8 @@ private fun RestoreCard(
             }
             Text(
                 text = when {
+                    // Before setup nothing can turn grayscale on yet, so no line may imply it already works.
+                    !isPermissionGranted -> "Takes effect after setup."
                     enforcementInterval <= 0 -> "No timed restore. Schedules still apply."
                     onlyDuringSchedules -> "Turns grayscale back on during schedules."
                     else -> "Turns grayscale back on if you turn it off."
@@ -563,6 +564,7 @@ private fun KeptInColorCard(
     isUsageAccessGranted: Boolean,
     excludedAppIcons: List<Bitmap>,
     excludedOverflowCount: Int,
+    isPermissionGranted: Boolean,
     onClick: () -> Unit,
     onFixUsageAccess: () -> Unit,
 ) {
@@ -586,7 +588,11 @@ private fun KeptInColorCard(
             ) {
                 Text(
                     text = when (count) {
-                        0 -> "None yet. Grayscale applies to every app."
+                        0 -> if (isPermissionGranted) {
+                            "None yet. Grayscale applies to every app."
+                        } else {
+                            "None yet. Takes effect after setup."
+                        }
                         1 -> "1 app"
                         else -> "$count apps"
                     },

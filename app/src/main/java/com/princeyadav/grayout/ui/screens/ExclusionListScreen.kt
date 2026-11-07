@@ -172,9 +172,10 @@ fun ExclusionListScreen(
                                     modifier = Modifier.size(dimens.iconSm),
                                 )
                                 Text(
-                                    text = "Usage access is off.",
+                                    text = "Usage access is off, so apps can't be kept in color yet.",
                                     style = typography.bodyMedium,
                                     color = colors.warning,
+                                    modifier = Modifier.weight(1f, fill = false),
                                 )
                             }
 
@@ -184,7 +185,7 @@ fun ExclusionListScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(dimens.sectionGap))
+                    Spacer(modifier = Modifier.height(dimens.tightGap))
                 }
             }
 
@@ -260,7 +261,8 @@ fun ExclusionListScreen(
                         .onFocusChanged { isFocused = it.isFocused },
                 )
 
-                Spacer(modifier = Modifier.height(dimens.sectionGap))
+                // The chips below sit centered in a 48dp touch target, so a small gap still reads as one.
+                Spacer(modifier = Modifier.height(dimens.microGap))
             }
 
             if (categoryCounts.isNotEmpty()) {
@@ -315,7 +317,6 @@ fun ExclusionListScreen(
                         text = "${selectedCategory.label.uppercase()} · ${categoryApps.size}",
                         dimens = dimens,
                         typography = typography,
-                        paused = !isUsageAccessGranted,
                     ) {
                         ExcludeAllPill(
                             categoryLabel = selectedCategory.label,
@@ -330,7 +331,14 @@ fun ExclusionListScreen(
                 }
 
                 items(categoryApps, key = { "cat_${it.packageName}" }) { app ->
-                    AppRow(app = app, onToggle = onToggle, dimens = dimens, typography = typography, textColor = colors.text)
+                    AppRow(
+                        app = app,
+                        onToggle = onToggle,
+                        dimens = dimens,
+                        typography = typography,
+                        textColor = colors.text,
+                        paused = !isUsageAccessGranted,
+                    )
                 }
 
                 item(key = "category_hint") {
@@ -349,12 +357,18 @@ fun ExclusionListScreen(
                             text = "Kept in color · ${excludedApps.size}",
                             dimens = dimens,
                             typography = typography,
-                            paused = !isUsageAccessGranted,
                         )
                     }
 
                     items(excludedApps, key = { "ex_${it.packageName}" }) { app ->
-                        AppRow(app = app, onToggle = onToggle, dimens = dimens, typography = typography, textColor = colors.text)
+                        AppRow(
+                        app = app,
+                        onToggle = onToggle,
+                        dimens = dimens,
+                        typography = typography,
+                        textColor = colors.text,
+                        paused = !isUsageAccessGranted,
+                    )
                     }
                 }
 
@@ -364,13 +378,18 @@ fun ExclusionListScreen(
                             text = "ALL APPS · ${allOtherApps.size}",
                             dimens = dimens,
                             typography = typography,
-                            // Said once, under the first header in the list.
-                            paused = !isUsageAccessGranted && excludedApps.isEmpty(),
                         )
                     }
 
                     items(allOtherApps, key = { "all_${it.packageName}" }) { app ->
-                        AppRow(app = app, onToggle = onToggle, dimens = dimens, typography = typography, textColor = colors.text)
+                        AppRow(
+                        app = app,
+                        onToggle = onToggle,
+                        dimens = dimens,
+                        typography = typography,
+                        textColor = colors.text,
+                        paused = !isUsageAccessGranted,
+                    )
                     }
                 }
             }
@@ -394,22 +413,14 @@ private fun SectionHeader(
     text: String,
     dimens: com.princeyadav.grayout.ui.theme.GrayoutDimens,
     typography: com.princeyadav.grayout.ui.theme.GrayoutTypography,
-    /** True while usage access is off: kept-in-color apps cannot work, so the list says so. */
-    paused: Boolean = false,
     trailing: @Composable (() -> Unit)? = null,
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(top = dimens.sectionGap, bottom = dimens.tightGap)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            SectionLabel(text = text, modifier = Modifier.weight(1f))
-            trailing?.invoke()
-        }
-        if (paused) {
-            Text(
-                text = "Paused until usage access is allowed",
-                style = typography.bodyRegular,
-                color = GrayoutTheme.colors.textMuted,
-            )
-        }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(top = dimens.tightGap, bottom = dimens.tightGap),
+    ) {
+        SectionLabel(text = text, modifier = Modifier.weight(1f))
+        trailing?.invoke()
     }
 }
 
@@ -575,6 +586,8 @@ private fun AppRow(
     dimens: com.princeyadav.grayout.ui.theme.GrayoutDimens,
     typography: com.princeyadav.grayout.ui.theme.GrayoutTypography,
     textColor: androidx.compose.ui.graphics.Color,
+    /** Usage access is off: the toggle is dimmed but still works, so apps can be picked ahead of time. */
+    paused: Boolean,
 ) {
     Row(
         modifier = Modifier
@@ -605,6 +618,7 @@ private fun AppRow(
             checked = app.isExcluded,
             onCheckedChange = { onToggle(app.packageName) },
             contentDescription = "Keep ${app.appName} in color",
+            paused = paused,
         )
     }
 }

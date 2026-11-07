@@ -35,6 +35,13 @@ internal fun TodayStrip(today: TodayState, is24Hour: Boolean, modifier: Modifier
     val colors = GrayoutTheme.colors
     val dimens = GrayoutTheme.dimens
     val laned = remember(today.segments) { stripLanes(today.segments) }
+    // With 2+ lanes the strip grows so each painted lane stays at least stripLaneMin tall.
+    val maxLanes = laned.maxOfOrNull { it.lanes } ?: 1
+    val stripHeight = if (maxLanes > 1) {
+        maxOf(dimens.stripHeight, (dimens.stripLaneMin + dimens.stripGap) * maxLanes)
+    } else {
+        dimens.stripHeight
+    }
     val shape = RoundedCornerShape(dimens.radiusSm)
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -54,11 +61,20 @@ internal fun TodayStrip(today: TodayState, is24Hour: Boolean, modifier: Modifier
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(dimens.stripHeight)
+                .height(stripHeight)
                 .clip(shape)
                 .background(colors.bg)
                 .border(1.dp, colors.border, shape),
         ) {
+            // Faint gridlines at 6a, 12p and 6p, behind the segments.
+            val grid = 1.dp.toPx()
+            listOf(0.25f, 0.5f, 0.75f).forEach { at ->
+                drawRect(
+                    color = colors.border,
+                    topLeft = Offset(at * size.width - grid / 2, 0f),
+                    size = Size(grid, size.height),
+                )
+            }
             val half = dimens.stripGap.toPx() / 2
             laned.forEach { (segment, lane, lanes) ->
                 val laneHeight = size.height / lanes

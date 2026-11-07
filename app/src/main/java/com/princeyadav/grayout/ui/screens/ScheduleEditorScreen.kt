@@ -271,20 +271,19 @@ fun ScheduleEditorScreen(
             Spacer(modifier = Modifier.height(dimens.sectionGap))
 
             val deleteColor = if (canDelete) colors.danger else colors.offText
+            // An outlined pill, so it reads as a control in grayscale and not as a stray gray line.
+            val deleteShape = RoundedCornerShape(dimens.radiusFull)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .sizeIn(minHeight = 48.dp)
-                    .clickable(
-                        enabled = canDelete,
-                        role = Role.Button,
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                    ) {
+                    .heightIn(min = dimens.minTouch)
+                    .clip(deleteShape)
+                    .border(1.dp, if (canDelete) colors.borderActive else colors.border, deleteShape)
+                    .clickable(enabled = canDelete, role = Role.Button) {
                         view.performHaptic(HapticAction.Destructive)
                         showDeleteConfirm = true
                     }
-                    .padding(vertical = 12.dp),
+                    .padding(vertical = dimens.cardGap),
                 horizontalArrangement = Arrangement.spacedBy(dimens.tightGap, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
