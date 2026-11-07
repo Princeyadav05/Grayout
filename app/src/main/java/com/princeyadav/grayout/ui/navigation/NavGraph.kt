@@ -57,6 +57,7 @@ import com.princeyadav.grayout.viewmodel.ScheduleEditorViewModel
 import com.princeyadav.grayout.viewmodel.ScheduleEditorViewModelFactory
 import com.princeyadav.grayout.viewmodel.ScheduleViewModel
 import com.princeyadav.grayout.viewmodel.ScheduleViewModelFactory
+import kotlinx.coroutines.flow.map
 
 /**
  * The installed APK's versionName (git-tag-derived at release, "1.0.0-dev" locally),
@@ -374,6 +375,11 @@ fun GrayoutNavGraph(
             var excludedCountSettings by remember { mutableIntStateOf(exclusionPrefsSettings.getExcludedCount()) }
             val versionName = remember(context) { installedVersionName(context) }
             val isAdbPermissionGranted by rememberSecureSettingsPermission()
+            val isAnyScheduleEnabled by remember(context) {
+                ScheduleRepository(GrayoutDatabase.getInstance(context).scheduleDao())
+                    .getAllSchedules()
+                    .map { schedules -> schedules.any { it.isEnabled } }
+            }.collectAsStateWithLifecycle(initialValue = false)
 
             LaunchedEffect(lifecycleOwner) {
                 lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -388,6 +394,7 @@ fun GrayoutNavGraph(
                 isGrayscaleOn = isGrayscaleOnSettings,
                 isServiceRunning = isServiceRunning,
                 isServiceExpected = shouldServiceRun(enforcementInterval, excludedCountSettings),
+                isAnyScheduleEnabled = isAnyScheduleEnabled,
                 versionName = versionName,
                 isAdbPermissionGranted = isAdbPermissionGranted,
                 isUsageAccessGranted = isUsageAccessGranted,

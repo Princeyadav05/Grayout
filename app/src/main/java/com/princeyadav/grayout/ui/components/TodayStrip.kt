@@ -3,9 +3,7 @@ package com.princeyadav.grayout.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -97,9 +95,23 @@ internal fun TodayStrip(today: TodayState, is24Hour: Boolean, modifier: Modifier
             )
         }
         Spacer(modifier = Modifier.height(dimens.microGap))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            val marks = if (is24Hour) listOf("00", "06", "12", "18", "24") else listOf("12a", "6a", "12p", "6p", "12a")
-            marks.forEach { Text(text = it, style = GrayoutTheme.typography.labelXSmall, color = colors.textMuted) }
+        // Each label is centered on its hour (0, 1/4, 1/2, 3/4, 1 of the width), so 6a, 12p and 6p sit
+        // exactly on their gridlines; the two 12a labels are clamped inside the strip, like "Now".
+        val marks = if (is24Hour) listOf("00", "06", "12", "18", "24") else listOf("12a", "6a", "12p", "6p", "12a")
+        Layout(
+            content = {
+                marks.forEach { Text(text = it, style = GrayoutTheme.typography.labelXSmall, color = colors.textMuted) }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) { measurables, constraints ->
+            val labels = measurables.map { it.measure(constraints.copy(minWidth = 0)) }
+            val width = constraints.maxWidth
+            layout(width, labels.maxOf { it.height }) {
+                labels.forEachIndexed { i, label ->
+                    val centered = (i / (labels.size - 1f) * width - label.width / 2f).roundToInt()
+                    label.place(centered.coerceIn(0, (width - label.width).coerceAtLeast(0)), 0)
+                }
+            }
         }
     }
 }

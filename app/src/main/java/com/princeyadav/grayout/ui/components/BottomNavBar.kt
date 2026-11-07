@@ -102,6 +102,7 @@ private fun NavTabItem(
 ) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
+    val dimens = GrayoutTheme.dimens
 
     val pillColor by animateColorAsState(
         targetValue = if (isActive) colors.accent.copy(alpha = 0.2f) else Color.Transparent,
@@ -130,7 +131,7 @@ private fun NavTabItem(
 
     Column(
         modifier = modifier
-            .sizeIn(minHeight = 48.dp)
+            .sizeIn(minHeight = dimens.minTouch)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -140,12 +141,12 @@ private fun NavTabItem(
                 selected = isActive
             },
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(dimens.microGap),
     ) {
         Box(
             modifier = Modifier
-                .width(52.dp)
-                .height(30.dp)
+                .width(dimens.navPillWidth)
+                .height(dimens.navPillHeight)
                 .background(pillColor, RoundedCornerShape(percent = 50)),
             contentAlignment = Alignment.Center,
         ) {
@@ -153,7 +154,7 @@ private fun NavTabItem(
                 imageVector = if (isActive) tab.iconFilled else tab.iconOutlined,
                 contentDescription = null,
                 tint = iconTint,
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier.size(dimens.navIcon),
             )
         }
 

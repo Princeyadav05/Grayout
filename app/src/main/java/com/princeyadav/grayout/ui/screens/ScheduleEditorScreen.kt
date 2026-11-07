@@ -37,6 +37,7 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -132,8 +133,8 @@ fun ScheduleEditorScreen(
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                    .size(48.dp)
+                    .sizeIn(minWidth = dimens.minTouch, minHeight = dimens.minTouch)
+                    .size(dimens.minTouch)
                     .background(colors.surface, RoundedCornerShape(dimens.radiusFull))
                     .border(1.dp, colors.border, RoundedCornerShape(dimens.radiusFull))
                     .clip(RoundedCornerShape(dimens.radiusFull))
@@ -147,7 +148,7 @@ fun ScheduleEditorScreen(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
                     tint = colors.textMuted,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(dimens.iconMd),
                 )
             }
 
@@ -231,9 +232,9 @@ fun ScheduleEditorScreen(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .sizeIn(minHeight = 48.dp)
-                .background(if (isEditable) colors.text else colors.off, RoundedCornerShape(dimens.radius))
-                .clip(RoundedCornerShape(dimens.radius))
+                .sizeIn(minHeight = dimens.minTouch)
+                .background(if (isEditable) colors.text else colors.off, RoundedCornerShape(dimens.radiusFull))
+                .clip(RoundedCornerShape(dimens.radiusFull))
                 .clickable(
                     enabled = isEditable,
                     role = Role.Button,
@@ -243,7 +244,7 @@ fun ScheduleEditorScreen(
                     view.performHaptic(HapticAction.Commit)
                     onSave()
                 }
-                .padding(vertical = 16.dp),
+                .padding(vertical = dimens.cardPad),
         ) {
             Text(
                 text = when {
@@ -278,7 +279,7 @@ fun ScheduleEditorScreen(
                     .fillMaxWidth()
                     .heightIn(min = dimens.minTouch)
                     .clip(deleteShape)
-                    .border(1.dp, if (canDelete) colors.borderActive else colors.border, deleteShape)
+                    .border(1.dp, if (canDelete) colors.controlOutline else colors.border, deleteShape)
                     .clickable(enabled = canDelete, role = Role.Button) {
                         view.performHaptic(HapticAction.Destructive)
                         showDeleteConfirm = true
@@ -350,8 +351,8 @@ private fun NameCard(
                                 RoundedCornerShape(dimens.radiusSm),
                             )
                             .border(
-                                width = if (isFocused) 2.dp else 1.dp,
-                                color = if (isFocused) colors.text else colors.border,
+                                width = if (isFocused) dimens.borderThick else 1.dp,
+                                color = if (isFocused) colors.text else colors.controlOutline,
                                 shape = RoundedCornerShape(dimens.radiusSm),
                             )
                             .padding(dimens.cardPad),
@@ -483,13 +484,13 @@ private fun TimeBox(time: String, description: String, enabled: Boolean, onClick
         modifier = modifier
             .semantics { contentDescription = description }
             .sizeIn(minHeight = dimens.minTouch)
-            .border(1.dp, colors.border, RoundedCornerShape(dimens.radiusSm))
+            .border(1.dp, colors.controlOutline, RoundedCornerShape(dimens.radiusSm))
             .clip(RoundedCornerShape(dimens.radiusSm))
             .clickable(
                 enabled = enabled,
                 role = Role.Button,
                 interactionSource = remember { MutableInteractionSource() },
-                indication = null,
+                indication = ripple(),
                 onClick = onClick,
             )
             .padding(horizontal = dimens.cardGap, vertical = dimens.tightGap),
@@ -526,7 +527,7 @@ private fun DaysCard(
 
             // One row of seven equal cells, so the week never wraps. Each cell is 1/7 of the row wide
             // (about 43dp on a 392dp phone) and minTouch tall; the cells tile the row, so every tap
-            // lands on a day. The circle shrinks below DayCircleSize only if a cell gets narrower.
+            // lands on a day. The circle shrinks below dimens.dayCircle only if a cell gets narrower.
             Row(modifier = Modifier.fillMaxWidth()) {
                 val view = LocalView.current
                 DayLabels.forEach { (day, label) ->
@@ -553,7 +554,7 @@ private fun DaysCard(
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
-                                .widthIn(max = DayCircleSize)
+                                .widthIn(max = dimens.dayCircle)
                                 .fillMaxWidth()
                                 .aspectRatio(1f)
                                 .background(
@@ -562,7 +563,7 @@ private fun DaysCard(
                                 )
                                 .border(
                                     width = if (isSelected) 0.dp else 1.dp,
-                                    color = if (isSelected) Color.Transparent else colors.border,
+                                    color = if (isSelected) Color.Transparent else colors.controlOutline,
                                     shape = CircleShape,
                                 ),
                         ) {
@@ -632,7 +633,7 @@ private fun PresetChip(
         label = "chipText",
     )
     val borderColor by animateColorAsState(
-        targetValue = if (isActive) Color.Transparent else colors.border,
+        targetValue = if (isActive) Color.Transparent else colors.controlOutline,
         animationSpec = tween(
             durationMillis = GrayoutMotion.Fast,
             easing = GrayoutMotion.Easing,
@@ -642,14 +643,14 @@ private fun PresetChip(
 
     Box(
         modifier = Modifier
-            .heightIn(min = 48.dp)
+            .heightIn(min = dimens.minTouch)
             .background(bg, RoundedCornerShape(dimens.radiusFull))
             .border(1.dp, borderColor, RoundedCornerShape(dimens.radiusFull))
             .clip(RoundedCornerShape(dimens.radiusFull))
             .clickable(
                 enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
-                indication = null,
+                indication = ripple(),
             ) {
                 view.performHaptic(HapticAction.Toggle)
                 onClick()
@@ -658,7 +659,7 @@ private fun PresetChip(
                 role = Role.RadioButton
                 selected = isActive
             }
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            .padding(horizontal = dimens.presetPadH, vertical = dimens.presetPadV),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -693,9 +694,9 @@ private fun DeleteConfirmSheet(
         dragHandle = {
             Box(
                 modifier = Modifier
-                    .padding(top = 12.dp)
-                    .size(width = 32.dp, height = 4.dp)
-                    .background(colors.borderActive, RoundedCornerShape(2.dp)),
+                    .padding(top = dimens.cardGap)
+                    .size(width = dimens.dragHandleWidth, height = dimens.dragHandleHeight)
+                    .background(colors.borderActive, RoundedCornerShape(dimens.radiusFull)),
             )
         },
     ) {
@@ -725,7 +726,7 @@ private fun DeleteConfirmSheet(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .sizeIn(minHeight = 48.dp)
+                    .sizeIn(minHeight = dimens.minTouch)
                     .background(colors.danger, RoundedCornerShape(dimens.radius))
                     .clip(RoundedCornerShape(dimens.radius))
                     .clickable(
@@ -733,7 +734,7 @@ private fun DeleteConfirmSheet(
                         indication = null,
                     ) { onConfirm() }
                     .semantics { role = Role.Button }
-                    .padding(vertical = 16.dp),
+                    .padding(vertical = dimens.cardPad),
             ) {
                 Text(
                     text = "Delete",
@@ -748,7 +749,7 @@ private fun DeleteConfirmSheet(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .sizeIn(minHeight = 48.dp)
+                    .sizeIn(minHeight = dimens.minTouch)
                     .border(1.dp, colors.border, RoundedCornerShape(dimens.radius))
                     .clip(RoundedCornerShape(dimens.radius))
                     .clickable(
@@ -756,7 +757,7 @@ private fun DeleteConfirmSheet(
                         indication = null,
                     ) { onDismiss() }
                     .semantics { role = Role.Button }
-                    .padding(vertical = 16.dp),
+                    .padding(vertical = dimens.cardPad),
             ) {
                 Text(
                     text = "Cancel",
@@ -860,5 +861,3 @@ private fun SheetButton(label: String, primary: Boolean = false, onClick: () -> 
     }
 }
 
-/** Largest size of the visible day circle inside its day cell. */
-private val DayCircleSize = 40.dp

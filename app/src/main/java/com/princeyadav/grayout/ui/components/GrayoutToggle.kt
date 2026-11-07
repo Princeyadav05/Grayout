@@ -29,23 +29,16 @@ import com.princeyadav.grayout.ui.theme.GrayoutTheme
 @Composable
 fun GrayoutToggle(
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+    /** Null when a parent row is the toggleable control: the switch then only draws, so TalkBack reads one node. */
+    onCheckedChange: ((Boolean) -> Unit)?,
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
-    /**
-     * The setting is saved but cannot work yet (Kept in color without usage access). The toggle stays
-     * tappable and draws in the disabled tokens (`borderActive` track when on, `offText` thumb when off).
-     */
-    paused: Boolean = false,
 ) {
     val colors = GrayoutTheme.colors
+    val dimens = GrayoutTheme.dimens
 
     val trackColor by animateColorAsState(
-        targetValue = when {
-            !checked -> colors.off
-            paused -> colors.borderActive
-            else -> colors.accent
-        },
+        targetValue = if (checked) colors.accent else colors.off,
         animationSpec = tween(
             durationMillis = GrayoutMotion.Fast,
             easing = GrayoutMotion.Easing,
@@ -53,11 +46,7 @@ fun GrayoutToggle(
         label = "trackColor",
     )
     val thumbColor by animateColorAsState(
-        targetValue = when {
-            checked -> colors.bg
-            paused -> colors.offText
-            else -> colors.textMuted
-        },
+        targetValue = if (checked) colors.bg else colors.textMuted,
         animationSpec = tween(
             durationMillis = GrayoutMotion.Fast,
             easing = GrayoutMotion.Easing,
@@ -65,7 +54,7 @@ fun GrayoutToggle(
         label = "thumbColor",
     )
     val thumbOffset by animateDpAsState(
-        targetValue = if (checked) 25.dp else 0.dp,
+        targetValue = if (checked) dimens.toggleWidth - dimens.toggleInset * 2 - dimens.toggleThumb else 0.dp,
         animationSpec = tween(
             durationMillis = GrayoutMotion.Fast,
             easing = GrayoutMotion.Easing,
@@ -76,31 +65,38 @@ fun GrayoutToggle(
     Box(
         modifier = modifier
             .minimumInteractiveComponentSize()
-            .size(width = 56.dp, height = 48.dp)
-            .toggleable(
-                value = checked,
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                role = Role.Switch,
-                onValueChange = onCheckedChange,
-            )
-            .semantics {
-                contentDescription?.let { this.contentDescription = it }
-                stateDescription = (if (checked) "On" else "Off") + if (paused) ", paused" else ""
-            },
+            .size(width = dimens.toggleWidth, height = dimens.minTouch)
+            .then(
+                if (onCheckedChange == null) {
+                    Modifier
+                } else {
+                    Modifier
+                        .toggleable(
+                            value = checked,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            role = Role.Switch,
+                            onValueChange = onCheckedChange,
+                        )
+                        .semantics {
+                            contentDescription?.let { this.contentDescription = it }
+                            stateDescription = if (checked) "On" else "Off"
+                        }
+                },
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Box(
             modifier = Modifier
-                .size(width = 56.dp, height = 31.dp)
+                .size(width = dimens.toggleWidth, height = dimens.toggleHeight)
                 .background(trackColor, RoundedCornerShape(percent = 50))
-                .padding(3.dp),
+                .padding(dimens.toggleInset),
             contentAlignment = Alignment.CenterStart,
         ) {
             Box(
                 modifier = Modifier
                     .offset(x = thumbOffset)
-                    .size(25.dp)
+                    .size(dimens.toggleThumb)
                     .background(thumbColor, CircleShape),
             )
         }

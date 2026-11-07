@@ -17,9 +17,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -102,14 +102,25 @@ internal fun ScheduleListScreen(
                         .clip(RoundedCornerShape(dimens.radiusFull))
                         .clickable(role = Role.Button, onClick = onAddSchedule),
                 ) {
-                    Text(
-                        text = "+ Add",
-                        style = typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
-                        color = colors.bg,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(dimens.microGap),
                         modifier = Modifier
                             .background(colors.text, RoundedCornerShape(dimens.radiusFull))
                             .padding(horizontal = dimens.sectionGap, vertical = dimens.tightGap),
-                    )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = null,
+                            tint = colors.bg,
+                            modifier = Modifier.size(dimens.iconSm),
+                        )
+                        Text(
+                            text = "Add",
+                            style = typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
+                            color = colors.bg,
+                        )
+                    }
                 }
             }
 
@@ -134,7 +145,7 @@ internal fun ScheduleListScreen(
                         )
                         Spacer(modifier = Modifier.height(dimens.tightGap))
                         Text(
-                            text = "Tap + Add to turn grayscale on at set times",
+                            text = "Tap Add to turn grayscale on at set times",
                             style = typography.bodyMedium,
                             color = colors.textMuted,
                             textAlign = TextAlign.Center,
@@ -180,20 +191,20 @@ internal fun ScheduleListScreen(
     }
 }
 
-/** The Today strip and one sentence. */
+/** The Today strip, then one line per running schedule (like Home), or one sentence when none runs. */
 @Composable
 private fun TodayCard(today: TodayState, is24Hour: Boolean, isPermissionGranted: Boolean) {
     val colors = GrayoutTheme.colors
     val typography = GrayoutTheme.typography
     val dimens = GrayoutTheme.dimens
     val line = today.line
+    val running = if (isPermissionGranted) today.active else emptyList()
     val sentence = when {
         !isPermissionGranted -> "Schedules need the grayscale permission to run"
         line == null -> "Nothing scheduled"
-        today.active.size > 1 -> "On now: " + activeSchedulesText(
-            today.active.map { it.name to formatTime(it.at.hour, it.at.minute, is24Hour) },
+        running.isNotEmpty() -> "On now: " + activeSchedulesText(
+            running.map { it.name to formatTime(it.at.hour, it.at.minute, is24Hour) },
         )
-        line.isActive -> "${line.name} is on until ${formatTime(line.at.hour, line.at.minute, is24Hour)}"
         line.at.toLocalDate() == today.date -> "Next: ${line.name} at ${formatTime(line.at.hour, line.at.minute, is24Hour)}"
         else -> "Nothing else scheduled today"
     }
@@ -206,7 +217,18 @@ private fun TodayCard(today: TodayState, is24Hour: Boolean, isPermissionGranted:
             Spacer(modifier = Modifier.height(dimens.tightGap))
             TodayStrip(today = today, is24Hour = is24Hour)
             Spacer(modifier = Modifier.height(dimens.tightGap))
-            Text(text = sentence, style = typography.bodyRegular, color = colors.text)
+            if (running.isEmpty()) {
+                Text(text = sentence, style = typography.bodyRegular, color = colors.text)
+            } else {
+                running.forEach {
+                    RunningScheduleLine(
+                        name = it.name,
+                        end = formatTime(it.at.hour, it.at.minute, is24Hour),
+                        colorIndex = scheduleColorIndex(it.scheduleId),
+                        style = typography.bodyRegular,
+                    )
+                }
+            }
         }
     }
 }
@@ -260,17 +282,10 @@ private fun ScheduleRow(
                     color = colors.text,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                // Decorative: the row already announces "Edit <name>" as its click action.
-                Icon(
-                    imageVector = Icons.Outlined.Edit,
-                    contentDescription = null,
-                    tint = colors.textMuted,
-                    modifier = Modifier.size(dimens.iconSm),
-                )
                 if (isFiringNow) NowPill()
             }
             Text(text = times, style = typography.monoSmall, color = colors.text)
-            Text(text = days, style = typography.labelSmall, color = colors.textMuted)
+            Text(text = days, style = typography.caption, color = colors.textMuted)
             when {
                 error != null -> ProblemLine(Icons.Filled.Warning, error, colors.warning, live = true)
                 needsPermission -> ProblemLine(

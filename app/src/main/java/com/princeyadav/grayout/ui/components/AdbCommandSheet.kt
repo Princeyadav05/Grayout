@@ -93,10 +93,10 @@ fun AdbCommandSheet(
         dragHandle = {
             Box(
                 modifier = Modifier
-                    .padding(top = 12.dp)
-                    .width(32.dp)
-                    .height(4.dp)
-                    .background(colors.borderActive, RoundedCornerShape(2.dp)),
+                    .padding(top = dimens.cardGap)
+                    .width(dimens.dragHandleWidth)
+                    .height(dimens.dragHandleHeight)
+                    .background(colors.borderActive, RoundedCornerShape(dimens.radiusFull)),
             )
         },
     ) {
@@ -285,7 +285,7 @@ private fun SheetAction(
     ) {
         Text(
             text = label,
-            style = typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
+            style = typography.caption.copy(fontWeight = FontWeight.ExtraBold),
             color = when {
                 primary -> colors.bg
                 highlighted -> colors.accent

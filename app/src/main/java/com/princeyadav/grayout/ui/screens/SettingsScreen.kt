@@ -36,6 +36,7 @@ fun SettingsScreen(
     isServiceRunning: Boolean,
     /** False when the service stops by design: automatic restore is off and no app is kept in color. */
     isServiceExpected: Boolean,
+    isAnyScheduleEnabled: Boolean,
     versionName: String,
     isAdbPermissionGranted: Boolean,
     isUsageAccessGranted: Boolean,
@@ -90,7 +91,7 @@ fun SettingsScreen(
 
         AboutCard(
             versionName = versionName,
-            status = aboutStatusLine(isGrayscaleOn, isServiceRunning, isServiceExpected),
+            status = aboutStatusLine(isGrayscaleOn, isServiceRunning, isServiceExpected, isAnyScheduleEnabled),
         )
 
         Spacer(modifier = Modifier.height(dimens.sectionGap))

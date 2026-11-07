@@ -40,7 +40,7 @@ class SchedulePermissionGrantTest {
         try {
             ActivityScenario.launch(MainActivity::class.java).use {
                 composeRule.onNodeWithText("Schedules").performClick()
-                composeRule.onNodeWithText("+ Add").performClick()
+                composeRule.onNodeWithText("Add").performClick()
                 composeRule.onNode(hasSetTextAction()).performTextReplacement("Preserved after setup")
                 composeRule.onNodeWithText("Every day").performScrollTo().performClick()
                 composeRule.onNodeWithText("Save").performScrollTo().performClick()
@@ -58,7 +58,7 @@ class SchedulePermissionGrantTest {
                 composeRule.onNodeWithText("Preserved after setup").performScrollTo().assertIsDisplayed()
                 composeRule.onNodeWithText("Save").performScrollTo().performClick()
                 composeRule.waitUntil(5_000) {
-                    composeRule.onAllNodes(hasText("+ Add")).fetchSemanticsNodes().isNotEmpty()
+                    composeRule.onAllNodes(hasText("Add")).fetchSemanticsNodes().isNotEmpty()
                 }
                 runBlocking {
                     val saved = dao.getAll().single()

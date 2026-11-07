@@ -69,6 +69,12 @@ data class GrayoutTypography(
         fontSize = 12.sp,
         letterSpacing = 0.5.sp,
     ),
+    /** Mixed-case tags ("Schedule", "Weekdays · ends next day"): labelSmall size without the tracking. */
+    val caption: TextStyle = TextStyle(
+        fontFamily = GeistFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+    ),
     val labelXSmall: TextStyle = TextStyle(
         fontFamily = GeistFamily,
         fontWeight = FontWeight.SemiBold,

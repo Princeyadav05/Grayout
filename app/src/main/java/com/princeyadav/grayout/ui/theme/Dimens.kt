@@ -27,6 +27,23 @@ data class GrayoutDimens(
     val iconSm: Dp = 16.dp,
     val iconMd: Dp = 20.dp,
     val stepSize: Dp = 24.dp,
+    val iconLg: Dp = 24.dp,
+    val navIcon: Dp = 22.dp,
+    val navPillWidth: Dp = 52.dp,
+    val navPillHeight: Dp = 30.dp,
+    val borderThick: Dp = 2.dp,
+    val radiusXs: Dp = 4.dp,
+    val appIcon: Dp = 40.dp,
+    val iconButton: Dp = 40.dp,
+    val dayCircle: Dp = 40.dp,
+    val presetPadH: Dp = 14.dp,
+    val presetPadV: Dp = 6.dp,
+    val dragHandleWidth: Dp = 32.dp,
+    val dragHandleHeight: Dp = 4.dp,
+    val toggleWidth: Dp = 56.dp,
+    val toggleHeight: Dp = 31.dp,
+    val toggleThumb: Dp = 25.dp,
+    val toggleInset: Dp = 3.dp,
 )
 
 val LocalGrayoutDimens = staticCompositionLocalOf { GrayoutDimens() }

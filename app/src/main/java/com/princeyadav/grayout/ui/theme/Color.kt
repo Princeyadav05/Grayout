@@ -8,10 +8,12 @@ val Bg = Color(0xFF0B0B0B)
 val Surface = Color(0xFF161616)
 val Border = Color(0xFF2A2A2A)
 val BorderActive = Color(0xFF555555)
+/** Darkest neutral gray at 3:1 on both surface (3.01) and bg (3.28): outlines of unselected controls. */
+val ControlOutline = Color(0xFF636363)
 val TextPrimary = Color(0xFFE8E8E8)
 val TextMuted = Color(0xFF999999)
 val Off = Color(0xFF3A3A3A)
-val OffText = Color(0xFF666666)
+val OffText = Color(0xFF6B6B6B)
 val Danger = Color(0xFFFF6B6B)
 val Success = Color(0xFF6BE8A0)
 val Warning = Color(0xFFFFC857)
@@ -34,6 +36,7 @@ data class GrayoutColors(
     val surface: Color = Surface,
     val border: Color = Border,
     val borderActive: Color = BorderActive,
+    val controlOutline: Color = ControlOutline,
     val text: Color = TextPrimary,
     val textMuted: Color = TextMuted,
     val off: Color = Off,
