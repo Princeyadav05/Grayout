@@ -19,7 +19,7 @@ A personal Android app that enforces grayscale mode to reduce phone addiction.
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/03-exclusions.png" width="250" alt="Kept in color screen with Camera, Maps, and Photos kept in color above the full app list" />
 </p>
 
-https://github.com/user-attachments/assets/91227ef3-df17-47fe-8e97-8e6ab63771be
+https://github.com/user-attachments/assets/8ba2b2ca-bc99-43ed-bf50-ecd9b86ee4ba
 
 [Download the walkthrough (MP4)](https://github.com/Princeyadav05/Grayout/releases/download/v1.5.0/grayout-demo-v1.5.0.mp4)
 
