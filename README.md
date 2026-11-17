@@ -23,7 +23,7 @@ https://github.com/user-attachments/assets/91227ef3-df17-47fe-8e97-8e6ab63771be
 
 [Download the walkthrough (MP4)](https://github.com/Princeyadav05/Grayout/releases/download/v1.5.0/grayout-demo-v1.5.0.mp4)
 
-Screenshots and walkthrough captured from v1.5.0 on an Android 12 emulator with sample data. These captures show the app interface; the phone's display-level grayscale effect is not reproduced in the screenshots or recording.
+Screenshots and walkthrough captured from v1.5.0 on an Android 12 emulator with sample data. Android applies grayscale after the screen is captured, so the raw captures come out in color. They are converted to grayscale here to match what you see on the phone.
 
 ## Requirements
 
